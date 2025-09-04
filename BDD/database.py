@@ -3,7 +3,7 @@ from sqlalchemy import DateTime, create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 # Cambia la ruta y el motor según tu base de datos
-DATABASE_URL = r"sqlite:///C:/Users/LENOVO/Desktop/- FACU -/3er AÑO -/SEM -/DatabaseProyecto v.1/database.db"
+DATABASE_URL = "sqlite:///C:/Users/LENOVO/Desktop/- FACU -/3er AÑO -/SEM -/DatabaseProyecto v.1/database.db"
 
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
