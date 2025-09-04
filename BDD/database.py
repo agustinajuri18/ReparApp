@@ -15,7 +15,7 @@ from sqlalchemy import Column, Integer, String
 
 class Usuario(Base):
     __tablename__ = "usuario"
-    id_usuario = Column(String, primary_key=True, index=True)
+    id_usuario = Column(Integer, primary_key=True, index=True)
     contrasena = Column(String, nullable=False)
 
 class Cliente(Base):
@@ -41,7 +41,7 @@ class Empleado(Base):
     nombre = Column(String, nullable=False)
     apellido = Column(String, nullable=False)
     id_rol = Column(Integer, nullable=False)
-    id_usuario = Column(String, nullable=False)
+    id_usuario = Column(Integer, nullable=False)
 
 class Estado(Base):
     __tablename__ = "estado"
@@ -117,7 +117,7 @@ class Servicio(Base):
 class Sesion(Base):
     __tablename__ = "Sesion"
     cod_sesion = Column(Integer, primary_key=True, index=True)
-    id_usuario = Column(String, nullable=False)
+    id_usuario = Column(Integer, nullable=False)
     fecha = Column(Date, nullable=False)
     horaInicio = Column(Time, nullable=False)
     horaFin = Column(Time, nullable=False)
