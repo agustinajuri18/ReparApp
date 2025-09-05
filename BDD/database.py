@@ -1,15 +1,26 @@
+import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Date, Time
 from sqlalchemy import DateTime, create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, Integer, String
 
 # Cambia la ruta y el motor según tu base de datos
-DATABASE_URL = "sqlite:///C:/Users/bauti/Downloads/ProyectoInt[v.1].db"
+# Obtener ruta absoluta del directorio actual (donde está database.py)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Ruta completa al archivo reparapp.db dentro de esta carpeta
+db_path = os.path.join(BASE_DIR, "reparapp.db")
+
+# Construir la URL para SQLite
+DATABASE_URL = f"sqlite:///{db_path}"
+
+# Crear engine y sesión
 
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
-
 
 class Usuario(Base):
     __tablename__ = "Usuario"
@@ -134,3 +145,7 @@ class Sesion(Base):
     fecha = Column(Date, nullable=False)
     horaInicio = Column(Time, nullable=False)
     horaFin = Column(Time, nullable=False)
+
+
+# Crear todas las tablas en la base de datos
+Base.metadata.create_all(bind=engine)

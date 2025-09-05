@@ -1,8 +1,7 @@
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from BDD.database import SessionLocal, Usuario, Cliente, Dispositivo, Empleado, Estado, HistorialArreglos, OrdenDeReparacion, Rol, Servicio, Repuesto, HistorialEstadoOrden, Proveedor, Permiso, RolxPermiso, RespuestoxServicio
-
+from ReparApp.BDD.database import SessionLocal, Usuario, Cliente, Dispositivo, Empleado, Estado, HistorialArreglos, OrdenDeReparacion, Rol, Servicio, Repuesto, HistorialEstadoOrden, Proveedor, Permiso, RolxPermiso, RespuestoxServicio
 
 # ----------- ABMC para Usuario -----------
 def alta_usuario(id_usuario, password):
@@ -425,3 +424,4 @@ def asignar_permiso_a_rol(id_rol, id_permiso):
         session.add(rolxpermiso)
         session.commit()
     session.close()
+
