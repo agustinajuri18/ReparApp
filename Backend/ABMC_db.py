@@ -406,6 +406,12 @@ def mostrar_proveedores():
     session.close()
     return proveedores
 
+def buscar_proveedor(cuil):
+    session = SessionLocal()
+    proveedor = session.query(Proveedor).get(cuil)
+    session.close()
+    return proveedor
+
 
 #----------- ABMC para Permiso -----------
 
