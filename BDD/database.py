@@ -134,14 +134,3 @@ class Sesion(Base):
     fecha = Column(Date, nullable=False)
     horaInicio = Column(Time, nullable=False)
     horaFin = Column(Time, nullable=False)
-
-
-def mostrar_usuarios():
-    session = SessionLocal()
-    usuarios = session.query(Usuario).all()
-    for usuario in usuarios:
-        print(f"ID: {usuario.id_usuario}, Contraseña: {usuario.password}")
-    session.close()
-
-if __name__ == "__main__":
-    mostrar_usuarios()
