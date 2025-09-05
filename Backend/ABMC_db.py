@@ -60,8 +60,6 @@ def alta_cliente(tipo_documento, numero_dni, nombre, apellido, telefono, mail):
     session.commit()
     session.close()
 
-#NO ACLARA SI PUEDEN O NO ELIMNARSE CLIENTES
-
 def modificar_clientes(numero_dni, tipo_documento, nombre, apellido, telefono, mail):
     session = SessionLocal()
     cliente = session.query(Usuario).get(numero_dni)
@@ -427,4 +425,3 @@ def asignar_permiso_a_rol(id_rol, id_permiso):
         session.add(rolxpermiso)
         session.commit()
     session.close()
-
