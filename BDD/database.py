@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, Integer, String
 
 # Cambia la ruta y el motor según tu base de datos
-DATABASE_URL = "sqlite:///C:/Users/bauti/Downloads/ProyectoInt[v.1].db"
+DATABASE_URL = "sqlite:///C:/Users/LENOVO/Desktop/- FACU -/3er AÑO -/SEM -/DatabaseProyecto v.1/ProyectoInt[v.1].db"
 
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -13,7 +13,7 @@ Base = declarative_base()
 
 class Usuario(Base):
     __tablename__ = "Usuario"
-    id_usuario = Column(Integer, primary_key=True, index=True)
+    id_usuario = Column(String, primary_key=True, index=True)
     password = Column(String, nullable=False)
 
 
@@ -42,7 +42,7 @@ class Empleado(Base):
     nombre = Column(String, nullable=False)
     apellido = Column(String, nullable=False)
     id_rol = Column(Integer, nullable=False)
-    id_usuario = Column(Integer, nullable=False)
+    id_usuario = Column(String, nullable=False)
 
 
 class Estado(Base):
@@ -130,7 +130,7 @@ class Servicio(Base):
 class Sesion(Base):
     __tablename__ = "Sesion"
     cod_sesion = Column(Integer, primary_key=True, index=True)
-    id_usuario = Column(Integer, nullable=False)
+    id_usuario = Column(String, nullable=False)
     fecha = Column(Date, nullable=False)
     horaInicio = Column(Time, nullable=False)
     horaFin = Column(Time, nullable=False)

@@ -5,6 +5,8 @@ from ABMC_db import *
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:5173"])
 
+DATABASE_URL = "sqlite:///C:/Users/LENOVO/Desktop/- FACU -/3er AÑO -/SEM -/DatabaseProyecto v.1/ProyectoInt[v.1].db"
+
 @app.route("/clientes/", methods=["POST"])
 def registrar_cliente():
     data = request.get_json()
