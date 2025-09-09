@@ -1,16 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MenuLateral from './MenuLateral';
 
 
-const registrarCliente = async (cliente) => {
-  const response = await fetch('http://localhost:5000/clientes/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(cliente)
-  });
-  const data = await response.json();
-  return data;
-};
 
 const Clientes = () => {
   const [mensaje, setMensaje] = useState("");
@@ -23,16 +14,43 @@ const Clientes = () => {
     telefono: '',
     mail: ''
   });
+  const [clientes, setClientes] = useState([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalModo, setModalModo] = useState('consultar');
+  const [clienteActual, setClienteActual] = useState(null);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
 
-  const handleAgregarClick = () => {
-    setMostrarFormulario(!mostrarFormulario);
-    setMensaje("");
-  };
 
+
+
+
+
+  // CARGA DE CLIENTES AL RENDERIZAR EL COMPONENTE
+  useEffect(() => {
+    const fetchClientes = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/clientes/');
+        const data = await response.json();
+        setClientes(Array.isArray(data) ? data : []);
+      } catch (error) {
+        setMensaje("Error al cargar clientes.");
+      }
+    };
+    fetchClientes();
+  }, []);
+
+
+
+
+
+
+
+
+
+
+
+
+  //REGISTRO DE CLIENTES
   const handleSubmit = async (e) => {
     e.preventDefault();
     const resultado = await registrarCliente(formData);
@@ -46,7 +64,99 @@ const Clientes = () => {
       telefono: '',
       mail: ''
     });
+    // Actualiza la lista de clientes (simulado)
+    setClientes([...clientes, formData]);
   };
+
+  const registrarCliente = async (cliente) => {
+    const response = await fetch('http://localhost:5000/clientes/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cliente)
+    });
+    return await response.json();
+  };
+
+
+
+
+
+
+  // CONSULTA DE CLIENTES
+  const handleConsultar = async (dni) => {
+    const datos = await consultarCliente(dni);
+    setClienteActual(datos);
+    setModalModo('consultar');
+    setModalVisible(true);
+  };
+
+  const consultarCliente = async (dni) => {
+    const response = await fetch(`http://localhost:5000/clientes/${dni}`);
+    return await response.json();
+  };
+
+
+
+
+
+
+
+
+  // MODIFICACION DE CLIENTES
+  const handleModificar = async (dni) => {
+    const datos = await consultarCliente(dni);
+    setClienteActual({ ...datos }); // Copia para edición local
+    setModalModo('modificar');
+    setModalVisible(true);
+  };
+
+  
+
+  // API: Modificar cliente por DNI
+  const modificarCliente = async (dni, datos) => {
+    const response = await fetch(`http://localhost:5000/clientes/${dni}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(datos)
+    });
+    return await response.json();
+  };
+
+
+  // Guardar cambios en cliente
+  const handleModalSave = async (e) => {
+    e.preventDefault(); // Evita que el formulario recargue la página al enviar.
+    if (clienteActual) { // Verifica que hay un cliente seleccionado para editar.
+      const resultado = await modificarCliente(clienteActual.numero_dni, clienteActual); // Envía los datos modificados al backend usando la API.
+      setMensaje(resultado.mensaje || resultado.detail); // Muestra el mensaje de respuesta del backend.
+      setModalVisible(false); // Cierra el modal de edición.
+      setClienteActual(null); // Limpia el estado del cliente actual.
+      setClientes(clientes.map(c => c.numero_dni === clienteActual.numero_dni ? clienteActual : c)); // Actualiza la lista de clientes en el frontend con los datos modificados.
+    }
+  };
+
+
+
+
+
+
+
+
+
+  const handleModalClose = () => {
+    setModalVisible(false);
+    setClienteActual(null);
+  };
+
+  const handleAgregarClick = () => {
+    setMostrarFormulario(!mostrarFormulario);
+    setMensaje("");
+  };
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
   return (
     <div className="container-fluid" style={{ backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
       <div className="row">
@@ -91,6 +201,64 @@ const Clientes = () => {
                   {mensaje}
                 </div>
               )}
+              {/* Modal para consultar o modificar cliente */}
+              {modalVisible && clienteActual && (
+                <div className="modal fade show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
+                  <div className="modal-dialog">
+                    <div className="modal-content">
+                      <div className="modal-header">
+                        <h5 className="modal-title">
+                          {modalModo === 'consultar' ? 'Datos del Cliente' : 'Modificar Cliente'}
+                        </h5>
+                        <button type="button" className="btn-close" onClick={handleModalClose}></button>
+                      </div>
+                      <div className="modal-body">
+                        {modalModo === 'consultar' ? (
+                          <ul className="list-group">
+                            <li className="list-group-item"><b>Tipo Documento:</b> {clienteActual.tipo_documento}</li>
+                            <li className="list-group-item"><b>DNI:</b> {clienteActual.numero_dni}</li>
+                            <li className="list-group-item"><b>Nombre:</b> {clienteActual.nombre}</li>
+                            <li className="list-group-item"><b>Apellido:</b> {clienteActual.apellido}</li>
+                            <li className="list-group-item"><b>Teléfono:</b> {clienteActual.telefono}</li>
+                            <li className="list-group-item"><b>Correo:</b> {clienteActual.mail}</li>
+                          </ul>
+                        ) : (
+                          <form onSubmit={handleModalSave}>
+                            <div className="mb-2">
+                              <label className="form-label">Tipo Documento</label>
+                              <input type="text" className="form-control" value={clienteActual.tipo_documento} onChange={e => setClienteActual({ ...clienteActual, tipo_documento: e.target.value })} />
+                            </div>
+                            <div className="mb-2">
+                              <label className="form-label">DNI</label>
+                              <input type="text" className="form-control" value={clienteActual.numero_dni} onChange={e => setClienteActual({ ...clienteActual, numero_dni: e.target.value })} />
+                            </div>
+                            <div className="mb-2">
+                              <label className="form-label">Nombre</label>
+                              <input type="text" className="form-control" value={clienteActual.nombre} onChange={e => setClienteActual({ ...clienteActual, nombre: e.target.value })} />
+                            </div>
+                            <div className="mb-2">
+                              <label className="form-label">Apellido</label>
+                              <input type="text" className="form-control" value={clienteActual.apellido} onChange={e => setClienteActual({ ...clienteActual, apellido: e.target.value })} />
+                            </div>
+                            <div className="mb-2">
+                              <label className="form-label">Teléfono</label>
+                              <input type="text" className="form-control" value={clienteActual.telefono} onChange={e => setClienteActual({ ...clienteActual, telefono: e.target.value })} />
+                            </div>
+                            <div className="mb-2">
+                              <label className="form-label">Correo</label>
+                              <input type="email" className="form-control" value={clienteActual.mail} onChange={e => setClienteActual({ ...clienteActual, mail: e.target.value })} />
+                            </div>
+                            <div className="d-flex justify-content-end">
+                              <button type="submit" className="btn btn-success me-2">Guardar</button>
+                              <button type="button" className="btn btn-secondary" onClick={handleModalClose}>Cancelar</button>
+                            </div>
+                          </form>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="table-responsive">
                 <table className="table table-striped table-hover">
                   <thead>
@@ -104,18 +272,23 @@ const Clientes = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td>12345678</td>
-                      <td>Juan</td>
-                      <td>Pérez</td>
-                      <td>113000-1111</td>
-                      <td>juan.perez@example.com</td>
-                      <td>
-                        <button className="btn btn-info btn-sm me-1"><i className="bi bi-eye"></i></button>
-                        <button className="btn btn-warning btn-sm me-1"><i className="bi bi-pencil"></i></button>
-                        <button className="btn btn-danger btn-sm"><i className="bi bi-trash"></i></button>
-                      </td>
-                    </tr>
+                    {clientes.map(cliente => (
+                      <tr key={cliente.numero_dni}>
+                        <td>{cliente.numero_dni}</td>
+                        <td>{cliente.nombre}</td>
+                        <td>{cliente.apellido}</td>
+                        <td>{cliente.telefono}</td>
+                        <td>{cliente.mail}</td>
+                        <td>
+                          <button className="btn btn-info btn-sm me-1" onClick={() => handleConsultar(cliente.numero_dni)}>
+                            <span title="Consultar"><i className="bi bi-eye"></i></span> Consultar
+                          </button>
+                          <button className="btn btn-warning btn-sm me-1" onClick={() => handleModificar(cliente.numero_dni)}>
+                            <span title="Modificar"><i className="bi bi-pencil-square"></i></span> Modificar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

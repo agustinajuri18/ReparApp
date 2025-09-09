@@ -48,5 +48,17 @@ def mostrar_cliente(numero_dni):
         return jsonify(cliente_dict), 200
     return jsonify({"detail": "Cliente no encontrado"}), 404
 
+@app.route("/clientes/", methods=["GET"])
+def listar_clientes():
+    clientes = mostrar_clientes()  # función que retorna la lista
+    return jsonify([{
+        "tipo_documento": c.tipo_documento,
+        "numero_dni": c.numero_dni,
+        "nombre": c.nombre,
+        "apellido": c.apellido,
+        "telefono": c.telefono,
+        "mail": c.mail
+    } for c in clientes]), 200
+
 if __name__ == "__main__":
     app.run(debug=True)

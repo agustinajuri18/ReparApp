@@ -34,9 +34,15 @@ const Usuarios = () => {
                         <td>{user.id}</td>
                         <td>{user.password}</td>
                         <td>
-                          <button className="btn btn-info btn-sm me-1"><i className="bi bi-eye"></i></button>
-                          <button className="btn btn-warning btn-sm me-1"><i className="bi bi-pencil"></i></button>
-                          <button className="btn btn-danger btn-sm"><i className="bi bi-trash"></i></button>
+                          <button className="btn btn-info btn-sm me-1">
+                            <span title="Consultar"><i className="bi bi-eye"></i></span> Consultar
+                          </button>
+                          <button className="btn btn-warning btn-sm me-1">
+                            <span title="Modificar"><i className="bi bi-pencil-square"></i></span> Modificar
+                          </button>
+                          <button className="btn btn-danger btn-sm">
+                            <span title="Eliminar"><i className="bi bi-x-circle"></i></span> Eliminar
+                          </button>
                         </td>
                       </tr>
                     ))}
