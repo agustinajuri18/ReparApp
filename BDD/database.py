@@ -1,7 +1,7 @@
 from sqlalchemy import Date, Time
 from sqlalchemy import DateTime, create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, ForeignKey
 
 # Cambia la ruta y el motor según tu base de datos
 DATABASE_URL = "sqlite:///C:/Users/LENOVO/Desktop/- FACU -/3er AÑO -/SEM -/DatabaseProyecto v.1/ProyectoInt[v.1].db"
@@ -13,14 +13,20 @@ Base = declarative_base()
 
 class Usuario(Base):
     __tablename__ = "Usuario"
-    id_usuario = Column(String, primary_key=True, index=True)
+    idUsuario = Column(String, primary_key=True, index=True)
     password = Column(String, nullable=False)
+
+
+class Rol(Base):
+    __tablename__ = "Rol"
+    idRol = Column(Integer, primary_key=True, index=True)
+    descripcion = Column(String, nullable=False)
 
 
 class Cliente(Base):
     __tablename__ = "Cliente"
-    tipo_documento = Column(String, primary_key=True, index=True)
-    numero_dni = Column(Integer, primary_key=True, index=True)
+    tipoDocumento = Column(String, primary_key=True, index=True)
+    numeroDni = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, nullable=False)
     apellido = Column(String, nullable=False)
     telefono = Column(Integer, nullable = False)
@@ -32,92 +38,23 @@ class Dispositivo(Base):
     nroSerie = Column(String, primary_key=True, index=True)
     marca = Column(String, nullable=False)
     modelo = Column(String, nullable=False)
-    clienteTipoDni = Column(String, nullable=False)
-    clienteDni = Column(Integer, nullable=False)
+    clienteTipoDni = Column(String, ForeignKey(Cliente.tipoDoocumento), nullable=False)
+    clienteDni = Column(Integer, ForeignKey(Cliente.numeroDni), nullable=False)
 
 
 class Empleado(Base):
     __tablename__ = "Empleado"
-    id_empleado = Column(Integer, primary_key=True, index=True)
+    idEmpleado = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, nullable=False)
     apellido = Column(String, nullable=False)
-    id_rol = Column(Integer, nullable=False)
-    id_usuario = Column(String, nullable=False)
+    idRol = Column(Integer, ForeignKey(Rol.idRol), nullable=False)
+    idUsuario = Column(String, ForeignKey(Usuario.idUsuario), nullable=False)
 
 
 class Estado(Base):
     __tablename__ = "Estado"
-    cod_estado = Column(Integer, primary_key=True, index=True)
+    codEstado = Column(Integer, primary_key=True, index=True)
     descripcion = Column(String, nullable=False)
-
-
-class HistorialArreglos(Base):
-    __tablename__ = "HistorialArreglos"
-    nroSerie_dispositivo = Column(String, primary_key=True, index=True)
-    nroDeOrden = Column(Integer, primary_key=True, index=True)
-
-
-class OrdenDeReparacion(Base):
-    __tablename__ = "OrdenDeReparacion"
-    nroDeOrden = Column(Integer, primary_key=True, index=True)
-    nroSerie_dispositivo = Column(String, nullable=False)
-    fecha = Column(Date, nullable=False)
-    descripcion_danos = Column(String, nullable=False)
-    diagnostico = Column(String, nullable=False)
-    codigo_servicio = Column(Integer, nullable=False)
-    presupuesto = Column(Integer, nullable=False)
-    id_empleado = Column(Integer, nullable=False)
-
-
-class HistorialEstadoOrden(Base):
-    __tablename__ = "HistorialEstadoOrden"
-    nroDeOrden = Column(Integer, primary_key=True, index=True)
-    cod_estado = Column(Integer, primary_key=True, index=True)
-    fechaInicio = Column(DateTime, nullable=False)
-    fechaFin = Column(DateTime, nullable=True)
-
-
-class Permiso(Base):
-    __tablename__ = "Permiso"
-    id_permiso = Column(Integer, primary_key=True, index=True)
-    descripcion = Column(String, nullable=False)
-
-
-class Proveedor(Base):
-    __tablename__ = "Proveedor"
-    cuil = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, nullable=False)
-    telefono = Column(Integer, nullable=False)
-    razon_social = Column(String, nullable=False)
-
-
-class Repuesto(Base):
-    __tablename__ = "Repuesto"
-    codigo = Column(Integer, primary_key=True, index=True)
-    marca = Column(String, nullable=False)
-    modelo = Column(String, nullable=False)
-    tipo = Column(String, nullable=False)
-    cuil_proveedor = Column(Integer, nullable=False)
-    costo = Column(Integer, nullable=False)
-
-
-class RespuestoxServicio(Base):
-    __tablename__ = "RespuestoxServicio"
-    codigo_servicio = Column(Integer, primary_key=True, index=True)
-    codigo_repuesto = Column(Integer, primary_key=True, index = True)
-    cantidad = Column(Integer, nullable=False)
-
-
-class Rol(Base):
-    __tablename__ = "Rol"
-    id_rol = Column(Integer, primary_key=True, index=True)
-    descripcion = Column(String, nullable=False)
-
-
-class RolxPermiso(Base):
-    __tablename__ = "RolxPermiso"
-    id_rol = Column(Integer, primary_key=True, index=True)
-    id_permiso = Column(Integer, primary_key=True, index=True)
 
 
 class Servicio(Base):
@@ -127,10 +64,72 @@ class Servicio(Base):
     precioBase = Column(Integer, nullable=False)
 
 
+class OrdenDeReparacion(Base):
+    __tablename__ = "OrdenDeReparacion"
+    nroDeOrden = Column(Integer, primary_key=True, index=True)
+    nroSerieDispositivo = Column(String, ForeignKey(Dispositivo.nroSerie), nullable=False)
+    fecha = Column(Date, nullable=False)
+    descripcionDanos = Column(String, nullable=False)
+    diagnostico = Column(String, nullable=False)
+    codigoServicio = Column(Integer, ForeignKey(Servicio.codigo), nullable=False)
+    presupuesto = Column(Integer, nullable=False)
+    idEmpleado = Column(Integer,ForeignKey(Empleado.idEmpleado), nullable=False)
+
+
+class HistorialArreglos(Base):
+    __tablename__ = "HistorialArreglos"
+    nroSerieDispositivo = Column(String, primary_key=True, index=True)
+    nroDeOrden = Column(Integer, primary_key=True, index=True)
+
+
+class HistorialEstadoOrden(Base):
+    __tablename__ = "HistorialEstadoOrden"
+    nroDeOrden = Column(Integer, primary_key=True, index=True)
+    codEstado = Column(Integer, primary_key=True, index=True)
+    fechaInicio = Column(DateTime, nullable=False)
+    fechaFin = Column(DateTime, nullable=True)
+
+
+class Permiso(Base):
+    __tablename__ = "Permiso"
+    idPermiso = Column(Integer, primary_key=True, index=True)
+    descripcion = Column(String, nullable=False)
+
+
+class Proveedor(Base):
+    __tablename__ = "Proveedor"
+    cuil = Column(Integer, primary_key=True, index=True)
+    razonSocial = Column(String, nullable=False)
+    telefono = Column(Integer, nullable=False)
+
+
+class Repuesto(Base):
+    __tablename__ = "Repuesto"
+    codigo = Column(Integer, primary_key=True, index=True)
+    marca = Column(String, nullable=False)
+    modelo = Column(String, nullable=False)
+    tipo = Column(String, nullable=False)
+    cuilProveedor = Column(Integer,ForeignKey(Proveedor.cuil), nullable=False)
+    costo = Column(Integer, nullable=False)
+
+
+class RespuestoxServicio(Base):
+    __tablename__ = "RespuestoxServicio"
+    codigoServicio = Column(Integer, primary_key=True, index=True)
+    codigoRepuesto = Column(Integer, primary_key=True, index = True)
+    cantidad = Column(Integer, nullable=False)
+
+
+class RolxPermiso(Base):
+    __tablename__ = "RolxPermiso"
+    idRol = Column(Integer, primary_key=True, index=True)
+    idPermiso = Column(Integer, primary_key=True, index=True)
+
+
 class Sesion(Base):
     __tablename__ = "Sesion"
-    cod_sesion = Column(Integer, primary_key=True, index=True)
-    id_usuario = Column(String, nullable=False)
+    codSesion = Column(Integer, primary_key=True, index=True)
+    idUsuario = Column(String, ForeignKey(Usuario.idUsuario), nullable=False)
     fecha = Column(Date, nullable=False)
     horaInicio = Column(Time, nullable=False)
     horaFin = Column(Time, nullable=False)
