@@ -1,7 +1,12 @@
 from flask import Flask, request, jsonify
+
+from flask_cors import CORS
 from ABMC_db import *
 
+
 app = Flask(__name__)
+CORS(app)
+
 
 @app.route("/usuarios/", methods=["POST"])
 def registrar_usuario():

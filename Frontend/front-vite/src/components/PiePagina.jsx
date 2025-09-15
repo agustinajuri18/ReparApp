@@ -1,7 +1,8 @@
+
 import React from "react";
 
 const PiePagina = () => (
-  <footer className="bg-light text-center py-3">
+  <footer style={{ background: '#1f3345', color: '#f0ede5', textAlign: 'center', padding: '1rem', fontWeight: 600, letterSpacing: 1 }}>
     <span>© 2025 ReparApp</span>
   </footer>
 );

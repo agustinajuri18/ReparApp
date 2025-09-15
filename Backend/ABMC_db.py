@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from BDD.database import SessionLocal, Usuario, Cliente, Dispositivo, Empleado, Estado, HistorialArreglos, OrdenDeReparacion, Rol, Servicio, Repuesto, HistorialEstadoOrden, Proveedor, Permiso, RolxPermiso, RespuestoxServicio
+from BDD.database import SessionLocal, Usuario, Cliente, Dispositivo, Empleado, Estado, HistorialArreglos, OrdenDeReparacion, Rol, Servicio, Repuesto, HistorialEstadoOrden, Proveedor, Permiso, RolxPermiso, RepuestoxServicio
 
 
 # ----------- ABMC para Usuario -----------
@@ -16,9 +16,10 @@ def baja_usuario(id_usuario):
     session = SessionLocal()
     usuario = session.query(Usuario).get(id_usuario)
     if usuario:
-        session.delete(usuario)
+        usuario.activo = 0
         session.commit()
     session.close()
+
 
 def modificar_usuario(id_usuario, nuevo_password):
     session = SessionLocal()
@@ -72,11 +73,22 @@ def modificar_clientes(numero_dni, tipo_documento, nombre, apellido, telefono, m
         session.commit()
     session.close()
 
-def mostrar_clientes():
+def mostrar_clientes(activos_only=True):
     session = SessionLocal()
-    clientes = session.query(Cliente).all()
+    if activos_only:
+        clientes = session.query(Cliente).filter_by(activo=1).all()
+    else:
+        clientes = session.query(Cliente).all()
     session.close()
     return clientes
+
+def baja_cliente(numero_dni):
+    session = SessionLocal()
+    cliente = session.query(Cliente).filter_by(numero_dni=numero_dni).first()
+    if cliente:
+        cliente.activo = 0
+        session.commit()
+    session.close()
 
 def mostrar_historial_arreglos_por_cliente(tipo_documento, numero_dni):
     session = SessionLocal()
@@ -298,7 +310,7 @@ def baja_servicio(codigo_servicio):
     session = SessionLocal()
     servicio = session.query(Servicio).get(codigo_servicio)
     if servicio:
-        session.delete(servicio)
+        servicio.activo = 0
         session.commit()
     session.close()
 
@@ -323,10 +335,10 @@ def baja_repuesto(codigo):
     session = SessionLocal()
     repuesto = session.query(Repuesto).get(codigo)
     if repuesto:
-        session.delete(repuesto)
+        repuesto.activo = 0
         session.commit()
     session.close()
-
+    
 def modificar_repuesto(codigo, marca, modelo, tipo, cuil_proveedor, costo):
     session = SessionLocal()
     repuesto = session.query(Repuesto).get(codigo)
@@ -361,7 +373,7 @@ def buscar_proveedor_por_repuesto(codigo):
         
 def buscar_repuesto_por_servicio(codigo_servicio):
     session = SessionLocal()
-    repuestos = session.query(Repuesto).join(RespuestoxServicio, Repuesto.codigo == RespuestoxServicio.codigo_repuesto).filter(RespuestoxServicio.codigo_servicio == codigo_servicio).all()
+    repuestos = session.query(Repuesto).join(RepuestoxServicio, Repuesto.codigo == RepuestoxServicio.codigo_repuesto).filter(RepuestoxServicio.codigo_servicio == codigo_servicio).all()
     session.close()
     return repuestos
 
@@ -384,7 +396,7 @@ def baja_proveedor(cuil):
     session = SessionLocal()
     proveedor = session.query(Proveedor).get(cuil)
     if proveedor:
-        session.delete(proveedor)
+        proveedor.activo = 0
         session.commit()
     session.close()
 
