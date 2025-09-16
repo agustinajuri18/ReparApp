@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from sqlalchemy import Column, Integer, String, ForeignKey
 
 # Cambia la ruta y el motor según tu base de datos
-DATABASE_URL = "sqlite:///C:/Users/bauti/Desktop/UTN/SEMINARIO INTEGRADOR/ProyectoInt[v.1].db"
+DATABASE_URL = "sqlite:///C:/Users/bauti/Desktop/UTN/SEMINARIO INTEGRADOR/ProyectoV2.db"
 
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -39,8 +39,8 @@ class Dispositivo(Base):
     nroSerie = Column(String, primary_key=True)
     marca = Column(String, nullable=False)
     modelo = Column(String, nullable=False)
-    clienteTipoDni = Column(String, ForeignKey("Cliente.tipo_documento"), nullable=False)
-    clienteDni = Column(Integer, ForeignKey("Cliente.numero_dni"), nullable=False)
+    clienteTipoDocumento = Column(String, ForeignKey("Cliente.tipoDocumento"), nullable=False)
+    clienteNumeroDni = Column(Integer, ForeignKey("Cliente.numeroDni"), nullable=False)
     activo = Column(Integer, nullable=False)
 
 
@@ -49,8 +49,8 @@ class Empleado(Base):
     idEmpleado = Column(Integer, primary_key=True)
     nombre = Column(String, nullable=False)
     apellido = Column(String, nullable=False)
-    idRol = Column(Integer, ForeignKey("Rol.id_rol"), nullable=False)
-    idUsuario = Column(String, ForeignKey("Usuario.id_usuario"), nullable=False)
+    idRol = Column(Integer, ForeignKey("Rol.idRol"), nullable=False)
+    idUsuario = Column(String, ForeignKey("Usuario.idUsuario"), nullable=False)
     activo = Column(Integer, nullable=False)
 
 
@@ -73,11 +73,11 @@ class OrdenDeReparacion(Base):
     nroDeOrden = Column(Integer, primary_key=True)
     nroSerieDispositivo = Column(String, ForeignKey("Dispositivo.nroSerie"), nullable=False)
     fecha = Column(String, nullable=False)
-    descripcionDaños = Column(String, nullable=False)
+    descripcionDanios = Column(String, nullable=False)
     diagnostico = Column(String, nullable=False)
     codigoServicio = Column(Integer, ForeignKey("Servicio.codigo"), nullable=False)
     presupuesto = Column(Integer, nullable=False)
-    idEmpleado = Column(Integer, ForeignKey("Empleado.id_empleado"), nullable=False)
+    idEmpleado = Column(Integer, ForeignKey("Empleado.idEmpleado"), nullable=False)
 
 
 class HistorialArreglos(Base):
@@ -88,8 +88,8 @@ class HistorialArreglos(Base):
 
 class HistorialEstadoOrden(Base):
     __tablename__ = "HistorialEstadoOrden"
-    codEstado = Column(Integer, ForeignKey("Estado.cod_estado"), primary_key=True)
-    nroDeOrden = Column(Integer, ForeignKey("OrdenDeReparacion.nroDeOrden"))
+    codEstado = Column(Integer, ForeignKey("Estado.codEstado"), primary_key=True)
+    nroDeOrden = Column(Integer, ForeignKey("OrdenDeReparacion.nroDeOrden"), primary_key=True)
     fechaInicio = Column(String, nullable=False)
     fechaFin = Column(String, nullable=True)
 
@@ -101,11 +101,11 @@ class Permiso(Base):
 
 
 class Proveedor(Base):
-    __tablename__ = "Proveedor"
+    __tablename__ = 'Proveedor'
     cuil = Column(Integer, primary_key=True)
     razonSocial = Column(String, nullable=False)
-    telefono = Column(Integer, nullable=False)
-    activo = Column(Integer, nullable=False)
+    telefono = Column(String, nullable=False)
+    activo = Column(Integer, default=1)  # <--- Debe estar presente
 
 
 class Repuesto(Base):
@@ -128,14 +128,18 @@ class RepuestoxServicio(Base):
 
 class RolxPermiso(Base):
     __tablename__ = "RolxPermiso"
-    idRol = Column(Integer, ForeignKey("Rol.id_rol"), primary_key=True)
-    idPermiso = Column(Integer, ForeignKey("Permiso.id_permiso"), primary_key=True)
+    idRol = Column(Integer, ForeignKey("Rol.idRol"), primary_key=True)
+    idPermiso = Column(Integer, ForeignKey("Permiso.idPermiso"), primary_key=True)
 
 
 class Sesion(Base):
     __tablename__ = "Sesion"
     codSesion = Column(Integer, primary_key=True)
-    idUsuario = Column(String, ForeignKey("Usuario.id_usuario"), nullable=False)
+    idUsuario = Column(String, ForeignKey("Usuario.idUsuario"), nullable=False)
     horaInicio = Column(Integer, nullable=False)
     horaFin = Column(String, nullable=False)
     fecha = Column(String, nullable=False)
+
+
+if __name__ == "__main__":
+    Base.metadata.create_all(engine)
