@@ -1,4 +1,3 @@
-
 // Import de los componentes desde la carpeta components
 import Empleados from "./components/Empleados.jsx"
 import Clientes from "./components/Clientes.jsx"
@@ -17,23 +16,25 @@ import { BrowserRouter, Routes, Route } from "react-router-dom"
 
 function App() {
   return (
-    <>
+    <div>
       <BrowserRouter>
-        <main>
-          <Routes>
-            <Route path='/' element={<Home />} />
-            <Route path='/clientes' element={<Clientes />} />
-            <Route path='/empleados' element={<Empleados />} />
-            <Route path='/repuestos' element={<Repuestos />} />
-            <Route path='/ordenes' element={<Ordenes />} />
-            <Route path='/usuarios' element={<Usuarios />} />
-            <Route path='/servicios' element={<Servicios />} />
-            <Route path='/proveedores' element={<Proveedores />} />
-          </Routes>
-        </main>
+        <div className="main-background">
+          <main>
+            <Routes>
+              <Route path='/' element={<Home />} />
+              <Route path='/clientes' element={<Clientes />} />
+              <Route path='/empleados' element={<Empleados />} />
+              <Route path='/repuestos' element={<Repuestos />} />
+              <Route path='/ordenes' element={<Ordenes />} />
+              <Route path='/usuarios' element={<Usuarios />} />
+              <Route path='/servicios' element={<Servicios />} />
+              <Route path='/proveedores' element={<Proveedores />} />
+            </Routes>
+          </main>
+        </div>
         <PiePagina />
       </BrowserRouter>
-    </>
+    </div>
   )
 }
 
