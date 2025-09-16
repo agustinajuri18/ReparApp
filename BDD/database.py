@@ -12,21 +12,21 @@ Base = declarative_base()
 
 class Usuario(Base):
     __tablename__ = "Usuario"
-    id_usuario = Column(String, primary_key=True)
+    idUsuario = Column(String, primary_key=True)
     password = Column(String, nullable=False)
     activo = Column(Integer, nullable=False)
 
 
 class Rol(Base):
     __tablename__ = "Rol"
-    id_rol = Column(Integer, primary_key=True)
+    idRol = Column(Integer, primary_key=True)
     descripcion = Column(String, nullable=False)
 
 
 class Cliente(Base):
     __tablename__ = "Cliente"
-    tipo_documento = Column(String, primary_key=True)
-    numero_dni = Column(Integer, primary_key=True)
+    tipoDocumento = Column(String, primary_key=True)
+    numeroDni = Column(Integer, primary_key=True)
     nombre = Column(String, nullable=False)
     apellido = Column(String, nullable=False)
     telefono = Column(Integer, nullable=False)
@@ -46,17 +46,17 @@ class Dispositivo(Base):
 
 class Empleado(Base):
     __tablename__ = "Empleado"
-    id_empleado = Column(Integer, primary_key=True)
+    idEmpleado = Column(Integer, primary_key=True)
     nombre = Column(String, nullable=False)
     apellido = Column(String, nullable=False)
-    id_rol = Column(Integer, ForeignKey("Rol.id_rol"), nullable=False)
-    id_usuario = Column(String, ForeignKey("Usuario.id_usuario"), nullable=False)
+    idRol = Column(Integer, ForeignKey("Rol.id_rol"), nullable=False)
+    idUsuario = Column(String, ForeignKey("Usuario.id_usuario"), nullable=False)
     activo = Column(Integer, nullable=False)
 
 
 class Estado(Base):
     __tablename__ = "Estado"
-    cod_estado = Column(Integer, primary_key=True)
+    codEstado = Column(Integer, primary_key=True)
     nombre = Column(String, nullable=False)
 
 
@@ -71,13 +71,13 @@ class Servicio(Base):
 class OrdenDeReparacion(Base):
     __tablename__ = "OrdenDeReparacion"
     nroDeOrden = Column(Integer, primary_key=True)
-    nroSerie_dispositivo = Column(String, ForeignKey("Dispositivo.nroSerie"), nullable=False)
+    nroSerieDispositivo = Column(String, ForeignKey("Dispositivo.nroSerie"), nullable=False)
     fecha = Column(String, nullable=False)
-    descripcion_daños = Column(String, nullable=False)
+    descripcionDaños = Column(String, nullable=False)
     diagnostico = Column(String, nullable=False)
-    codigo_servicio = Column(Integer, ForeignKey("Servicio.codigo"), nullable=False)
+    codigoServicio = Column(Integer, ForeignKey("Servicio.codigo"), nullable=False)
     presupuesto = Column(Integer, nullable=False)
-    id_empleado = Column(Integer, ForeignKey("Empleado.id_empleado"), nullable=False)
+    idEmpleado = Column(Integer, ForeignKey("Empleado.id_empleado"), nullable=False)
 
 
 class HistorialArreglos(Base):
@@ -88,24 +88,23 @@ class HistorialArreglos(Base):
 
 class HistorialEstadoOrden(Base):
     __tablename__ = "HistorialEstadoOrden"
-    cod_estado = Column(Integer, ForeignKey("Estado.cod_estado"), primary_key=True)
-    nro_orden = Column(Integer, ForeignKey("OrdenDeReparacion.nroDeOrden"))
-    fecha_inicio = Column(String, nullable=False)
-    fecha_fin = Column(String, nullable=True)
+    codEstado = Column(Integer, ForeignKey("Estado.cod_estado"), primary_key=True)
+    nroDeOrden = Column(Integer, ForeignKey("OrdenDeReparacion.nroDeOrden"))
+    fechaInicio = Column(String, nullable=False)
+    fechaFin = Column(String, nullable=True)
 
 
 class Permiso(Base):
     __tablename__ = "Permiso"
-    id_permiso = Column(Integer, primary_key=True)
+    idPermiso = Column(Integer, primary_key=True)
     descripcion = Column(String, nullable=False)
 
 
 class Proveedor(Base):
     __tablename__ = "Proveedor"
     cuil = Column(Integer, primary_key=True)
-    nombre = Column(String, nullable=False)
+    razonSocial = Column(String, nullable=False)
     telefono = Column(Integer, nullable=False)
-    razon_social = Column(String, nullable=False)
     activo = Column(Integer, nullable=False)
 
 
@@ -115,28 +114,28 @@ class Repuesto(Base):
     marca = Column(String, nullable=False)
     modelo = Column(String, nullable=False)
     tipo = Column(String, nullable=False)
-    cuil_proveedor = Column(Integer, ForeignKey("Proveedor.cuil"), nullable=False)
+    cuilProveedor = Column(Integer, ForeignKey("Proveedor.cuil"), nullable=False)
     costo = Column(Integer, nullable=False)
     activo = Column(Integer, nullable=False)
 
 
 class RepuestoxServicio(Base):
     __tablename__ = "RepuestoxServicio"
-    codigo_servicio = Column(Integer, ForeignKey("Servicio.codigo"), primary_key=True)
-    codigo_repuesto = Column(Integer, ForeignKey("Repuesto.codigo"), primary_key=True)
+    codigoServicio = Column(Integer, ForeignKey("Servicio.codigo"), primary_key=True)
+    codigoRepuesto = Column(Integer, ForeignKey("Repuesto.codigo"), primary_key=True)
     cantidad = Column(Integer, nullable=False)
 
 
 class RolxPermiso(Base):
     __tablename__ = "RolxPermiso"
-    id_rol = Column(Integer, ForeignKey("Rol.id_rol"), primary_key=True)
-    id_permiso = Column(Integer, ForeignKey("Permiso.id_permiso"), primary_key=True)
+    idRol = Column(Integer, ForeignKey("Rol.id_rol"), primary_key=True)
+    idPermiso = Column(Integer, ForeignKey("Permiso.id_permiso"), primary_key=True)
 
 
 class Sesion(Base):
     __tablename__ = "Sesion"
-    cod_sesion = Column(Integer, primary_key=True)
-    id_usuario = Column(String, ForeignKey("Usuario.id_usuario"), nullable=False)
-    hora_inicio = Column(Integer, nullable=False)
-    hora_fin = Column(String, nullable=False)
+    codSesion = Column(Integer, primary_key=True)
+    idUsuario = Column(String, ForeignKey("Usuario.id_usuario"), nullable=False)
+    horaInicio = Column(Integer, nullable=False)
+    horaFin = Column(String, nullable=False)
     fecha = Column(String, nullable=False)
