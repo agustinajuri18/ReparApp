@@ -1,8 +1,8 @@
-from flask import Flask, request, jsonify
+from flask import Blueprint, Flask, request, jsonify
 from flask_cors import CORS
 from ABMC_db import *
 
-app = Flask(__name__)
+app = Blueprint('clientes', __name__)
 CORS(app)
 
 DATABASE_URL = "sqlite:///C:/Users/LENOVO/Desktop/- FACU -/3er AÑO -/SEM -/DatabaseProyecto v.1/ProyectoInt[v.1].db"
@@ -20,7 +20,7 @@ def registrar_repuesto():
     alta_repuesto(codigo, marca, modelo, tipo, cuilProveedor, costo, activo)
     return jsonify({"mensaje": "Repuesto creado exitosamente"}), 201
 
-@app.route("/repuesto/<codigo>", methods=["PUT"])
+@app.route("/repuestos/<codigo>", methods=["PUT"])
 def modificar_datos_repuesto(numero_dni):
     session = SessionLocal()
     repuesto = session.query(Repuesto).filter_by(codigo=codigo).first()
