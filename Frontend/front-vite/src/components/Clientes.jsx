@@ -1,24 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
 import MenuLateral from './MenuLateral';
 
-// Paleta de colores personalizada
-const colores = {
-  azul: '#1f3345',
-  dorado: '#c78f57',
-  rojo: '#b54745',
-  verdeAgua: '#85abab',
-  beige: '#f0ede5'
-};
-
-
+const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5' };
 
 const Clientes = () => {
   const [mensaje, setMensaje] = useState("");
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [formData, setFormData] = useState({
-    tipo_documento: '',
-    numero_dni: '',
+    tipoDocumento: '',
+    numeroDni: '',
     nombre: '',
     apellido: '',
     telefono: '',
@@ -31,60 +21,57 @@ const Clientes = () => {
   const [modalModo, setModalModo] = useState('consultar');
   const [clienteActual, setClienteActual] = useState(null);
 
+  // Función para cargar clientes
+  const fetchClientes = async () => {
+    try {
+      let url = 'http://localhost:5000/clientes/';
+      url += mostrarInactivos ? '?activos=false' : '?activos=true';
+      const response = await fetch(url);
+      const data = await response.json();
+      setClientes(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setMensaje("Error al cargar clientes.");
+    }
+  };
 
-
-
-
-
-
-  // CARGA DE CLIENTES AL RENDERIZAR EL COMPONENTE
-  // Solo filtrar por activos al cargar la lista inicial
   useEffect(() => {
-    const fetchClientes = async () => {
-      try {
-        let url = 'http://localhost:5000/clientes/';
-        if (!mostrarInactivos) {
-          url += '?activos=true';
-        } else {
-          url += '?activos=false';
-        }
-        const response = await fetch(url);
-        const data = await response.json();
-        setClientes(Array.isArray(data) ? data : []);
-      } catch (error) {
-        setMensaje("Error al cargar clientes.");
-      }
-    };
     fetchClientes();
+    // eslint-disable-next-line
   }, [mostrarInactivos]);
-
-
-
-
-
-
-
-
-
-
-
 
   //REGISTRO DE CLIENTES
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (formData.tipoDocumento === "DNI" && !validarDNI(formData.numeroDni)) {
+      alert("DNI inválido");
+      return;
+    }
+    if (formData.tipoDocumento === "Pasaporte" && !validarPasaporte(formData.numeroDni)) {
+      alert("Pasaporte inválido");
+      return;
+    }
+    if ((formData.tipoDocumento === "CUIT" || formData.tipoDocumento === "CUIL") && !validarCuitCuil(formData.numeroDni)) {
+      alert("CUIT/CUIL inválido");
+      return;
+    }
+    if (!validarTelefono(formData.telefono)) {
+      alert("Teléfono inválido");
+      return;
+    }
+
     const resultado = await registrarCliente(formData);
     setMensaje(resultado.mensaje || resultado.detail);
     setMostrarFormulario(false);
     setFormData({
-      tipo_documento: '',
-      numero_dni: '',
+      tipoDocumento: '',
+      numeroDni: '',
       nombre: '',
       apellido: '',
       telefono: '',
       mail: '',
       activo: 1
     });
-    // Actualiza la lista de clientes (simulado)
+    // Recarga la lista
     setClientes([...clientes, formData]);
   };
 
@@ -100,42 +87,35 @@ const Clientes = () => {
 
 
 
-
-
   // CONSULTA DE CLIENTES
   // La búsqueda individual no depende del estado activo
-  const handleConsultar = async (dni) => {
-    const datos = await consultarCliente(dni);
+  const handleConsultar = async (tipoDocumento, numeroDni) => {
+    const datos = await consultarCliente(tipoDocumento, numeroDni);
     setClienteActual(datos);
     setModalModo('consultar');
     setModalVisible(true);
   };
 
-  const consultarCliente = async (dni) => {
-    const response = await fetch(`http://localhost:5000/clientes/${dni}`);
+  const consultarCliente = async (tipoDocumento, numeroDni) => {
+    const response = await fetch(`http://localhost:5000/clientes/${tipoDocumento}/${numeroDni}`);
+    if (!response.ok) return {};
     return await response.json();
   };
 
 
 
 
-
-
-
-
   // MODIFICACION DE CLIENTES
-  const handleModificar = async (dni) => {
-    const datos = await consultarCliente(dni);
-    setClienteActual({ ...datos }); // Copia para edición local
+  const handleModificar = async (tipoDocumento, numeroDni) => {
+    const datos = await consultarCliente(tipoDocumento, numeroDni);
+    setClienteActual({ ...datos });
     setModalModo('modificar');
     setModalVisible(true);
   };
 
-  
-
   // API: Modificar cliente por DNI
-  const modificarCliente = async (dni, datos) => {
-    const response = await fetch(`http://localhost:5000/clientes/${dni}`, {
+  const modificarCliente = async (tipoDocumento, numeroDni, datos) => {
+    const response = await fetch(`http://localhost:5000/clientes/${tipoDocumento}/${numeroDni}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(datos)
@@ -148,30 +128,24 @@ const Clientes = () => {
   const handleModalSave = async (e) => {
     e.preventDefault(); // Evita que el formulario recargue la página al enviar.
     if (clienteActual) { // Verifica que hay un cliente seleccionado para editar.
-      const resultado = await modificarCliente(clienteActual.numero_dni, clienteActual); // Envía los datos modificados al backend usando la API.
+      const resultado = await modificarCliente(clienteActual.tipoDocumento, clienteActual.numeroDni, clienteActual); // Envía los datos modificados al backend usando la API.
       setMensaje(resultado.mensaje || resultado.detail); // Muestra el mensaje de respuesta del backend.
       setModalVisible(false); // Cierra el modal de edición.
       setClienteActual(null); // Limpia el estado del cliente actual.
-      setClientes(clientes.map(c => c.numero_dni === clienteActual.numero_dni ? clienteActual : c)); // Actualiza la lista de clientes en el frontend con los datos modificados.
+      setClientes(clientes.map(c =>
+        c.tipoDocumento === clienteActual.tipoDocumento && String(c.numeroDni) === String(clienteActual.numeroDni)
+          ? clienteActual : c
+      )); // Actualiza la lista de clientes en el frontend con los datos modificados.
     }
   };
 
   // ELIMINACION (BAJA LOGICA)
-  const handleEliminar = async (dni) => {
+  const handleEliminar = async (tipoDocumento, numeroDni) => {
     if (window.confirm('¿Seguro que desea dar de baja este cliente?')) {
-      try {
-        const response = await fetch(`http://localhost:5000/clientes/${dni}`, {
-          method: 'DELETE'
-        });
-        const resultado = await response.json();
-        setMensaje(resultado.mensaje || resultado.detail);
-        // Recargar la lista de clientes
-        setClientes(clientes.map(c =>
-          c.numero_dni === dni ? { ...c, activo: false } : c
-        ));
-      } catch (error) {
-        setMensaje('Error al eliminar cliente.');
-      }
+      await fetch(`http://localhost:5000/clientes/${tipoDocumento}/${numeroDni}`, {
+        method: 'DELETE'
+      });
+      await fetchClientes(); // <-- recarga la lista
     }
   };
 
@@ -227,10 +201,10 @@ const Clientes = () => {
                 <form onSubmit={handleSubmit} className="mb-3" style={{ background: colores.beige, borderRadius: 12, border: `1px solid ${colores.verdeAgua}`, padding: 16 }}>
                   <div className="row">
                     <div className="col-md-2">
-                      <input type="text" name="tipo_documento" value={formData.tipo_documento} onChange={handleChange} className="form-control" placeholder="Tipo Documento" required />
+                      <input type="text" name="tipoDocumento" value={formData.tipoDocumento} onChange={handleChange} className="form-control" placeholder="Tipo Documento" required />
                     </div>
                     <div className="col-md-2">
-                      <input type="text" name="numero_dni" value={formData.numero_dni} onChange={handleChange} className="form-control" placeholder="DNI" required />
+                      <input type="text" name="numeroDni" value={formData.numeroDni} onChange={handleChange} className="form-control" placeholder="DNI" required />
                     </div>
                     <div className="col-md-2">
                       <input type="text" name="nombre" value={formData.nombre} onChange={handleChange} className="form-control" placeholder="Nombre" required />
@@ -276,8 +250,8 @@ const Clientes = () => {
                       <div className="modal-body">
                         {modalModo === 'consultar' ? (
                           <ul className="list-group">
-                            <li className="list-group-item"><b>Tipo Documento:</b> {clienteActual.tipo_documento}</li>
-                            <li className="list-group-item"><b>DNI:</b> {clienteActual.numero_dni}</li>
+                            <li className="list-group-item"><b>Tipo Documento:</b> {clienteActual.tipoDocumento}</li>
+                            <li className="list-group-item"><b>DNI:</b> {clienteActual.numeroDni}</li>
                             <li className="list-group-item"><b>Nombre:</b> {clienteActual.nombre}</li>
                             <li className="list-group-item"><b>Apellido:</b> {clienteActual.apellido}</li>
                             <li className="list-group-item"><b>Teléfono:</b> {clienteActual.telefono}</li>
@@ -287,11 +261,11 @@ const Clientes = () => {
                           <form onSubmit={handleModalSave}>
                             <div className="mb-2">
                               <label className="form-label">Tipo Documento</label>
-                              <input type="text" className="form-control" value={clienteActual.tipo_documento} onChange={e => setClienteActual({ ...clienteActual, tipo_documento: e.target.value })} />
+                              <input type="text" className="form-control" value={clienteActual.tipoDocumento} onChange={e => setClienteActual({ ...clienteActual, tipoDocumento: e.target.value })} />
                             </div>
                             <div className="mb-2">
                               <label className="form-label">DNI</label>
-                              <input type="text" className="form-control" value={clienteActual.numero_dni} onChange={e => setClienteActual({ ...clienteActual, numero_dni: e.target.value })} />
+                              <input type="text" className="form-control" value={clienteActual.numeroDni} onChange={e => setClienteActual({ ...clienteActual, numeroDni: e.target.value })} />
                             </div>
                             <div className="mb-2">
                               <label className="form-label">Nombre</label>
@@ -331,42 +305,49 @@ const Clientes = () => {
                 <table className="table table-striped table-hover">
                   <thead>
                     <tr>
+                      <th>Tipo Doc</th>
                       <th>DNI</th>
                       <th>Nombre</th>
                       <th>Apellido</th>
                       <th>Teléfono</th>
                       <th>Correo</th>
+                      <th>Estado</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {clientes.map(cliente => (
-                      <tr key={cliente.numero_dni} style={cliente.activo === false ? { opacity: 0.5 } : {}}>
-                        <td>{cliente.numero_dni}</td>
-                        <td>{cliente.nombre}</td>
-                        <td>{cliente.apellido}</td>
-                        <td>{cliente.telefono}</td>
-                        <td>{cliente.mail}</td>
+                    {clientes.map(c => (
+                      <tr
+                        key={c.tipoDocumento + '-' + c.numeroDni}
+                        style={c.activo === 0 ? { opacity: 0.5 } : {}}
+                      >
+                        <td>{c.tipoDocumento}</td>
+                        <td>{c.numeroDni}</td>
+                        <td>{c.nombre}</td>
+                        <td>{c.apellido}</td>
+                        <td>{c.telefono}</td>
+                        <td>{c.mail}</td>
+                        <td>{c.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
                           <button
                             className="btn btn-sm me-1"
                             style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                            onClick={() => handleConsultar(cliente.numero_dni)}
+                            onClick={() => handleConsultar(c.tipoDocumento, c.numeroDni)}
                           >
                             <span title="Consultar"><i className="bi bi-eye"></i></span> Consultar
                           </button>
                           <button
                             className="btn btn-sm me-1"
                             style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
-                            onClick={() => handleModificar(cliente.numero_dni)}
+                            onClick={() => handleModificar(c.tipoDocumento, c.numeroDni)}
                           >
                             <span title="Modificar"><i className="bi bi-pencil-square"></i></span> Modificar
                           </button>
-                          {cliente.activo !== false && (
+                          {c.activo !== false && (
                             <button
                               className="btn btn-sm"
                               style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}
-                              onClick={() => handleEliminar(cliente.numero_dni)}
+                              onClick={() => handleEliminar(c.tipoDocumento, c.numeroDni)}
                             >
                               <span title="Eliminar"><i className="bi bi-x-circle"></i></span> Eliminar
                             </button>

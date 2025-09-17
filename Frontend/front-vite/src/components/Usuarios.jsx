@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import MenuLateral from './MenuLateral';
 
@@ -17,7 +16,7 @@ const Usuarios = () => {
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [formData, setFormData] = useState({
-    id_usuario: '',
+    idUsuario: '',
     password: '',
     activo: 1
   });
@@ -27,11 +26,7 @@ const Usuarios = () => {
     const fetchUsuarios = async () => {
       try {
         let url = 'http://localhost:5000/usuarios/';
-        if (!mostrarInactivos) {
-          url += '?activos=true';
-        } else {
-          url += '?activos=false';
-        }
+        url += mostrarInactivos ? '?activos=false' : '?activos=true';
         const response = await fetch(url);
         const data = await response.json();
         setUsuarios(Array.isArray(data) ? data : []);
@@ -42,21 +37,35 @@ const Usuarios = () => {
     fetchUsuarios();
   }, [mostrarInactivos]);
 
-  const handleEliminar = async (id_usuario) => {
+  const handleEliminar = async (idUsuario) => {
     if (window.confirm('¿Seguro que desea dar de baja este usuario?')) {
       try {
-        const response = await fetch(`http://localhost:5000/usuarios/${id_usuario}`, {
+        const response = await fetch(`http://localhost:5000/usuarios/${idUsuario}`, {
           method: 'DELETE'
         });
         const resultado = await response.json();
         setMensaje(resultado.mensaje || resultado.detail);
         setUsuarios(usuarios.map(u =>
-          u.id_usuario === id_usuario ? { ...u, activo: false } : u
+          u.idUsuario === idUsuario ? { ...u, activo: false } : u
         ));
       } catch (error) {
         setMensaje('Error al eliminar usuario.');
       }
     }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const response = await fetch('http://localhost:5000/usuarios/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData)
+    });
+    const resultado = await response.json();
+    setMensaje(resultado.mensaje || resultado.detail);
+    setMostrarFormulario(false);
+    setFormData({ idUsuario: '', password: '', activo: 1 });
+    setUsuarios([...usuarios, formData]);
   };
 
   return (
@@ -86,14 +95,10 @@ const Usuarios = () => {
             </div>
             <div className="card-body" style={{ background: colores.beige }}>
               {mostrarFormulario && (
-                <form className="mb-3" style={{ background: colores.beige, borderRadius: 12, border: `1px solid ${colores.verdeAgua}`, padding: 16 }} onSubmit={e => {
-                  e.preventDefault();
-                  // Aquí deberías llamar a la función para registrar usuario
-                  // y luego limpiar el formulario y ocultarlo
-                }}>
+                <form className="mb-3" style={{ background: colores.beige, borderRadius: 12, border: `1px solid ${colores.verdeAgua}`, padding: 16 }} onSubmit={handleSubmit}>
                   <div className="row">
                     <div className="col-md-4">
-                      <input type="text" name="id_usuario" value={formData.id_usuario} onChange={e => setFormData({ ...formData, id_usuario: e.target.value })} className="form-control" placeholder="ID Usuario" required />
+                      <input type="text" name="idUsuario" value={formData.idUsuario} onChange={e => setFormData({ ...formData, idUsuario: e.target.value })} className="form-control" placeholder="ID Usuario" required />
                     </div>
                     <div className="col-md-4">
                       <input type="password" name="password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="form-control" placeholder="Password" required />
@@ -125,8 +130,8 @@ const Usuarios = () => {
                   </thead>
                   <tbody>
                     {usuarios.map((user) => (
-                      <tr key={user.id_usuario || user.id} style={user.activo === false ? { opacity: 0.5 } : {}}>
-                        <td>{user.id_usuario || user.id}</td>
+                      <tr key={user.idUsuario} style={user.activo === false ? { opacity: 0.5 } : {}}>
+                        <td>{user.idUsuario}</td>
                         <td>{user.password}</td>
                         <td>
                           <button
@@ -145,7 +150,7 @@ const Usuarios = () => {
                             <button
                               className="btn btn-sm"
                               style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}
-                              onClick={() => handleEliminar(user.id_usuario || user.id)}
+                              onClick={() => handleEliminar(user.idUsuario)}
                             >
                               <span title="Eliminar"><i className="bi bi-x-circle"></i></span> Eliminar
                             </button>

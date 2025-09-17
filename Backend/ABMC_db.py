@@ -3,27 +3,25 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from BDD.database import SessionLocal, Usuario, Cliente, Dispositivo, Empleado, Estado, HistorialArreglos, OrdenDeReparacion, Rol, Servicio, Repuesto, HistorialEstadoOrden, Proveedor, Permiso, RolxPermiso, RepuestoxServicio
 
-
 # ----------- ABMC para Usuario -----------
-def alta_usuario(id_usuario, password):
+def alta_usuario(idUsuario, password):
     session = SessionLocal()
-    usuario = Usuario(id_usuario=id_usuario, password=password)
+    usuario = Usuario(idUsuario=idUsuario, password=password, activo=1)
     session.add(usuario)
     session.commit()
     session.close()
 
-def baja_usuario(id_usuario):
+def baja_usuario(idUsuario):
     session = SessionLocal()
-    usuario = session.query(Usuario).get(id_usuario)
+    usuario = session.query(Usuario).get(idUsuario)
     if usuario:
         usuario.activo = 0
         session.commit()
     session.close()
 
-
-def modificar_usuario(id_usuario, nuevo_password):
+def modificar_usuario(idUsuario, nuevo_password):
     session = SessionLocal()
-    usuario = session.query(Usuario).get(id_usuario)
+    usuario = session.query(Usuario).get(idUsuario)
     if usuario:
         usuario.password = nuevo_password
         session.commit()
@@ -35,41 +33,41 @@ def mostrar_usuarios():
     session.close()
     return usuarios
 
-def asignar_rol_a_usuario(id_usuario, id_rol):
+def asignar_rol_a_usuario(idUsuario, idRol):
     session = SessionLocal()
-    usuario = session.query(Usuario).get(id_usuario)
-    rol = session.query(Rol).get(id_rol)
+    usuario = session.query(Usuario).get(idUsuario)
+    rol = session.query(Rol).get(idRol)
     if usuario and rol:
-        empleado = Empleado(nombre="", apellido="", id_rol=id_rol, id_usuario=id_usuario)
+        empleado = Empleado(nombre="", apellido="", idRol=idRol, idUsuario=idUsuario, activo=1)
         session.add(empleado)
         session.commit()
     session.close()
 
-
 # ----------- ABMC para Cliente -----------
-def alta_cliente(tipo_documento, numero_dni, nombre, apellido, telefono, mail):
+def alta_cliente(tipoDocumento, numeroDni, nombre, apellido, telefono, mail):
     session = SessionLocal()
     cliente = Cliente(
-        tipo_documento=tipo_documento,
-        numero_dni=numero_dni,
+        tipoDocumento=tipoDocumento,
+        numeroDni=numeroDni,
         nombre=nombre,
         apellido=apellido,
         telefono=telefono,
-        mail=mail
+        mail=mail,
+        activo=1
     )
     session.add(cliente)
     session.commit()
     session.close()
 
-def modificar_clientes(numero_dni, tipo_documento, nombre, apellido, telefono, mail):
+def modificar_cliente(tipoDocumento, numeroDni, nombre, apellido, telefono, mail, activo=1):
     session = SessionLocal()
-    cliente = session.query(Usuario).get(numero_dni)
+    cliente = session.query(Cliente).get((tipoDocumento, numeroDni))
     if cliente:
-        cliente.tipo_documento = tipo_documento
         cliente.nombre = nombre
         cliente.apellido = apellido
         cliente.telefono = telefono
         cliente.mail = mail
+        cliente.activo = activo  # <-- guarda el estado
         session.commit()
     session.close()
 
@@ -82,54 +80,45 @@ def mostrar_clientes(activos_only=True):
     session.close()
     return clientes
 
-def baja_cliente(numero_dni):
+def baja_cliente(tipoDocumento, numeroDni):
     session = SessionLocal()
-    cliente = session.query(Cliente).filter_by(numero_dni=numero_dni).first()
+    cliente = session.query(Cliente).get((tipoDocumento, numeroDni))
     if cliente:
         cliente.activo = 0
         session.commit()
     session.close()
 
-def mostrar_historial_arreglos_por_cliente(tipo_documento, numero_dni):
-    session = SessionLocal()
-    historial = session.query(HistorialArreglos).join(Dispositivo).filter(
-        Dispositivo.clienteTipoDni == tipo_documento,
-        Dispositivo.clienteDni == numero_dni
-    ).all()
-    session.close()
-    return historial
-
 # ----------- ABMC para Dispositivo -----------
-
-def alta_dispositivo(nroSerie, marca, modelo, clienteTipoDni, clienteDni):
+def alta_dispositivo(nroSerie, marca, modelo, clienteTipoDocumento, clienteNumeroDni):
     session = SessionLocal()
     dispositivo = Dispositivo(
         nroSerie=nroSerie,
         marca=marca,
         modelo=modelo,
-        clienteTipoDni=clienteTipoDni,
-        clienteDni=clienteDni
+        clienteTipoDocumento=clienteTipoDocumento,
+        clienteNumeroDni=clienteNumeroDni,
+        activo=1
     )
     session.add(dispositivo)
     session.commit()
+    session.close()
+
+def modificar_dispositivo(nroSerie, marca, modelo, clienteTipoDocumento, clienteNumeroDni):
+    session = SessionLocal()
+    dispositivo = session.query(Dispositivo).get(nroSerie)
+    if dispositivo:
+        dispositivo.marca = marca
+        dispositivo.modelo = modelo
+        dispositivo.clienteTipoDocumento = clienteTipoDocumento
+        dispositivo.clienteNumeroDni = clienteNumeroDni
+        session.commit()
     session.close()
 
 def baja_dispositivo(nroSerie):
     session = SessionLocal()
     dispositivo = session.query(Dispositivo).get(nroSerie)
     if dispositivo:
-        session.delete(dispositivo)
-        session.commit()
-    session.close()
-
-def modificar_dispositivo(nroSerie, marca, modelo, clienteTipoDni, clienteDni):
-    session = SessionLocal()
-    dispositivo = session.query(Dispositivo).get(nroSerie)
-    if dispositivo:
-        dispositivo.marca = marca
-        dispositivo.modelo = modelo
-        dispositivo.clienteTipoDni = clienteTipoDni
-        dispositivo.clienteDni = clienteDni
+        dispositivo.activo = 0
         session.commit()
     session.close()
 
@@ -139,38 +128,80 @@ def mostrar_dispositivos():
     session.close()
     return dispositivos
 
+# ----------- ABMC para Proveedor -----------
+def alta_proveedor(cuil, razonSocial, telefono, activo=1):
+    session = SessionLocal()
+    proveedor = Proveedor(
+        cuil=cuil,
+        razonSocial=razonSocial,
+        telefono=telefono,
+        activo=activo
+    )
+    session.add(proveedor)
+    session.commit()
+    session.close()
+
+def modificar_proveedor(cuil, razonSocial, telefono, activo=1):
+    session = SessionLocal()
+    proveedor = session.query(Proveedor).get(cuil)
+    if proveedor:
+        proveedor.razonSocial = razonSocial
+        proveedor.telefono = telefono
+        proveedor.activo = activo  # <--- Guarda el estado
+        session.commit()
+    session.close()
+
+def baja_proveedor(cuil):
+    session = SessionLocal()
+    proveedor = session.query(Proveedor).get(cuil)
+    if proveedor:
+        proveedor.activo = 0
+        session.commit()
+    session.close()
+
+def mostrar_proveedores():
+    session = SessionLocal()
+    proveedores = session.query(Proveedor).all()
+    session.close()
+    return proveedores
+
+def buscar_proveedor(cuil):
+    session = SessionLocal()
+    proveedor = session.query(Proveedor).get(cuil)
+    session.close()
+    return proveedor
 
 # ----------- ABMC para Empleado -----------
-
-def alta_empleado(id_empleado, nombre, apellido, id_rol, id_usuario):
+def alta_empleado(idEmpleado, nombre, apellido, idRol, idUsuario):
     session = SessionLocal()
     empleado = Empleado(
-        id_empleado=id_empleado,
+        idEmpleado=idEmpleado,
         nombre=nombre,
         apellido=apellido,
-        id_rol=id_rol,
-        id_usuario=id_usuario
+        idRol=idRol,
+        idUsuario=idUsuario,
+        activo=1
     )
     session.add(empleado)
     session.commit()
     session.close()
 
-def baja_empleado(id_empleado):
+def modificar_empleado(idEmpleado, nombre, apellido, idRol, idUsuario):
     session = SessionLocal()
-    empleado = session.query(Empleado).get(id_empleado)
-    if empleado:
-        session.delete(empleado)
-        session.commit()
-    session.close()
-
-def modificar_empleado(id_empleado, nombre, apellido, id_rol, id_usuario):
-    session = SessionLocal()
-    empleado = session.query(Empleado).get(id_empleado)
+    empleado = session.query(Empleado).get(idEmpleado)
     if empleado:
         empleado.nombre = nombre
         empleado.apellido = apellido
-        empleado.id_rol = id_rol
-        empleado.id_usuario = id_usuario
+        empleado.idRol = idRol
+        empleado.idUsuario = idUsuario
+        session.commit()
+    session.close()
+
+def baja_empleado(idEmpleado):
+    session = SessionLocal()
+    empleado = session.query(Empleado).get(idEmpleado)
+    if empleado:
+        empleado.activo = 0
         session.commit()
     session.close()
 
@@ -180,73 +211,67 @@ def mostrar_empleados():
     session.close()
     return empleados
 
-
 # ----------- ABMC para Estado -----------
-
 def mostrar_estados():
     session = SessionLocal()
     estados = session.query(Estado).all()
     session.close()
     return estados
 
-
-#----------- ABMC para HistorialArreglos -----------
-
+# ----------- ABMC para HistorialArreglos -----------
 def mostrar_historial_arreglos(dispositivo):
     session = SessionLocal()
-    historial = session.query(HistorialArreglos).filter(HistorialArreglos.nroSerie_dispositivo == dispositivo).all()
+    historial = session.query(HistorialArreglos).filter(HistorialArreglos.dispositivo == dispositivo).all()
     session.close()
     return historial
 
-def alta_historial_arreglos(nroSerie_dispositivo, nroDeOrden):
+def alta_historial_arreglos(dispositivo, nroDeOrden):
     session = SessionLocal()
     historial = HistorialArreglos(
-        nroSerie_dispositivo=nroSerie_dispositivo,
+        dispositivo=dispositivo,
         nroDeOrden=nroDeOrden
     )
     session.add(historial)
     session.commit()
     session.close()
 
-def modificar_historial_arreglos(nroSerie_dispositivo, nroDeOrden, nuevo_nroSerie_dispositivo, nuevo_nroDeOrden):
+def modificar_historial_arreglos(dispositivo, nroDeOrden, nuevo_dispositivo, nuevo_nroDeOrden):
     session = SessionLocal()
-    historial = session.query(HistorialArreglos).get((nroSerie_dispositivo, nroDeOrden))
+    historial = session.query(HistorialArreglos).get((dispositivo, nroDeOrden))
     if historial:
-        historial.nroSerie_dispositivo = nuevo_nroSerie_dispositivo
+        historial.dispositivo = nuevo_dispositivo
         historial.nroDeOrden = nuevo_nroDeOrden
         session.commit()
     session.close()
 
-
-#----------- ABMC para OrdenDeReparacion -----------
-
-def alta_orden_de_reparacion(nroDeOrden, nroSerie_dispositivo, fecha, descripcion_danos, diagnostico, codigo_servicio, presupuesto, id_empleado):
+# ----------- ABMC para OrdenDeReparacion -----------
+def alta_orden_de_reparacion(nroDeOrden, nroSerieDispositivo, fecha, descripcionDanios, diagnostico, codigoServicio, presupuesto, idEmpleado):
     session = SessionLocal()
     orden = OrdenDeReparacion(
         nroDeOrden=nroDeOrden,
-        nroSerie_dispositivo=nroSerie_dispositivo,
+        nroSerieDispositivo=nroSerieDispositivo,
         fecha=fecha,
-        descripcion_danos=descripcion_danos,
+        descripcionDanios=descripcionDanios,
         diagnostico=diagnostico,
-        codigo_servicio=codigo_servicio,
+        codigoServicio=codigoServicio,
         presupuesto=presupuesto,
-        id_empleado=id_empleado
+        idEmpleado=idEmpleado
     )
     session.add(orden)
     session.commit()
     session.close()
 
-def modificar_orden_de_reparacion(nroDeOrden, nroSerie_dispositivo, fecha, descripcion_danos, diagnostico, codigo_servicio, presupuesto, id_empleado):
+def modificar_orden_de_reparacion(nroDeOrden, nroSerieDispositivo, fecha, descripcionDanios, diagnostico, codigoServicio, presupuesto, idEmpleado):
     session = SessionLocal()
     orden = session.query(OrdenDeReparacion).get(nroDeOrden)
     if orden:
-        orden.nroSerie_dispositivo = nroSerie_dispositivo
+        orden.nroSerieDispositivo = nroSerieDispositivo
         orden.fecha = fecha
-        orden.descripcion_danos = descripcion_danos
+        orden.descripcionDanios = descripcionDanios
         orden.diagnostico = diagnostico
-        orden.codigo_servicio = codigo_servicio
+        orden.codigoServicio = codigoServicio
         orden.presupuesto = presupuesto
-        orden.id_empleado = id_empleado
+        orden.idEmpleado = idEmpleado
         session.commit()
     session.close()
 
@@ -256,14 +281,12 @@ def mostrar_ordenes_de_reparacion():
     session.close()
     return ordenes
 
-
-#-----------Historial Estado Orden-----------
-
-def asignar_estado_orden(nroDeOrden, cod_estado, fechaInicio, fechaFin=None):
+# ----------- ABMC para HistorialEstadoOrden -----------
+def asignar_estado_orden(nroDeOrden, codEstado, fechaInicio, fechaFin=None):
     session = SessionLocal()
     historial_estado = HistorialEstadoOrden(
         nroDeOrden=nroDeOrden,
-        cod_estado=cod_estado,
+        codEstado=codEstado,
         fechaInicio=fechaInicio,
         fechaFin=fechaFin
     )
@@ -271,32 +294,31 @@ def asignar_estado_orden(nroDeOrden, cod_estado, fechaInicio, fechaFin=None):
     session.commit()
     session.close()
 
-def mostrar_por_estado(cod_estado):
+def mostrar_por_estado(codEstado):
     session = SessionLocal()
-    ordenes = session.query(OrdenDeReparacion).join(HistorialEstadoOrden, OrdenDeReparacion.nroDeOrden == HistorialEstadoOrden.nroDeOrden).filter(HistorialEstadoOrden.cod_estado == cod_estado).all()
+    ordenes = session.query(OrdenDeReparacion).join(HistorialEstadoOrden, OrdenDeReparacion.nroDeOrden == HistorialEstadoOrden.nroDeOrden).filter(HistorialEstadoOrden.codEstado == codEstado).all()
     session.close()
     return ordenes
 
-
-#----------- ABMC para Servicios -----------
-
-def alta_servicio(codigo_servicio, descripcion, costo):
+# ----------- ABMC para Servicio -----------
+def alta_servicio(codigo, descripcion, precioBase, activo=1):
     session = SessionLocal()
     servicio = Servicio(
-        codigo_servicio=codigo_servicio,
+        codigo=codigo,
         descripcion=descripcion,
-        costo=costo
+        precioBase=precioBase,
+        activo=activo
     )
     session.add(servicio)
     session.commit()
     session.close()
 
-def modificar_servicio(codigo_servicio, descripcion, costo):
+def modificar_servicio(codigo, descripcion, precioBase):
     session = SessionLocal()
-    servicio = session.query(Servicio).get(codigo_servicio)
+    servicio = session.query(Servicio).get(codigo)
     if servicio:
         servicio.descripcion = descripcion
-        servicio.costo = costo
+        servicio.precioBase = precioBase
         session.commit()
     session.close()
 
@@ -306,26 +328,25 @@ def mostrar_servicios():
     session.close()
     return servicios
 
-def baja_servicio(codigo_servicio):
+def baja_servicio(codigo):
     session = SessionLocal()
-    servicio = session.query(Servicio).get(codigo_servicio)
+    servicio = session.query(Servicio).get(codigo)
     if servicio:
         servicio.activo = 0
         session.commit()
     session.close()
 
-
 # ----------- ABMC para Repuesto -----------
-
-def alta_repuesto(codigo, marca, modelo, tipo, cuil_proveedor, costo):
+def alta_repuesto(codigo, marca, modelo, tipo, cuilProveedor, costo, activo=1):
     session = SessionLocal()
     repuesto = Repuesto(
         codigo=codigo,
         marca=marca,
         modelo=modelo,
         tipo=tipo,
-        cuil_proveedor=cuil_proveedor,
-        costo=costo
+        cuilProveedor=cuilProveedor,
+        costo=costo,
+        activo=activo
     )
     session.add(repuesto)
     session.commit()
@@ -339,14 +360,14 @@ def baja_repuesto(codigo):
         session.commit()
     session.close()
     
-def modificar_repuesto(codigo, marca, modelo, tipo, cuil_proveedor, costo):
+def modificar_repuesto(codigo, marca, modelo, tipo, cuilProveedor, costo):
     session = SessionLocal()
     repuesto = session.query(Repuesto).get(codigo)
     if repuesto:
         repuesto.marca = marca
         repuesto.modelo = modelo
         repuesto.tipo = tipo
-        repuesto.cuil_proveedor = cuil_proveedor
+        repuesto.cuilProveedor = cuilProveedor
         repuesto.costo = costo
         session.commit()
     session.close()
@@ -366,73 +387,26 @@ def buscar_repuesto(codigo):
 def buscar_proveedor_por_repuesto(codigo):
     session = SessionLocal()
     repuesto = session.query(Repuesto).get(codigo)
+    proveedor = None
     if repuesto:
-        proveedor = session.query(Proveedor).get(repuesto.cuil_proveedor).all()
-        session.close()
-        return proveedor
-        
-def buscar_repuesto_por_servicio(codigo_servicio):
-    session = SessionLocal()
-    repuestos = session.query(Repuesto).join(RepuestoxServicio, Repuesto.codigo == RepuestoxServicio.codigo_repuesto).filter(RepuestoxServicio.codigo_servicio == codigo_servicio).all()
-    session.close()
-    return repuestos
-
-
-#----------- ABMC para Proveedor -----------
-
-def alta_proveedor(cuil, nombre, telefono, razon_social):
-    session = SessionLocal()
-    proveedor = Proveedor(
-        cuil=cuil,
-        nombre=nombre,
-        telefono=telefono,
-        razon_social=razon_social
-    )
-    session.add(proveedor)
-    session.commit()
-    session.close()
-
-def baja_proveedor(cuil):
-    session = SessionLocal()
-    proveedor = session.query(Proveedor).get(cuil)
-    if proveedor:
-        proveedor.activo = 0
-        session.commit()
-    session.close()
-
-def modificar_proveedor(cuil, nombre, telefono, razon_social):
-    session = SessionLocal()
-    proveedor = session.query(Proveedor).get(cuil)
-    if proveedor:
-        proveedor.nombre = nombre
-        proveedor.telefono = telefono
-        proveedor.razon_social = razon_social
-        session.commit()
-    session.close()
-
-def mostrar_proveedores():
-    session = SessionLocal()
-    proveedores = session.query(Proveedor).all()
-    session.close()
-    return proveedores
-
-def buscar_proveedor(cuil):
-    session = SessionLocal()
-    proveedor = session.query(Proveedor).get(cuil)
+        proveedor = session.query(Proveedor).get(repuesto.cuilProveedor)
     session.close()
     return proveedor
 
-
-#----------- ABMC para Permiso -----------
-
-def asignar_permiso_a_rol(id_rol, id_permiso):
+def buscar_repuesto_por_servicio(codigoServicio):
     session = SessionLocal()
-    rol = session.query(Rol).get(id_rol)
-    permiso = session.query(Permiso).get(id_permiso)
+    repuestos = session.query(Repuesto).join(RepuestoxServicio, Repuesto.codigo == RepuestoxServicio.codigoRepuesto).filter(RepuestoxServicio.codigoServicio == codigoServicio).all()
+    session.close()
+    return repuestos
+# ----------- ABMC para Permiso y relaciones -----------
+def asignar_permiso_a_rol(idRol, idPermiso):
+    session = SessionLocal()
+    rol = session.query(Rol).get(idRol)
+    permiso = session.query(Permiso).get(idPermiso)
     if rol and permiso:
         rolxpermiso = RolxPermiso(
-            id_rol=id_rol,
-            id_permiso=id_permiso
+            idRol=idRol,
+            idPermiso=idPermiso
         )
         session.add(rolxpermiso)
         session.commit()

@@ -1,10 +1,11 @@
+import re
+from flask import Blueprint
 from flask import Flask, request, jsonify
-
 from flask_cors import CORS
 from ABMC_db import *
 
 
-app = Flask(__name__)
+app = Blueprint('usuarios', __name__)
 CORS(app)
 
 
@@ -24,6 +25,22 @@ def eliminar_usuario(id_usuario):
         baja_usuario(id_usuario)
         return jsonify({"mensaje": "Usuario eliminado exitosamente"}), 200
     return jsonify({"detail": "Usuario no encontrado"}), 404
+
+
+@app.route("/usuarios/", methods=["GET"])
+def listar_usuarios():
+    activos = request.args.get("activos")
+    if activos == "false":
+        usuarios = mostrar_usuarios()
+    else:
+        usuarios = [u for u in mostrar_usuarios() if u.activo == 1]
+    return jsonify([
+        {
+            "idUsuario": u.idUsuario,
+            "password": u.password,
+            "activo": u.activo
+        } for u in usuarios
+    ]), 200
 
 if __name__ == "__main__":
     app.run(debug=True)
