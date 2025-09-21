@@ -211,6 +211,12 @@ def mostrar_empleados():
     session.close()
     return empleados
 
+def buscar_empleado(idEmpleado):
+    session = SessionLocal()
+    empleado = session.query(Empleado).get(idEmpleado)
+    session.close()
+    return empleado
+
 # ----------- ABMC para Estado -----------
 def mostrar_estados():
     session = SessionLocal()

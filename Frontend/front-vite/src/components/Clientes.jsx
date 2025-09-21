@@ -3,6 +3,26 @@ import MenuLateral from './MenuLateral';
 
 const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5' };
 
+// Valida que el DNI tenga 7 u 8 dígitos numéricos
+function validarDNI(dni) {
+  return /^\d{7,8}$/.test(dni);
+}
+
+// Valida que el pasaporte tenga entre 6 y 15 caracteres alfanuméricos
+function validarPasaporte(pasaporte) {
+  return /^[A-Za-z0-9]{6,15}$/.test(pasaporte);
+}
+
+// Valida que el CUIT/CUIL tenga 11 dígitos numéricos
+function validarCuitCuil(cuit) {
+  return /^\d{11}$/.test(cuit);
+}
+
+// Valida que el teléfono tenga entre 10 y 11 dígitos numéricos
+function validarTelefono(telefono) {
+  return /^\d{10,11}$/.test(telefono);
+}
+
 const Clientes = () => {
   const [mensaje, setMensaje] = useState("");
   const [mostrarFormulario, setMostrarFormulario] = useState(false);

@@ -2,7 +2,7 @@ from flask import Blueprint, Flask, request, jsonify
 from flask_cors import CORS
 from ABMC_db import *
 
-app = Blueprint('clientes', __name__)
+app = Blueprint('repuestos', __name__)
 CORS(app)
 
 DATABASE_URL = "sqlite:///C:/Users/LENOVO/Desktop/- FACU -/3er AÑO -/SEM -/DatabaseProyecto v.1/ProyectoInt[v.1].db"

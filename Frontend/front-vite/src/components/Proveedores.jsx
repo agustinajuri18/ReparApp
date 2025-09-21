@@ -257,7 +257,7 @@ const Proveedores = () => {
                       <th>CUIL</th>
                       <th>Razón Social</th>
                       <th>Teléfono</th>
-                      <th>Estado</th> {/* Nueva columna */}
+                      <th>Estado</th> 
                       <th>Acciones</th>
                     </tr>
                   </thead>

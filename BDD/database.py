@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from sqlalchemy import Column, Integer, String, ForeignKey
 
 # Cambia la ruta y el motor según tu base de datos
-DATABASE_URL = "sqlite:///C:/Users/bauti/Desktop/UTN/SEMINARIO INTEGRADOR/ProyectoV2.db"
+DATABASE_URL = "sqlite:///C:\ReparApp Seminario\Base de Datos[ProyectoV2].db"
 
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
