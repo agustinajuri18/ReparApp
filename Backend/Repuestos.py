@@ -5,7 +5,6 @@ from ABMC_db import *
 app = Blueprint('repuestos', __name__)
 CORS(app)
 
-DATABASE_URL = "sqlite:///C:/Users/LENOVO/Desktop/- FACU -/3er AÑO -/SEM -/DatabaseProyecto v.1/ProyectoInt[v.1].db"
 
 @app.route("/repuestos/", methods=["POST"])
 def registrar_repuesto():
