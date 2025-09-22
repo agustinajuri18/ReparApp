@@ -1,6 +1,5 @@
 import React from 'react';
 import MenuLateral from './MenuLateral';
-import PiePagina from './PiePagina';
 
 const colores = { azul: '#1f3345', dorado: '#c78f57', verdeAgua: '#85abab', beige: '#f0ede5' };
 
@@ -13,7 +12,6 @@ const Home = () => (
           <h1 style={{ color: colores.azul, fontWeight: 700 }}>Bienvenido a ReparApp</h1>
           <p style={{ color: colores.dorado, fontSize: 18 }}>Gestione clientes, proveedores, empleados y más desde un solo lugar.</p>
         </div>
-        <PiePagina />
       </main>
     </div>
   </div>

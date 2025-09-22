@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MenuLateral from './MenuLateral';
 
 const colores = {
@@ -10,6 +10,7 @@ const colores = {
 };
 
 const Servicios = () => {
+  const [servicios, setServicios] = useState([]);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [formData, setFormData] = useState({
@@ -24,6 +25,14 @@ const Servicios = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState('consultar'); // 'consultar' o 'editar'
   const [servicioActual, setServicioActual] = useState(null);
+
+  // Cargar servicios desde la API
+  useEffect(() => {
+    fetch('http://localhost:5000/servicios')
+      .then(res => res.json())
+      .then(data => setServicios(data))
+      .catch(() => setMensaje("Error al cargar servicios"));
+  }, []);
 
   // Filtro de servicios según activos/inactivos
   const serviciosFiltrados = servicios.filter(s => mostrarInactivos ? s.activo === 0 : s.activo === 1);

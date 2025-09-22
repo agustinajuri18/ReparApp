@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MenuLateral from './MenuLateral';
 
 const colores = {
@@ -10,10 +10,7 @@ const colores = {
 };
 
 const Usuarios = () => {
-  const [usuarios, setUsuarios] = useState([
-    { usuario: 'admin', password: '****', activo: 1 },
-    { usuario: 'usuario1', password: '****', activo: 0 }
-  ]);
+  const [usuarios, setUsuarios] = useState([]);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [formData, setFormData] = useState({
@@ -27,6 +24,14 @@ const Usuarios = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState('consultar'); // 'consultar' o 'editar'
   const [usuarioActual, setUsuarioActual] = useState(null);
+
+  // Cargar usuarios desde la API
+  useEffect(() => {
+    fetch('http://localhost:5000/usuarios')
+      .then(res => res.json())
+      .then(data => setUsuarios(data))
+      .catch(() => setMensaje("Error al cargar usuarios"));
+  }, []);
 
   // Filtro de usuarios según activos/inactivos
   const usuariosFiltrados = usuarios.filter(u => mostrarInactivos ? u.activo === 0 : u.activo === 1);

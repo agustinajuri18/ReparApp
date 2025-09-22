@@ -378,9 +378,12 @@ def modificar_repuesto(codigo, marca, modelo, tipo, cuilProveedor, costo):
         session.commit()
     session.close()
 
-def mostrar_repuestos():
+def mostrar_repuestos(activos_only=True):
     session = SessionLocal()
-    repuestos = session.query(Repuesto).all()
+    if activos_only:
+        repuestos = session.query(Repuesto).filter_by(activo=1).all()
+    else:
+        repuestos = session.query(Repuesto).all()
     session.close()
     return repuestos
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MenuLateral from './MenuLateral';
 
 const colores = {
@@ -10,6 +10,7 @@ const colores = {
 };
 
 const Empleados = () => {
+  const [empleados, setEmpleados] = useState([]);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [formData, setFormData] = useState({
@@ -26,6 +27,14 @@ const Empleados = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState('consultar'); // 'consultar' o 'editar'
   const [empleadoActual, setEmpleadoActual] = useState(null);
+
+  // Cargar empleados desde la API
+  useEffect(() => {
+    fetch('http://localhost:5000/empleados')
+      .then(res => res.json())
+      .then(data => setEmpleados(data))
+      .catch(() => setMensaje("Error al cargar empleados"));
+  }, []);
 
   // Filtro de empleados según activos/inactivos
   const empleadosFiltrados = empleados.filter(e => mostrarInactivos ? e.activo === 0 : e.activo === 1);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MenuLateral from './MenuLateral';
 
 const colores = {
@@ -10,6 +10,7 @@ const colores = {
 };
 
 const Repuestos = () => {
+  const [repuestos, setRepuestos] = useState([]);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [formData, setFormData] = useState({
@@ -22,6 +23,14 @@ const Repuestos = () => {
     activo: 1
   });
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+
+  // Cargar repuestos desde la API al montar el componente
+  useEffect(() => {
+    fetch('http://localhost:5000/repuestos') // Ajusta la URL según tu backend
+      .then(res => res.json())
+      .then(data => setRepuestos(data))
+      .catch(() => setMensaje("Error al cargar repuestos"));
+  }, []);
 
   // Filtro de repuestos según activos/inactivos
   const repuestosFiltrados = repuestos.filter(r => mostrarInactivos ? r.activo === 0 : r.activo === 1);
