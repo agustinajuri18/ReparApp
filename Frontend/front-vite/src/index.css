@@ -28,3 +28,128 @@
   pointer-events: none;
   z-index: 0;
 }
+
+.form-container {
+  background: #f0ede5 !important; /* beige */
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  padding: 2rem;
+  max-width: 420px;
+  margin: 2rem auto;
+}
+.form-group {
+  margin-bottom: 1rem;
+}
+.form-container input,
+.form-container select {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #cfd8dc;
+}
+.form-container button {
+  background: #2e3a59;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 1rem;
+}
+
+.prov-modal-content {
+  background: #f0ede5 !important; /* beige */
+  border-radius: 20px;
+  border: 2px solid #85abab;
+  box-shadow: 0 4px 24px 0 #1f334522;
+  padding: 2rem 1.5rem;
+  max-width: 480px;
+  margin: 2rem auto;
+}
+
+.prov-modal-header {
+  background: #1f3345;
+  color: #f0ede5;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  padding: 1rem 1.5rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.prov-modal-title {
+  margin: 0;
+  font-size: 1.3rem;
+  letter-spacing: 1px;
+}
+
+.prov-form-section {
+  border: none;
+  margin-bottom: 1.5rem;
+  padding: 0;
+}
+
+.prov-form-legend {
+  font-weight: 700;
+  color: #1f3345;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+  letter-spacing: 0.5px;
+}
+
+.prov-form-group {
+  margin-bottom: 1rem;
+}
+
+.prov-form-label {
+  color: #1f3345;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.prov-form-input,
+.prov-form-select {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #cfd8dc;
+  margin-bottom: 0.25rem;
+}
+
+.prov-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.prov-btn {
+  background: #85abab;
+  color: #1f3345;
+  font-weight: 700;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  min-width: 110px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.prov-btn-cancel {
+  background: #c78f57;
+  color: #1f3345;
+}
+
+.prov-btn-save {
+  background: #85abab;
+  color: #1f3345;
+}
+
+.prov-btn-save:hover {
+  background: #6e9696;
+}
+
+.prov-btn-cancel:hover {
+  background: #b57a3c;
+}

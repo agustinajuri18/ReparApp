@@ -6,7 +6,7 @@ from ABMC_db import *
 
 
 app = Blueprint('usuarios', __name__)
-CORS(app)
+
 
 
 @app.route("/usuarios/", methods=["POST"])

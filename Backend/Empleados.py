@@ -5,7 +5,6 @@ from flask_cors import CORS
 from ABMC_db import *
 
 app = Blueprint('empleados', __name__)
-CORS(app, supports_credentials=True)
 
 @app.route("/empleados/", methods=["POST"])
 def registrar_empleado():

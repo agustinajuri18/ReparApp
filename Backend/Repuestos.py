@@ -3,7 +3,6 @@ from flask_cors import CORS
 from ABMC_db import *
 
 app = Blueprint('repuestos', __name__)
-CORS(app)
 
 
 @app.route("/repuestos/", methods=["POST"])

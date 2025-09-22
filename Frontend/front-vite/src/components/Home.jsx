@@ -1,26 +1,21 @@
-
 import React from 'react';
 import MenuLateral from './MenuLateral';
+import PiePagina from './PiePagina';
 
-const colores = {
-  azul: '#1f3345',
-  dorado: '#c78f57',
-  rojo: '#b54745',
-  verdeAgua: '#85abab',
-  beige: '#f0ede5'
-};
+const colores = { azul: '#1f3345', dorado: '#c78f57', verdeAgua: '#85abab', beige: '#f0ede5' };
 
-// Componente principal de inicio
 const Home = () => (
-  <div style={{ display: 'flex', minHeight: '100vh', background: colores.beige, fontFamily: 'Segoe UI, Arial, sans-serif' }}>
-    <MenuLateral />
-    <main style={{ flex: 1, padding: '2rem', background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, margin: 32 }}>
-      <h1 style={{ color: colores.azul, fontWeight: 700 }}>Bienvenido a ReparApp</h1>
-      <p style={{ color: colores.azul }}>
-        Gestiona tus reparaciones de manera sencilla y eficiente.
-      </p>
-      {/* Aquí puedes agregar más contenido de inicio */}
-    </main>
+  <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
+    <div className="row flex-nowrap">
+      <MenuLateral />
+      <main className="col-12 col-md-10 pt-4 px-2 px-md-4 d-flex flex-column" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
+        <div className="flex-grow-1 d-flex flex-column justify-content-center align-items-center">
+          <h1 style={{ color: colores.azul, fontWeight: 700 }}>Bienvenido a ReparApp</h1>
+          <p style={{ color: colores.dorado, fontSize: 18 }}>Gestione clientes, proveedores, empleados y más desde un solo lugar.</p>
+        </div>
+        <PiePagina />
+      </main>
+    </div>
   </div>
 );
 

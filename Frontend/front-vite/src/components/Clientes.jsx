@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import MenuLateral from './MenuLateral';
+import PiePagina from './PiePagina';
 
 const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5' };
 
@@ -22,6 +23,12 @@ function validarCuitCuil(cuit) {
 function validarTelefono(telefono) {
   return /^\d{10,11}$/.test(telefono);
 }
+
+const tiposDocumento = [
+  { value: "DNI", label: "DNI" },
+  { value: "PASAPORTE", label: "Pasaporte" },
+  { value: "CUIT/CUIL", label: "CUIT/CUIL" },
+];
 
 const Clientes = () => {
   const [mensaje, setMensaje] = useState("");
@@ -66,11 +73,11 @@ const Clientes = () => {
       alert("DNI inválido");
       return;
     }
-    if (formData.tipoDocumento === "Pasaporte" && !validarPasaporte(formData.numeroDni)) {
+    if (formData.tipoDocumento === "PASAPORTE" && !validarPasaporte(formData.numeroDni)) {
       alert("Pasaporte inválido");
       return;
     }
-    if ((formData.tipoDocumento === "CUIT" || formData.tipoDocumento === "CUIL") && !validarCuitCuil(formData.numeroDni)) {
+    if (formData.tipoDocumento === "CUIT/CUIL" && !validarCuitCuil(formData.numeroDni)) {
       alert("CUIT/CUIL inválido");
       return;
     }
@@ -78,8 +85,8 @@ const Clientes = () => {
       alert("Teléfono inválido");
       return;
     }
-
-    const resultado = await registrarCliente(formData);
+    const datos = { ...formData, telefono: Number(formData.telefono) };
+    const resultado = await registrarCliente(datos);
     setMensaje(resultado.mensaje || resultado.detail);
     setMostrarFormulario(false);
     setFormData({
@@ -106,7 +113,6 @@ const Clientes = () => {
 
 
 
-
   // CONSULTA DE CLIENTES
   // La búsqueda individual no depende del estado activo
   const handleConsultar = async (tipoDocumento, numeroDni) => {
@@ -124,7 +130,6 @@ const Clientes = () => {
 
 
 
-
   // MODIFICACION DE CLIENTES
   const handleModificar = async (tipoDocumento, numeroDni) => {
     const datos = await consultarCliente(tipoDocumento, numeroDni);
@@ -133,12 +138,15 @@ const Clientes = () => {
     setModalVisible(true);
   };
 
-  // API: Modificar cliente por DNI
+  // API: Modificar cliente por DNI (asegura mayúsculas)
   const modificarCliente = async (tipoDocumento, numeroDni, datos) => {
-    const response = await fetch(`http://localhost:5000/clientes/${tipoDocumento}/${numeroDni}`, {
+    const tipoDoc = tipoDocumento.toUpperCase();
+    // Convierte teléfono a número antes de enviar
+    const datosAEnviar = { ...datos, telefono: Number(datos.telefono) };
+    const response = await fetch(`http://localhost:5000/clientes/${tipoDoc}/${numeroDni}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(datos)
+      body: JSON.stringify(datosAEnviar)
     });
     return await response.json();
   };
@@ -146,16 +154,18 @@ const Clientes = () => {
 
   // Guardar cambios en cliente
   const handleModalSave = async (e) => {
-    e.preventDefault(); // Evita que el formulario recargue la página al enviar.
-    if (clienteActual) { // Verifica que hay un cliente seleccionado para editar.
-      const resultado = await modificarCliente(clienteActual.tipoDocumento, clienteActual.numeroDni, clienteActual); // Envía los datos modificados al backend usando la API.
-      setMensaje(resultado.mensaje || resultado.detail); // Muestra el mensaje de respuesta del backend.
-      setModalVisible(false); // Cierra el modal de edición.
-      setClienteActual(null); // Limpia el estado del cliente actual.
+    e.preventDefault();
+    if (clienteActual) {
+      // Convierte teléfono a número antes de enviar
+      const datosAEnviar = { ...clienteActual, telefono: Number(clienteActual.telefono) };
+      const resultado = await modificarCliente(clienteActual.tipoDocumento, clienteActual.numeroDni, datosAEnviar);
+      setMensaje(resultado.mensaje || resultado.detail);
+      setModalVisible(false);
+      setClienteActual(null);
       setClientes(clientes.map(c =>
         c.tipoDocumento === clienteActual.tipoDocumento && String(c.numeroDni) === String(clienteActual.numeroDni)
           ? clienteActual : c
-      )); // Actualiza la lista de clientes en el frontend con los datos modificados.
+      ));
     }
   };
 
@@ -192,23 +202,23 @@ const Clientes = () => {
   };
 
   return (
-  <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh', fontFamily: 'Segoe UI, Arial, sans-serif' }}>
-      <div className="row">
+    <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
+      <div className="row flex-nowrap">
         <MenuLateral />
-  <main className="col-9 col-md-10 pt-4" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
+        <main className="col-12 col-md-10 pt-4 px-2 px-md-4 d-flex flex-column" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
           <div className="card shadow-sm mb-4" style={{ border: `1.5px solid ${colores.azul}`, borderRadius: 16, background: colores.beige }}>
-            <div className="card-header d-flex justify-content-between align-items-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-              <h4 className="mb-0" style={{ letterSpacing: 1 }}>Gestión de Clientes</h4>
-              <div>
+            <div className="card-header d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+              <h4 className="mb-2 mb-md-0">Gestión de Clientes</h4>
+              <div className="d-flex flex-column flex-md-row gap-2">
                 <button
-                  className="btn me-2"
+                  className="btn mb-2 mb-md-0 me-md-2 w-100"
                   style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
                   onClick={() => setMostrarInactivos(!mostrarInactivos)}
                 >
                   {mostrarInactivos ? 'Ver solo activos' : 'Ver también inactivos'}
                 </button>
                 <button
-                  className="btn"
+                  className="btn w-100"
                   style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
                   onClick={handleAgregarClick}
                 >
@@ -216,38 +226,126 @@ const Clientes = () => {
                 </button>
               </div>
             </div>
-            <div className="card-body" style={{ background: colores.beige }}>
+            <div className="card-body">
               {mostrarFormulario && (
-                <form onSubmit={handleSubmit} className="mb-3" style={{ background: colores.beige, borderRadius: 12, border: `1px solid ${colores.verdeAgua}`, padding: 16 }}>
+                <form onSubmit={handleSubmit} className="form-container mb-3">
                   <div className="row">
-                    <div className="col-md-2">
-                      <input type="text" name="tipoDocumento" value={formData.tipoDocumento} onChange={handleChange} className="form-control" placeholder="Tipo Documento" required />
-                    </div>
-                    <div className="col-md-2">
-                      <input type="text" name="numeroDni" value={formData.numeroDni} onChange={handleChange} className="form-control" placeholder="DNI" required />
-                    </div>
-                    <div className="col-md-2">
-                      <input type="text" name="nombre" value={formData.nombre} onChange={handleChange} className="form-control" placeholder="Nombre" required />
-                    </div>
-                    <div className="col-md-2">
-                      <input type="text" name="apellido" value={formData.apellido} onChange={handleChange} className="form-control" placeholder="Apellido" required />
-                    </div>
-                    <div className="col-md-2">
-                      <input type="text" name="telefono" value={formData.telefono} onChange={handleChange} className="form-control" placeholder="Teléfono" required />
-                    </div>
-                    <div className="col-md-2">
-                      <input type="email" name="mail" value={formData.mail} onChange={handleChange} className="form-control" placeholder="Correo" required />
-                    </div>
-                    <div className="col-md-2 mt-2">
-                      <select name="activo" value={formData.activo} onChange={handleChange} className="form-select">
-                        <option value={1}>Activo</option>
-                        <option value={0}>Inactivo</option>
-                      </select>
-                    </div>
+                    <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
+                      <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                        <i className="bi bi-person-badge me-2"></i>Datos personales
+                      </legend>
+                      <div className="form-group mb-2">
+                        <label>
+                          <i className="bi bi-card-list me-2"></i>Tipo de Documento
+                        </label>
+                        <select
+                          name="tipoDocumento"
+                          value={formData.tipoDocumento}
+                          onChange={handleChange}
+                          required
+                          className="form-control"
+                        >
+                          <option value="">Seleccione...</option>
+                          {tiposDocumento.map(td => (
+                            <option key={td.value} value={td.value}>{td.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group mb-2">
+                        <label>
+                          <i className="bi bi-123 me-2"></i>Número de Documento
+                        </label>
+                        <input
+                          type="text"
+                          name="numeroDni"
+                          value={formData.numeroDni}
+                          onChange={handleChange}
+                          required
+                          className="form-control"
+                        />
+                      </div>
+                      <div className="form-group mb-2">
+                        <label>
+                          <i className="bi bi-person me-2"></i>Nombre
+                        </label>
+                        <input
+                          type="text"
+                          name="nombre"
+                          value={formData.nombre}
+                          onChange={handleChange}
+                          required
+                          className="form-control"
+                        />
+                      </div>
+                      <div className="form-group mb-2">
+                        <label>
+                          <i className="bi bi-person me-2"></i>Apellido
+                        </label>
+                        <input
+                          type="text"
+                          name="apellido"
+                          value={formData.apellido}
+                          onChange={handleChange}
+                          required
+                          className="form-control"
+                        />
+                      </div>
+                    </fieldset>
+                    <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
+                      <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                        <i className="bi bi-telephone me-2"></i>Datos de contacto
+                      </legend>
+                      <div className="form-group mb-2">
+                        <label>
+                          <i className="bi bi-telephone me-2"></i>Teléfono
+                        </label>
+                        <input
+                          type="text"
+                          name="telefono"
+                          value={formData.telefono}
+                          onChange={handleChange}
+                          required
+                          className="form-control"
+                        />
+                      </div>
+                      <div className="form-group mb-2">
+                        <label>
+                          <i className="bi bi-envelope me-2"></i>Email
+                        </label>
+                        <input
+                          type="email"
+                          name="mail"
+                          value={formData.mail}
+                          onChange={handleChange}
+                          required
+                          className="form-control"
+                        />
+                      </div>
+                      <fieldset style={{ border: "none", marginBottom: "1.5rem" }}>
+                        <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                          <i className="bi bi-check2-circle me-2"></i>Estado
+                        </legend>
+                        <div className="form-group mb-2">
+                          <label>
+                            <i className="bi bi-check2-circle me-2"></i>Estado
+                          </label>
+                          <select name="activo" value={formData.activo} onChange={handleChange} className="form-control">
+                            <option value={1}>Activo</option>
+                            <option value={0}>Inactivo</option>
+                          </select>
+                        </div>
+                      </fieldset>
+                    </fieldset>
                   </div>
-                  <div className="mt-2">
-                    <button type="submit" className="btn me-2" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}>Guardar</button>
-                    <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }} onClick={handleAgregarClick}>Cancelar</button>
+                  <div className="row">
+                    <div className="col-12 d-flex flex-column flex-md-row justify-content-end">
+                      <button type="submit" className="btn mb-2 mb-md-0" style={{ background: colores.azul, color: colores.beige }}>
+                        <i className="bi bi-save me-1"></i>Guardar
+                      </button>
+                      <button type="button" className="btn ms-md-2" style={{ background: colores.dorado, color: colores.azul }} onClick={handleAgregarClick}>
+                        <i className="bi bi-x-circle me-1"></i>Cancelar
+                      </button>
+                    </div>
                   </div>
                 </form>
               )}
@@ -260,8 +358,8 @@ const Clientes = () => {
               {modalVisible && clienteActual && (
                 <div className="modal fade show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
                   <div className="modal-dialog">
-                    <div className="modal-content">
-                      <div className="modal-header">
+                    <div className="modal-content" style={{ background: colores.beige, borderRadius: 16, border: `2px solid ${colores.azul}` }}>
+                      <div className="modal-header" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
                         <h5 className="modal-title">
                           {modalModo === 'consultar' ? 'Datos del Cliente' : 'Modificar Cliente'}
                         </h5>
@@ -269,50 +367,143 @@ const Clientes = () => {
                       </div>
                       <div className="modal-body">
                         {modalModo === 'consultar' ? (
-                          <ul className="list-group">
-                            <li className="list-group-item"><b>Tipo Documento:</b> {clienteActual.tipoDocumento}</li>
-                            <li className="list-group-item"><b>DNI:</b> {clienteActual.numeroDni}</li>
-                            <li className="list-group-item"><b>Nombre:</b> {clienteActual.nombre}</li>
-                            <li className="list-group-item"><b>Apellido:</b> {clienteActual.apellido}</li>
-                            <li className="list-group-item"><b>Teléfono:</b> {clienteActual.telefono}</li>
-                            <li className="list-group-item"><b>Correo:</b> {clienteActual.mail}</li>
-                          </ul>
+                          <div className="form-container" style={{ boxShadow: "none", padding: "1rem", background: colores.beige }}>
+                            <fieldset style={{ border: "none", marginBottom: "1.5rem" }}>
+                              <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                                <i className="bi bi-person-badge me-2"></i>Datos personales
+                              </legend>
+                              <div className="form-group"><i className="bi bi-card-list me-2"></i><b>Tipo Documento:</b> {clienteActual.tipoDocumento}</div>
+                              <div className="form-group"><i className="bi bi-123 me-2"></i><b>Número de Documento:</b> {clienteActual.numeroDni}</div>
+                              <div className="form-group"><i className="bi bi-person me-2"></i><b>Nombre:</b> {clienteActual.nombre}</div>
+                              <div className="form-group"><i className="bi bi-person me-2"></i><b>Apellido:</b> {clienteActual.apellido}</div>
+                            </fieldset>
+                            <fieldset style={{ border: "none", marginBottom: "1.5rem" }}>
+                              <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                                <i className="bi bi-telephone me-2"></i>Datos de contacto
+                              </legend>
+                              <div className="form-group"><i className="bi bi-telephone me-2"></i><b>Teléfono:</b> {clienteActual.telefono}</div>
+                              <div className="form-group"><i className="bi bi-envelope me-2"></i><b>Correo:</b> {clienteActual.mail}</div>
+                            </fieldset>
+                            <fieldset style={{ border: "none" }}>
+                              <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                                <i className="bi bi-check2-circle me-2"></i>Estado
+                              </legend>
+                              <div className="form-group"><i className="bi bi-check2-circle me-2"></i><b>Estado:</b> {clienteActual.activo === 1 ? "Activo" : "Inactivo"}</div>
+                            </fieldset>
+                          </div>
                         ) : (
-                          <form onSubmit={handleModalSave}>
-                            <div className="mb-2">
-                              <label className="form-label">Tipo Documento</label>
-                              <input type="text" className="form-control" value={clienteActual.tipoDocumento} onChange={e => setClienteActual({ ...clienteActual, tipoDocumento: e.target.value })} />
-                            </div>
-                            <div className="mb-2">
-                              <label className="form-label">DNI</label>
-                              <input type="text" className="form-control" value={clienteActual.numeroDni} onChange={e => setClienteActual({ ...clienteActual, numeroDni: e.target.value })} />
-                            </div>
-                            <div className="mb-2">
-                              <label className="form-label">Nombre</label>
-                              <input type="text" className="form-control" value={clienteActual.nombre} onChange={e => setClienteActual({ ...clienteActual, nombre: e.target.value })} />
-                            </div>
-                            <div className="mb-2">
-                              <label className="form-label">Apellido</label>
-                              <input type="text" className="form-control" value={clienteActual.apellido} onChange={e => setClienteActual({ ...clienteActual, apellido: e.target.value })} />
-                            </div>
-                            <div className="mb-2">
-                              <label className="form-label">Teléfono</label>
-                              <input type="text" className="form-control" value={clienteActual.telefono} onChange={e => setClienteActual({ ...clienteActual, telefono: e.target.value })} />
-                            </div>
-                            <div className="mb-2">
-                              <label className="form-label">Correo</label>
-                              <input type="email" className="form-control" value={clienteActual.mail} onChange={e => setClienteActual({ ...clienteActual, mail: e.target.value })} />
-                            </div>
-                            <div className="mb-2">
-                              <label className="form-label">Estado</label>
-                              <select className="form-select" value={clienteActual.activo} onChange={e => setClienteActual({ ...clienteActual, activo: Number(e.target.value) })}>
-                                <option value={1}>Activo</option>
-                                <option value={0}>Inactivo</option>
-                              </select>
-                            </div>
-                            <div className="d-flex justify-content-end">
-                              <button type="submit" className="btn btn-success me-2">Guardar</button>
-                              <button type="button" className="btn btn-secondary" onClick={handleModalClose}>Cancelar</button>
+                          <form onSubmit={handleModalSave} className="form-container" style={{ boxShadow: "none", padding: "1rem", background: colores.beige }}>
+                            <fieldset style={{ border: "none", marginBottom: "1.5rem" }}>
+                              <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                                <i className="bi bi-person-badge me-2"></i>Datos personales
+                              </legend>
+                              <div className="form-group">
+                                <label style={{ color: colores.azul }}>
+                                  <i className="bi bi-card-list me-2"></i>Tipo Documento
+                                </label>
+                                <select
+                                  value={clienteActual.tipoDocumento}
+                                  onChange={e => setClienteActual({ ...clienteActual, tipoDocumento: e.target.value })}
+                                  required
+                                  className="form-control"
+                                >
+                                  <option value="">Seleccione...</option>
+                                  {tiposDocumento.map(td => (
+                                    <option key={td.value} value={td.value}>{td.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="form-group">
+                                <label style={{ color: colores.azul }}>
+                                  <i className="bi bi-123 me-2"></i>Número de Documento
+                                </label>
+                                <input
+                                  type="text"
+                                  value={clienteActual.numeroDni}
+                                  onChange={e => setClienteActual({ ...clienteActual, numeroDni: e.target.value })}
+                                  required
+                                  className="form-control"
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label style={{ color: colores.azul }}>
+                                  <i className="bi bi-person me-2"></i>Nombre
+                                </label>
+                                <input
+                                  type="text"
+                                  value={clienteActual.nombre}
+                                  onChange={e => setClienteActual({ ...clienteActual, nombre: e.target.value })}
+                                  required
+                                  className="form-control"
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label style={{ color: colores.azul }}>
+                                  <i className="bi bi-person me-2"></i>Apellido
+                                </label>
+                                <input
+                                  type="text"
+                                  value={clienteActual.apellido}
+                                  onChange={e => setClienteActual({ ...clienteActual, apellido: e.target.value })}
+                                  required
+                                  className="form-control"
+                                />
+                              </div>
+                            </fieldset>
+                            <fieldset style={{ border: "none", marginBottom: "1.5rem" }}>
+                              <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                                <i className="bi bi-telephone me-2"></i>Datos de contacto
+                              </legend>
+                              <div className="form-group">
+                                <label style={{ color: colores.azul }}>
+                                  <i className="bi bi-telephone me-2"></i>Teléfono
+                                </label>
+                                <input
+                                  type="text"
+                                  value={clienteActual.telefono}
+                                  onChange={e => setClienteActual({ ...clienteActual, telefono: e.target.value })}
+                                  required
+                                  className="form-control"
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label style={{ color: colores.azul }}>
+                                  <i className="bi bi-envelope me-2"></i>Correo
+                                </label>
+                                <input
+                                  type="email"
+                                  value={clienteActual.mail}
+                                  onChange={e => setClienteActual({ ...clienteActual, mail: e.target.value })}
+                                  required
+                                  className="form-control"
+                                />
+                              </div>
+                            </fieldset>
+                            <fieldset style={{ border: "none" }}>
+                              <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                                <i className="bi bi-check2-circle me-2"></i>Estado
+                              </legend>
+                              <div className="form-group">
+                                <label style={{ color: colores.azul }}>
+                                  <i className="bi bi-check2-circle me-2"></i>Estado
+                                </label>
+                                <select
+                                  value={clienteActual.activo}
+                                  onChange={e => setClienteActual({ ...clienteActual, activo: Number(e.target.value) })}
+                                  className="form-control"
+                                >
+                                  <option value={1}>Activo</option>
+                                  <option value={0}>Inactivo</option>
+                                </select>
+                              </div>
+                            </fieldset>
+                            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                              <button type="submit" style={{ background: colores.azul, color: colores.beige }}>
+                                <i className="bi bi-save me-1"></i>Guardar
+                              </button>
+                              <button type="button" style={{ marginLeft: 8, background: colores.dorado, color: colores.azul }} onClick={handleModalClose}>
+                                <i className="bi bi-x-circle me-1"></i>Cancelar
+                              </button>
                             </div>
                           </form>
                         )}
@@ -322,7 +513,7 @@ const Clientes = () => {
                 </div>
               )}
               <div className="table-responsive">
-                <table className="table table-striped table-hover">
+                <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
                       <th>Tipo Doc</th>
@@ -380,6 +571,7 @@ const Clientes = () => {
               </div>
             </div>
           </div>
+          <PiePagina />
         </main>
       </div>
     </div>

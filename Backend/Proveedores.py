@@ -5,7 +5,7 @@ from flask_cors import CORS
 from ABMC_db import *
 
 app = Blueprint('proveedores', __name__)
-CORS(app, supports_credentials=True)  # <--- Importante
+
 
 
 def validar_cuit(cuit):

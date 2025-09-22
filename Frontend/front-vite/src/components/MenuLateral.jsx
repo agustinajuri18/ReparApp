@@ -24,12 +24,8 @@ const MenuLateral = () => {
   const location = useLocation();
   return (
     <nav
-      className="col-3 col-md-2 vh-100 d-flex flex-column align-items-start pt-4 border-end"
-      style={{
-        background: colores.azul,
-        color: colores.beige,
-        minWidth: 200,
-      }}
+      className="col-12 col-md-2 d-flex flex-md-column flex-row align-items-center align-items-md-start py-3 px-2 px-md-3"
+      style={{ background: colores.azul, minHeight: "100vh" }}
     >
       {/* Logo arriba del menú */}
       <img
@@ -52,9 +48,9 @@ const MenuLateral = () => {
       >
         Menú
       </h4>
-      <ul className="nav flex-column w-100">
+      <ul className="nav nav-pills flex-md-column flex-row w-100 gap-2">
         {menuOptions.map((option) => (
-          <li className="nav-item" key={option.path}>
+          <li className="nav-item w-100" key={option.path}>
             <Link
               className={`nav-link ms-3${
                 location.pathname === option.path ? " active fw-bold" : ""

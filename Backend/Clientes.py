@@ -5,7 +5,7 @@ from flask_cors import CORS
 from ABMC_db import *
 
 app = Blueprint('clientes', __name__)
-CORS(app)
+
 
 def validar_dni(dni):
     return dni.isdigit() and 7 <= len(dni) <= 8
@@ -101,6 +101,7 @@ def listar_clientes():
             "activo": c.activo
         } for c in clientes
     ]), 200
+
 
 if __name__ == "__main__":
     app.run(debug=True)

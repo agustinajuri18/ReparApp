@@ -1,9 +1,14 @@
+import React from 'react';
 
-import React from "react";
+const colores = { azul: '#1f3345', dorado: '#c78f57', verdeAgua: '#85abab', beige: '#f0ede5' };
 
 const PiePagina = () => (
-  <footer style={{ background: '#1f3345', color: '#f0ede5', textAlign: 'center', padding: '1rem', fontWeight: 600, letterSpacing: 1 }}>
-    <span>© 2025 ReparApp</span>
+  <footer className="container-fluid py-3 mt-auto" style={{ background: colores.azul, color: colores.beige }}>
+    <div className="row">
+      <div className="col-12 text-center">
+        <small>© 2025 ReparApp. Todos los derechos reservados.</small>
+      </div>
+    </div>
   </footer>
 );
 
