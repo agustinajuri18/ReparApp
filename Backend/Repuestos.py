@@ -19,19 +19,18 @@ def registrar_repuesto():
     return jsonify({"mensaje": "Repuesto creado exitosamente"}), 201
 
 @app.route("/repuestos/<codigo>", methods=["PUT"])
-def modificar_datos_repuesto(numero_dni):
+def modificar_datos_repuesto(codigo):  # <-- corregido aquí
     session = SessionLocal()
     repuesto = session.query(Repuesto).filter_by(codigo=codigo).first()
     if repuesto:
         data = request.get_json()
-        codigo = data.get("codigo")
         marca = data.get("marca")
         modelo = data.get("modelo")
         tipo = data.get("tipo")
         cuilProveedor = data.get("cuilProveedor")
         costo = data.get("costo")
         activo = data.get("activo")
-        modificar_repuesto(numero_dni, codigo, marca, modelo, tipo, cuilProveedor, costo, activo)
+        modificar_repuesto(codigo, marca, modelo, tipo, cuilProveedor, costo, activo)
         session.close()
         return jsonify({"mensaje": "Repuesto modificado exitosamente"}), 200
     session.close()

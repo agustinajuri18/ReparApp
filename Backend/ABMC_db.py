@@ -366,7 +366,7 @@ def baja_repuesto(codigo):
         session.commit()
     session.close()
     
-def modificar_repuesto(codigo, marca, modelo, tipo, cuilProveedor, costo):
+def modificar_repuesto(codigo, marca, modelo, tipo, cuilProveedor, costo, activo=1):
     session = SessionLocal()
     repuesto = session.query(Repuesto).get(codigo)
     if repuesto:
@@ -375,6 +375,7 @@ def modificar_repuesto(codigo, marca, modelo, tipo, cuilProveedor, costo):
         repuesto.tipo = tipo
         repuesto.cuilProveedor = cuilProveedor
         repuesto.costo = costo
+        repuesto.activo = activo  # <--- Guarda el estado
         session.commit()
     session.close()
 

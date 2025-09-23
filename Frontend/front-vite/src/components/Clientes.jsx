@@ -207,20 +207,20 @@ const Clientes = () => {
         <MenuLateral />
         <main className="col-12 col-md-10 pt-4 px-2 px-md-4 d-flex flex-column" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
           <div className="card shadow-sm mb-4" style={{ border: `1.5px solid ${colores.azul}`, borderRadius: 16, background: colores.beige }}>
-            <div className="card-header d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-              <h4 className="mb-2 mb-md-0">Gestión de Clientes</h4>
-              <div className="d-flex flex-column flex-md-row gap-2">
+            <div className="card-header d-flex justify-content-between align-items-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+              <h4 className="mb-0">Gestión de Clientes</h4>
+              <div className="d-flex gap-2">
                 <button
-                  className="btn mb-2 mb-md-0 me-md-2 w-100"
+                  className="btn"
                   style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
                   onClick={() => setMostrarInactivos(!mostrarInactivos)}
                 >
-                  {mostrarInactivos ? 'Ver solo activos' : 'Ver también inactivos'}
+                  {mostrarInactivos ? "Ver activos" : "Ver también inactivos"}
                 </button>
                 <button
-                  className="btn w-100"
+                  className="btn"
                   style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                  onClick={handleAgregarClick}
+                  onClick={() => setMostrarFormulario(true)}
                 >
                   <i className="bi bi-plus-lg"></i> Agregar
                 </button>
@@ -571,7 +571,6 @@ const Clientes = () => {
               </div>
             </div>
           </div>
-          <PiePagina />
         </main>
       </div>
     </div>

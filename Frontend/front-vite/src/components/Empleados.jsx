@@ -80,9 +80,9 @@ const Empleados = () => {
         <MenuLateral />
         <main className="col-12 col-md-10 pt-4 px-2 px-md-4" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
           <div className="card shadow-sm mb-4" style={{ border: `1.5px solid ${colores.azul}`, borderRadius: 16, background: colores.beige }}>
-            <div className="card-header d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-              <h4 className="mb-2 mb-md-0">Gestión de Empleados</h4>
-              <div className="d-flex flex-column flex-md-row gap-2 w-100 w-md-auto">
+            <div className="card-header d-flex justify-content-between align-items-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+              <h4 className="mb-0">Gestión de Empleados</h4>
+              <div className="d-flex gap-2">
                 <button
                   className="btn"
                   style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}

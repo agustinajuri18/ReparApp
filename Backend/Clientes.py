@@ -18,7 +18,7 @@ def validar_cuit_cuil(cuit):
     return cuit.isdigit() and len(cuit) == 11
 
 def validar_telefono(telefono):
-    return telefono.isdigit() and 10 <= len(telefono) <= 11
+    return str(telefono).isdigit() and 10 <= len(str(telefono)) <= 11
 
 @app.route("/clientes/", methods=["POST"])
 def registrar_cliente():
