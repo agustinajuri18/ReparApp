@@ -548,7 +548,7 @@ const Clientes = () => {
                           >
                             <span title="Modificar"><i className="bi bi-pencil-square"></i></span> Modificar
                           </button>
-                          {c.activo !== false && (
+                          {c.activo == true && (
                             <button
                               className="btn btn-sm"
                               style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}

@@ -377,7 +377,7 @@ const Proveedores = () => {
                               </legend>
                               <div className="form-group mb-2">
                                 <i className="bi bi-check2-circle me-2"></i>
-                                <b>Estado:</b> {proveedorActual.activo === 1 ? "Activo" : "Inactivo"}
+                                <b>Estado:</b> {Number(proveedorActual.activo) == 1 ? "Activo" : "Inactivo"}
                               </div>
                             </fieldset>
                           </div>
@@ -439,12 +439,16 @@ const Proveedores = () => {
                                 </label>
                                 <select
                                   className="form-select"
-                                  value={String(proveedorActual.activo ?? "1")}
-                                  onChange={e => setProveedorActual({ ...proveedorActual, activo: e.target.value })}
+                                  value={Number(proveedorActual.activo) ?? 1}
+                                  onChange={e => setProveedorActual({
+                                    ...proveedorActual,
+                                    activo: parseInt(e.target.value, 10)
+                                  })}
                                 >
-                                  <option value="1">Activo</option>
-                                  <option value="0">Inactivo</option>
+                                  <option value={1}>Activo</option>
+                                  <option value={0}>Inactivo</option>
                                 </select>
+
                               </div>
                             </fieldset>
                             <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -475,7 +479,7 @@ const Proveedores = () => {
                   </thead>
                   <tbody>
                     {proveedores.map((prov) => (
-                      <tr key={prov.cuil} style={prov.activo === 0 ? { opacity: 0.5 } : {}}>
+                      <tr key={prov.cuil} style={Number(prov.activo) == 0 ? { opacity: 0.5 } : {}}>
                         <td>{prov.cuil}</td><td>{prov.razonSocial}</td><td>{prov.telefono}</td><td>{prov.activo === 1 ? "Activo" : "Inactivo"}</td><td>
                           <button
                             className="btn btn-sm me-1"
@@ -491,7 +495,7 @@ const Proveedores = () => {
                           >
                             <span title="Modificar"><i className="bi bi-pencil-square"></i></span> Modificar
                           </button>
-                          {prov.activo !== false && (
+                          {prov.activo == true && (
                             <button
                               className="btn btn-sm"
                               style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}
