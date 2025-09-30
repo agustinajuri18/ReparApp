@@ -16,7 +16,7 @@ def validar_telefono(telefono):
     return telefono.isdigit() and 10 <= len(telefono) <= 11
 
 
-@app.route("/proveedores/", methods=["POST"])
+@app.route("/proveedores/", methods=["POST"])  
 def registrar_proveedor():
     data = request.get_json()
     cuil = data.get("cuil")
@@ -24,7 +24,7 @@ def registrar_proveedor():
     telefono = data.get("telefono")
 
     if not validar_cuit(str(cuil)):
-        return jsonify({"error": "CUIT inválido"}), 400
+        return jsonify({"error": "CUIT inválidotot-"}), 400
     if not validar_telefono(str(telefono)):
         return jsonify({"error": "Teléfono inválido"}), 400
 
@@ -60,10 +60,10 @@ def mostrar_proveedor(cuil):
             "cuil": proveedor.cuil,
             "razonSocial": proveedor.razonSocial,
             "telefono": proveedor.telefono,
+            "activo": proveedor.activo,
         }
         return jsonify(proveedor_dict), 200
     return jsonify({"detail": "Proveedor no encontrado"}), 404
-
 
 @app.route("/proveedores/", methods=["GET"])
 def listar_proveedores():

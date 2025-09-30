@@ -181,12 +181,6 @@ const Clientes = () => {
 
 
 
-
-
-
-
-
-
   const handleModalClose = () => {
     setModalVisible(false);
     setClienteActual(null);

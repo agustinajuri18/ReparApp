@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import MenuLateral from './MenuLateral';
 
-const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5' };
+const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5', mentaSuave: '#c6e8e8' };
 
 const Proveedores = () => {
   const [proveedores, setProveedores] = useState([]);
@@ -97,10 +97,16 @@ const Proveedores = () => {
       return;
     }
     const datos = await response.json();
-    setProveedorActual({ ...datos });
+
+    // Aseguramos que activo tenga valor correcto
+    setProveedorActual({
+      ...datos,
+      activo: Boolean(datos.activo)
+    });
     setModalModo('modificar');
     setModalVisible(true);
   };
+
 
   const modificarProveedor = async (cuil, datos) => {
     const response = await fetch(`http://localhost:5000/proveedores/${cuil}`, {
@@ -146,6 +152,114 @@ const Proveedores = () => {
     return /^\d{10,11}$/.test(telefono);
   }
 
+  // Función para el botón de listar proveedores (usa la lista actual)
+  const handleListarProveedores = (proveedores) => {
+    const lista = proveedores ? [...proveedores] : [];
+    mostrarVentanaEmergente(lista);
+  };
+
+  const mostrarVentanaEmergente = (lista) => {
+    // Crear ventana emergente
+    const ventana = window.open(
+      'about:blank',
+      "ListaProveedores",
+      // Aseguramos que el scroll esté habilitado: "scrollbars=yes"
+      "width=900,height=700,scrollbars=yes,resizable=yes"
+    );
+
+    if (!ventana) return;
+
+    ventana.document.write(`
+    <html>
+      <head>
+        <title>Listado de Proveedores</title>
+        <link 
+          rel="stylesheet" 
+          href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+        >
+        <link 
+          rel="stylesheet" 
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css"
+        >
+        <style>
+          /* Estilos generales */
+          body { 
+            padding: 30px; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            /* IMPORTANTE: Un padding inferior amplio para que el botón de cierre no se pegue abajo */
+            padding-bottom: 80px; 
+          }
+          /* ... (resto de tus estilos) ... */
+          h2 { 
+            margin-bottom: 25px;
+            color: #343a40;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+            font-weight: 600;
+          }
+          .table-hover tbody tr:hover {
+            background-color: #e2f4ff;
+            cursor: default;
+          }
+          .activo-si { color: #28a745; font-weight: bold; }
+          .activo-no { color: #dc3545; font-weight: bold; }
+          .btn-container {
+            margin-top: 30px;
+            text-align: right;
+            /* Opcional: Para mantener el botón visible si el scroll es muy lento */
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container-fluid">
+          <h2><i class="fas fa-users"></i> Listado de Proveedores (${lista.length} Registros)</h2>
+          <table class="table table-bordered table-striped table-hover">
+            <thead class="thead-dark">
+              <tr>
+                <th>CUIL</th>
+                <th>Razón Social</th>
+                <th>Teléfono</th>
+                <th class="text-center">Activo</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${lista
+        .map((p) => {
+          const esActivo = p.activo;
+          const claseActivo = esActivo ? 'activo-si' : 'activo-no';
+          const iconoActivo = esActivo
+            ? '<i class="fas fa-check-circle"></i> Sí'
+            : '<i class="fas fa-times-circle"></i> No';
+
+          return `
+                    <tr>
+                      <td>${p.cuil}</td>
+                      <td>${p.razonSocial}</td>
+                      <td>${p.telefono}</td>
+                      <td class="text-center ${claseActivo}">
+                        ${iconoActivo}
+                      </td>
+                    </tr>
+                  `;
+        })
+        .join("")}
+            </tbody>
+          </table>
+          
+          <div class="btn-container">
+            <button class="btn btn-primary btn-lg" onclick="window.close()">
+              <i class="fas fa-times-circle"></i> Cerrar Listado
+            </button>
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+
+    ventana.document.close();
+  };
+
   return (
     <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
       <div className="row flex-nowrap">
@@ -155,6 +269,13 @@ const Proveedores = () => {
             <div className="card-header d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
               <h4 className="mb-2 mb-md-0">Gestión de Proveedores</h4>
               <div>
+                <button
+                  className="btn btn-success me-2"
+                  style={{ background: colores.mentaSuave, color: colores.azul, fontWeight: 600, border: 'none' }}
+                  onClick={() => handleListarProveedores(proveedores)}
+                >
+                  Listar Proveedores
+                </button>
                 <button
                   className="btn me-2"
                   style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
@@ -199,8 +320,8 @@ const Proveedores = () => {
                             </div>
                             <div className="col-12 col-md-3 mb-2">
                               <select name="activo" value={formData.activo} onChange={e => setFormData({ ...formData, activo: Number(e.target.value) })} className="form-select">
-                                <option value={1}>Activo</option>
-                                <option value={0}>Inactivo</option>
+                                <option value="1">Activo</option>
+                                <option value="0">Inactivo</option>
                               </select>
                             </div>
                           </div>
@@ -318,11 +439,11 @@ const Proveedores = () => {
                                 </label>
                                 <select
                                   className="form-select"
-                                  value={proveedorActual.activo}
-                                  onChange={e => setProveedorActual({ ...proveedorActual, activo: Number(e.target.value) })}
+                                  value={String(proveedorActual.activo ?? "1")}
+                                  onChange={e => setProveedorActual({ ...proveedorActual, activo: e.target.value })}
                                 >
-                                  <option value={1}>Activo</option>
-                                  <option value={0}>Inactivo</option>
+                                  <option value="1">Activo</option>
+                                  <option value="0">Inactivo</option>
                                 </select>
                               </div>
                             </fieldset>
