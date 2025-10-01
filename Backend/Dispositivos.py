@@ -66,19 +66,9 @@ def baja_logica_dispositivo(nroSerie):
 
 @app.route("/dispositivos/", methods=["GET"])
 def listar_dispositivos():
-    activos = request.args.get("activos")
-    if activos == "false":
-        dispositivos = mostrar_dispositivos(activos_only=False)
-    else:
-        dispositivos = mostrar_dispositivos(activos_only=True)
-    return jsonify([{
-        "nroSerie": d.nroSerie,
-        "marca": d.marca,
-        "modelo": d.modelo,
-        "clienteTipoDocumento": d.clienteTipoDocumento,
-        "clienteNumeroDni": d.clienteNumeroDni,
-        "activo": d.activo
-    } for d in dispositivos]), 200
+    activos = request.args.get("activos", "true").lower() == "true"
+    dispositivos = mostrar_dispositivos(activos_only=activos)
+    return jsonify(dispositivos), 200
 
 @app.route("/dispositivos/cliente", methods=["GET"])
 def dispositivos_por_cliente():

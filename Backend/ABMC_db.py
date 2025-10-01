@@ -89,7 +89,7 @@ def baja_cliente(tipoDocumento, numeroDni):
     session.close()
 
 # ----------- ABMC para Dispositivo -----------
-def alta_dispositivo(nroSerie, marca, modelo, clienteTipoDocumento, clienteNumeroDni):
+def alta_dispositivo(nroSerie, marca, modelo, clienteTipoDocumento, clienteNumeroDni, activo=1):
     session = SessionLocal()
     dispositivo = Dispositivo(
         nroSerie=nroSerie,
@@ -97,13 +97,13 @@ def alta_dispositivo(nroSerie, marca, modelo, clienteTipoDocumento, clienteNumer
         modelo=modelo,
         clienteTipoDocumento=clienteTipoDocumento,
         clienteNumeroDni=clienteNumeroDni,
-        activo=1
+        activo=activo
     )
     session.add(dispositivo)
     session.commit()
     session.close()
 
-def modificar_dispositivo(nroSerie, marca, modelo, clienteTipoDocumento, clienteNumeroDni):
+def modificar_dispositivo(nroSerie, marca, modelo, clienteTipoDocumento, clienteNumeroDni, activo=1):
     session = SessionLocal()
     dispositivo = session.query(Dispositivo).get(nroSerie)
     if dispositivo:
@@ -111,6 +111,7 @@ def modificar_dispositivo(nroSerie, marca, modelo, clienteTipoDocumento, cliente
         dispositivo.modelo = modelo
         dispositivo.clienteTipoDocumento = clienteTipoDocumento
         dispositivo.clienteNumeroDni = clienteNumeroDni
+        dispositivo.activo = 1  # <--- Guarda el estado
         session.commit()
     session.close()
 
@@ -122,11 +123,18 @@ def baja_dispositivo(nroSerie):
         session.commit()
     session.close()
 
-def mostrar_dispositivos():
+def mostrar_dispositivos(activos_only=True):
     session = SessionLocal()
-    dispositivos = session.query(Dispositivo).all()
+    if activos_only:
+        dispositivos = session.query(Dispositivo).filter_by(activo=1).all()
+    else:
+        dispositivos = session.query(Dispositivo).all()
     session.close()
-    return dispositivos
+    # Limpia el dict eliminando _sa_instance_state
+    return [
+        {k: v for k, v in d.__dict__.items() if k != '_sa_instance_state'}
+        for d in dispositivos
+    ]
 
 # ----------- ABMC para Proveedor -----------
 def alta_proveedor(cuil, razonSocial, telefono, activo=1):

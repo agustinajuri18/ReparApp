@@ -4,7 +4,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey
 
 # Cambia la ruta y el motor según tu base de datos
 
-DATABASE_URL = "sqlite:///C:/Users/Leo/Desktop/RepararApp/ReparApp/BDD/ProyectoV2.db"
+DATABASE_URL = "sqlite:///C:\\Users\\bauti\\Documents\\GitHub\\ReparApp\\BDD\\ProyectoV2.db"
 
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

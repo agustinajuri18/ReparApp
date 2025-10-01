@@ -5,6 +5,7 @@ import logo from "../assets/logo.png";
 const menuOptions = [
   { path: "/ordenes", label: "Órdenes" },
   { path: "/clientes", label: "Clientes" },
+  { path: "/dispositivos", label: "Dispositivos" },
   { path: "/proveedores", label: "Proveedores" },
   { path: "/repuestos", label: "Repuestos" },
   { path: "/servicios", label: "Servicios" },
