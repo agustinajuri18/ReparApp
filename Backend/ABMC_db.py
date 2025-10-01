@@ -319,18 +319,22 @@ def alta_servicio(codigo, descripcion, precioBase, activo=1):
     session.commit()
     session.close()
 
-def modificar_servicio(codigo, descripcion, precioBase):
+def modificar_servicio(codigo, descripcion, precioBase, activo):
     session = SessionLocal()
     servicio = session.query(Servicio).get(codigo)
     if servicio:
         servicio.descripcion = descripcion
         servicio.precioBase = precioBase
+        servicio.activo = activo
         session.commit()
     session.close()
 
-def mostrar_servicios():
+def mostrar_servicios(activos_only=True):
     session = SessionLocal()
-    servicios = session.query(Servicio).all()
+    query = session.query(Servicio)
+    if activos_only:
+        query = query.filter_by(activo=1)
+    servicios = query.all()
     session.close()
     return servicios
 

@@ -37,12 +37,24 @@ const Servicios = () => {
   // Filtro de servicios según activos/inactivos
   const serviciosFiltrados = servicios.filter(s => mostrarInactivos ? s.activo === 0 : s.activo === 1);
 
-  const handleSubmit = (e) => {
+  // ---------- Registrar Servicio ----------
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    const datos = {...formData}
+    const respuesta = await registrarServicio(datos);
     setServicios([...servicios, formData]);
     setFormData({ codigo: '', descripcion: '', precio: '', activo: 1 });
     setMostrarFormulario(false);
-    setMensaje("Servicio agregado correctamente.");
+    setMensaje(respuesta.mensaje || respuesta.detail);
+  };
+
+  const registrarServicio = async (service) => {
+    const response = await fetch('http://localhost:5000/servicios/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(service)
+    });
+    return await response.json();
   };
 
   // CONSULTAR
@@ -59,13 +71,23 @@ const Servicios = () => {
     setModalVisible(true);
   };
 
-  const handleModalSave = (e) => {
+  const modificarServicio = async (service) => {
+    const response = await fetch(`http://localhost:5000/servicios/${service.codigo}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(service)
+    });
+    return await response.json();
+  };
+
+  const handleModalSave = async (e) => {
     e.preventDefault();
+    const respuesta = await modificarServicio(servicioActual);
     setServicios(servicios.map((s) =>
       s.codigo === servicioActual.codigo ? servicioActual : s
     ));
     setModalVisible(false);
-    setMensaje("Servicio modificado correctamente.");
+    setMensaje(respuesta.mensaje || respuesta.detail);
   };
 
   const handleModalClose = () => {
@@ -114,24 +136,35 @@ const Servicios = () => {
                       <div className="modal-body">
                         <form onSubmit={handleSubmit}>
                           <div className="row">
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="codigo" value={formData.codigo} onChange={e => setFormData({ ...formData, codigo: e.target.value })} className="form-control" placeholder="Código" required />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="descripcion" value={formData.descripcion} onChange={e => setFormData({ ...formData, descripcion: e.target.value })} className="form-control" placeholder="Descripción" required />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="number" name="precio" value={formData.precio} onChange={e => setFormData({ ...formData, precio: e.target.value })} className="form-control" placeholder="Precio Base" required />
-                            </div>
+                            <h4>Datos del Servicio</h4>
                           </div>
-                          <div className="row">
-                            <div className="col-12 col-md-4 mb-2">
-                              <select name="activo" value={formData.activo} onChange={e => setFormData({ ...formData, activo: Number(e.target.value) })} className="form-select">
-                                <option value={1}>Activo</option>
-                                <option value={0}>Inactivo</option>
-                              </select>
+                            <div className="row mt-3 mb-3">
+                              <div className='input-group'>
+                                <span className='input-group-text'>Código</span>
+                                <input type="number" name="codigo" value={formData.codigo} onChange={e => setFormData({ ...formData, codigo: e.target.value })} className="form-control" placeholder="Código" required />
+                              </div>
                             </div>
-                          </div>
+                            <div className="row mt-3 mb-3">
+                              <div className='input-group'>
+                                <span className='input-group-text'>Descripción</span>
+                                <input type="text" name="descripcion" value={formData.descripcion} onChange={e => setFormData({ ...formData, descripcion: e.target.value })} className="form-control" placeholder="Descripción" required />
+                              </div>
+                            </div>
+                            <div className="row mt-3 mb-3">
+                              <div className='input-group'>
+                                <span className='input-group-text'>$</span>
+                                <input type="number" name="precio" value={formData.precio} onChange={e => setFormData({ ...formData, precio: e.target.value })} className="form-control" placeholder="Precio Base" required />
+                              </div>
+                            </div>
+                            <div className="row mt-3 mb-3">
+                              <div className='input-group'>
+                                <span className='input-group-text'>Activo</span>
+                                  <select name="activo" value={formData.activo} onChange={e => setFormData({ ...formData, activo: Number(e.target.value) })} className="form-select">
+                                    <option value={1}>Activo</option>
+                                    <option value={0}>Inactivo</option>
+                                  </select>
+                              </div>
+                            </div>
                           <div className="d-flex justify-content-end">
                             <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>Guardar</button>
                             <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={() => setMostrarFormulario(false)}>Cancelar</button>
@@ -154,29 +187,42 @@ const Servicios = () => {
                       </div>
                       <div className="modal-body">
                         <form onSubmit={handleModalSave}>
-                          <div className="row">
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" value={servicioActual?.codigo || ''} className="form-control" placeholder="Código" disabled />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" value={servicioActual?.descripcion || ''} className="form-control" placeholder="Descripción"
-                                disabled={modalModo === 'consultar'}
-                                onChange={e => setServicioActual({ ...servicioActual, descripcion: e.target.value })} />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="number" value={servicioActual?.precio || ''} className="form-control" placeholder="Precio Base"
-                                disabled={modalModo === 'consultar'}
-                                onChange={e => setServicioActual({ ...servicioActual, precio: e.target.value })} />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <select value={servicioActual?.activo ?? 1}
-                                disabled={modalModo === 'consultar'}
-                                className="form-select"
-                                onChange={e => setServicioActual({ ...servicioActual, activo: Number(e.target.value) })}>
-                                <option value={1}>Activo</option>
-                                <option value={0}>Inactivo</option>
-                              </select>
-                            </div>
+                          <div className='row'>
+                            <h3>Datos del Servicio</h3>
+                          </div>
+                          <div className="row mt-3 mb-3">
+                              <div className='input-group'>
+                                <span className='input-group-text'>Código</span>
+                                  <input type="text" value={servicioActual?.codigo || ''} className="form-control" placeholder="Código" disabled />
+                              </div>
+                          </div>
+                          <div className="row mt-3 mb-3">
+                              <div className='input-group'>
+                                <span className='input-group-text'>Descripción</span>
+                                  <input type="text" value={servicioActual?.descripcion || ''} className="form-control" placeholder="Descripción"
+                                    disabled={modalModo === 'consultar'}
+                                    onChange={e => setServicioActual({ ...servicioActual, descripcion: e.target.value })} />
+                              </div>
+                          </div>
+                          <div className="row mt-3 mb-3">
+                              <div className='input-group'>
+                                <span className='input-group-text'>$</span>
+                                  <input type="number" value={servicioActual?.precio || ''} className="form-control" placeholder="Precio Base"
+                                    disabled={modalModo === 'consultar'}
+                                    onChange={e => setServicioActual({ ...servicioActual, precio: e.target.value })} />
+                              </div>
+                          </div>
+                          <div className="row mt-3 mb-3">
+                              <div className='input-group'>
+                                <span className='input-group-text'>Activo</span>
+                                  <select value={servicioActual?.activo ?? 1}
+                                    disabled={modalModo === 'consultar'}
+                                    className="form-select"
+                                    onChange={e => setServicioActual({ ...servicioActual, activo: Number(e.target.value) })}>
+                                      <option value={1}>Activo</option>
+                                      <option value={0}>Inactivo</option>
+                                  </select>
+                              </div>
                           </div>
                           <div className="d-flex justify-content-end">
                             {modalModo === 'editar' && (
@@ -207,7 +253,7 @@ const Servicios = () => {
                       <tr key={idx} style={serv.activo === 0 ? { opacity: 0.5 } : {}}>
                         <td>{serv.codigo}</td>
                         <td>{serv.descripcion}</td>
-                        <td>{serv.precio}</td>
+                        <td>${serv.precio}</td>
                         <td>{serv.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
                           <button className="btn btn-sm me-1" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
