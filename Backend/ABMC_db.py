@@ -1,7 +1,13 @@
-import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from BDD.database import SessionLocal, Usuario, Cliente, Dispositivo, Empleado, Estado, HistorialArreglos, OrdenDeReparacion, Rol, Servicio, Repuesto, HistorialEstadoOrden, Proveedor, Permiso, RolxPermiso, RepuestoxServicio
+import sys
+
+# agregar la raíz del proyecto al path para poder importar el paquete BDD (carpeta hermana)
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+# ahora la import debe funcionar
+from BDD.database import SessionLocal, Usuario, Cliente, Dispositivo, Empleado, Estado, HistorialArreglos, OrdenDeReparacion, Rol, Servicio, Repuesto, HistorialEstadoOrden, Proveedor, Permiso, RolxPermiso, RepuestoxServicio, Sesion
 
 # ----------- ABMC para Usuario -----------
 def alta_usuario(idUsuario, password):
@@ -354,16 +360,36 @@ def baja_servicio(codigo):
         session.commit()
     session.close()
 
+# ----------- ABMC para RepuestosxProveedor -----------
+def alta_repuestoxproveedor(codigoRepuesto, cuilProveedor, costo, cantidad):
+    session = SessionLocal()
+    repuestoxproveedor = RepuestoxProveedor(
+        codigoRepuesto=codigoRepuesto,
+        cuilProveedor=cuilProveedor,
+        costo=costo,
+        cantidad=cantidad
+    )
+    session.add(repuestoxproveedor)
+    session.commit()
+    session.close()
+
+def modificar_repuestoxproveedor(codigoRepuesto, cuilProveedor, costo, cantidad):
+    session = SessionLocal()
+    repuestoxproveedor = session.query(RepuestoxProveedor).filter_by(codigoRepuesto=codigoRepuesto, cuilProveedor=cuilProveedor).first()
+    if repuestoxproveedor:
+        repuestoxproveedor.costo = costo
+        repuestoxproveedor.cantidad = cantidad
+        session.commit()
+    session.close()
+
 # ----------- ABMC para Repuesto -----------
-def alta_repuesto(codigo, marca, modelo, tipo, cuilProveedor, costo, activo=1):
+def alta_repuesto(codigo, marca, modelo, tipo, activo=1):
     session = SessionLocal()
     repuesto = Repuesto(
         codigo=codigo,
         marca=marca,
         modelo=modelo,
         tipo=tipo,
-        cuilProveedor=cuilProveedor,
-        costo=costo,
         activo=activo
     )
     session.add(repuesto)
@@ -378,15 +404,13 @@ def baja_repuesto(codigo):
         session.commit()
     session.close()
     
-def modificar_repuesto(codigo, marca, modelo, tipo, cuilProveedor, costo, activo=1):
+def modificar_repuesto(codigo, marca, modelo, tipo, activo=1):
     session = SessionLocal()
     repuesto = session.query(Repuesto).get(codigo)
     if repuesto:
         repuesto.marca = marca
         repuesto.modelo = modelo
         repuesto.tipo = tipo
-        repuesto.cuilProveedor = cuilProveedor
-        repuesto.costo = costo
         repuesto.activo = activo  # <--- Guarda el estado
         session.commit()
     session.close()
@@ -406,14 +430,16 @@ def buscar_repuesto(codigo):
     session.close()
     return repuesto
 
-def buscar_proveedor_por_repuesto(codigo):
+def buscar_proveedores_por_repuesto(codigo):
     session = SessionLocal()
-    repuesto = session.query(Repuesto).get(codigo)
-    proveedor = None
-    if repuesto:
-        proveedor = session.query(Proveedor).get(repuesto.cuilProveedor)
+    proveedores = (
+        session.query(Proveedor.razonSocial, RepuestoxProveedor.costo, RepuestoxProveedor.cantidad)
+        .join(RepuestoxProveedor, Proveedor.cuil == RepuestoxProveedor.cuilProveedor)
+        .filter(RepuestoxProveedor.codigoRepuesto == codigo)
+        .all()
+    )
     session.close()
-    return proveedor
+    return proveedores
 
 def buscar_repuesto_por_servicio(codigoServicio):
     session = SessionLocal()
