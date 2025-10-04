@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 
 const colores = {
@@ -9,205 +9,206 @@ const colores = {
   beige: '#f0ede5'
 };
 
-const Repuestos = () => {
+const API = "http://localhost:5000";
+
+function Repuestos() {
   const [repuestos, setRepuestos] = useState([]);
-  const [mostrarInactivos, setMostrarInactivos] = useState(false);
-  const [mensaje, setMensaje] = useState("");
-  const [formData, setFormData] = useState({
-    codigo: '',
-    marca: '',
-    modelo: '',
-    tipo: '',
-    proveedor: '',
-    costo: '',
-    activo: 1
-  });
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [proveedores, setProveedores] = useState([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalModo, setModalModo] = useState('consultar'); // 'consultar' o 'editar'
-  const [repuestoActual, setRepuestoActual] = useState(null);
+  const [form, setForm] = useState({
+    codigo: "",
+    marca: "",
+    modelo: "",
+    activo: 1,
+    proveedores: []
+  });
+  const [editCodigo, setEditCodigo] = useState(null);
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [error, setError] = useState("");
+  const [modalProveedores, setModalProveedores] = useState({ open: false, lista: [], repuesto: null });
 
-  // Cargar repuestos desde la API al montar el componente
-  const cargarRepuestos = () => {
-    fetch('http://localhost:5000/repuestos')
-      .then(res => res.json())
+  useEffect(() => {
+    setError("");
+    fetch(`${API}/repuestos/?activos=${mostrarInactivos ? "false" : "true"}`)
+      .then(res => {
+        if (!res.ok) throw new Error("Error al cargar repuestos");
+        return res.json();
+      })
       .then(data => setRepuestos(data))
-      .catch(() => setMensaje("Error al cargar repuestos"));
-  };
+      .catch(() => setError("Error al cargar repuestos"));
+  }, [mostrarInactivos]);
 
   useEffect(() => {
-    cargarRepuestos();
-  }, []);
-
-  // Cargar proveedores al montar el componente
-  useEffect(() => {
-    fetch('http://localhost:5000/proveedores/')
+    fetch(`${API}/proveedores/?activos=true`)
       .then(res => res.json())
       .then(data => setProveedores(data));
   }, []);
 
-  // Filtro de repuestos según activos/inactivos
-  const repuestosFiltrados = repuestos.filter(r => mostrarInactivos ? r.activo === 0 : r.activo === 1);
-
-  // BuscadorSelect interno
-  function BuscadorSelect({
-    label,
-    options,
-    value,
-    onChange,
-    placeholder = "Buscar...",
-    optionLabel = "label",
-    optionValue = "value",
-    required = false,
-  }) {
-    const [busqueda, setBusqueda] = useState("");
-
-    const opcionesFiltradas = options.filter(
-      opt =>
-        opt[optionLabel] &&
-        opt[optionLabel].toLowerCase().includes(busqueda.toLowerCase())
-    );
-
-    useEffect(() => {
-      if (opcionesFiltradas.length === 1 && value !== opcionesFiltradas[0][optionValue]) {
-        onChange(opcionesFiltradas[0][optionValue]);
-      }
-      // eslint-disable-next-line
-    }, [busqueda]);
-
-    return (
-      <div>
-        {label && <label className="form-label fw-bold">{label}</label>}
-        <div className="input-group mb-2">
-          <input
-            type="text"
-            className="form-control"
-            placeholder={placeholder}
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-          />
-          <select
-            className="form-select"
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            required={required}
-          >
-            <option value="">Seleccione un proveedor</option>
-            {opcionesFiltradas.map(opt => (
-              <option key={opt.cuil} value={opt.cuil}>
-                {opt.razonSocial}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-    );
+  function handleConsultar(codigo) {
+    fetch(`${API}/repuestos/${codigo}`)
+      .then(res => res.json())
+      .then(data => {
+        setModalProveedores({
+          open: true,
+          lista: data.proveedores || [],
+          repuesto: data
+        });
+      });
   }
 
-  // Alta de repuesto
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const body = {
-      ...formData,
-      cuilProveedor: formData.proveedor
-    };
-    delete body.proveedor;
+  function handleCloseModal() {
+    setModalProveedores({ open: false, lista: [], repuesto: null });
+  }
 
-    try {
-      const response = await fetch('http://localhost:5000/repuestos/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+  function handleRemoveProveedor(idx) {
+    const proveedor = form.proveedores[idx];
+    // Elimina en backend si existe el repuesto y proveedor
+    if (form.codigo && proveedor.cuilProveedor) {
+      fetch(`${API}/repuestoxproveedor/`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          codigoRepuesto: form.codigo,
+          cuilProveedor: proveedor.cuilProveedor
+        })
+      }).then(() => {
+        // Elimina del estado local
+        const nuevos = [...form.proveedores];
+        nuevos.splice(idx, 1);
+        setForm({ ...form, proveedores: nuevos });
       });
+    } else {
+      // Solo elimina del estado local si aún no existe en backend
+      const nuevos = [...form.proveedores];
+      nuevos.splice(idx, 1);
+      setForm({ ...form, proveedores: nuevos });
+    }
+  }
 
-      if (response.ok) {
-        setMensaje("Repuesto agregado correctamente.");
-        setMostrarFormulario(false);
-        setFormData({
-          codigo: '',
-          marca: '',
-          modelo: '',
-          tipo: '',
-          proveedor: '',
-          costo: '',
-          activo: 1
+  function handleChange(e) {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  }
+
+  function handleProveedorChange(idx, field, value) {
+    const nuevos = [...form.proveedores];
+    nuevos[idx][field] = value;
+    setForm({ ...form, proveedores: nuevos });
+  }
+
+  function handleAddProveedor() {
+    setForm({
+      ...form,
+      proveedores: [
+        ...form.proveedores,
+        { cuilProveedor: "", costo: "", cantidad: "" }
+      ]
+    });
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    fetch(`${API}/repuestos/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        codigo: form.codigo,
+        marca: form.marca,
+        modelo: form.modelo,
+        activo: form.activo
+      })
+    })
+      .then(res => res.json())
+      .then(() => {
+        form.proveedores.forEach(p => {
+          fetch(`${API}/repuestoxproveedor/`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              codigoRepuesto: form.codigo,
+              cuilProveedor: p.cuilProveedor,
+              costo: p.costo,
+              cantidad: p.cantidad
+            })
+          });
         });
-        cargarRepuestos();
-      } else {
-        setMensaje("Error al agregar repuesto.");
-      }
-    } catch {
-      setMensaje("Error de conexión al agregar repuesto.");
-    }
-  };
-
-  // Consultar repuesto
-  const handleConsultar = async (codigo) => {
-    try {
-      const response = await fetch(`http://localhost:5000/repuestos/${codigo}`);
-      if (response.ok) {
-        const data = await response.json();
-        setRepuestoActual(data);
-        setModalModo('consultar');
-        setModalVisible(true);
-      } else {
-        setMensaje("No se pudo consultar el repuesto.");
-      }
-    } catch {
-      setMensaje("Error de conexión al consultar repuesto.");
-    }
-  };
-
-  // Modificar repuesto
-  const handleModificar = async (codigo) => {
-    try {
-      const response = await fetch(`http://localhost:5000/repuestos/${codigo}`);
-      if (response.ok) {
-        const data = await response.json();
-        setRepuestoActual(data);
-        setModalModo('editar');
-        setModalVisible(true);
-      } else {
-        setMensaje("No se pudo consultar el repuesto.");
-      }
-    } catch {
-      setMensaje("Error de conexión al consultar repuesto.");
-    }
-  };
-
-  // Guardar modificación
-  const handleModalSave = async (e) => {
-    e.preventDefault();
-    const body = {
-      ...repuestoActual,
-      cuilProveedor: repuestoActual.proveedor
-    };
-    delete body.proveedor;
-
-    try {
-      const response = await fetch(`http://localhost:5000/repuestos/${repuestoActual.codigo}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        setForm({ codigo: "", marca: "", modelo: "", activo: 1, proveedores: [] });
+        setMostrarFormulario(false);
+        fetch(`${API}/repuestos/?activos=${mostrarInactivos ? "false" : "true"}`)
+          .then(res => res.json())
+          .then(data => setRepuestos(data));
       });
+  }
 
-      if (response.ok) {
-        setMensaje("Repuesto modificado correctamente.");
-        setModalVisible(false);
-        cargarRepuestos();
-      } else {
-        setMensaje("Error al modificar repuesto.");
-      }
-    } catch {
-      setMensaje("Error de conexión al modificar repuesto.");
-    }
-  };
+  function handleDelete(codigo) {
+    fetch(`${API}/repuestos/${codigo}`, { method: "DELETE" })
+      .then(() => {
+        fetch(`${API}/repuestos/?activos=${mostrarInactivos ? "false" : "true"}`)
+          .then(res => res.json())
+          .then(data => setRepuestos(data));
+      });
+  }
 
-  const handleModalClose = () => {
-    setModalVisible(false);
-    setRepuestoActual(null);
-  };
+  function handleEdit(repuesto) {
+    setEditCodigo(repuesto.codigo);
+    setMostrarFormulario(true);
+    fetch(`${API}/repuestos/${repuesto.codigo}`)
+      .then(res => res.json())
+      .then(data => {
+        setForm({
+          codigo: data.codigo,
+          marca: data.marca,
+          modelo: data.modelo,
+          activo: data.activo,
+          proveedores: data.proveedores
+            ? data.proveedores.map(p => ({
+                cuilProveedor: p.cuilProveedor,
+                costo: p.costo,
+                cantidad: p.cantidad
+              }))
+            : []
+        });
+      });
+  }
+
+  function handleUpdate(e) {
+    e.preventDefault();
+    fetch(`${API}/repuestos/${form.codigo}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        marca: form.marca,
+        modelo: form.modelo,
+        activo: form.activo
+      })
+    })
+      .then(res => res.json())
+      .then(() => {
+        form.proveedores.forEach(p => {
+          fetch(`${API}/repuestoxproveedor/`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              codigoRepuesto: form.codigo,
+              cuilProveedor: p.cuilProveedor,
+              costo: p.costo,
+              cantidad: p.cantidad
+            })
+          });
+        });
+        setEditCodigo(null);
+        setForm({ codigo: "", marca: "", modelo: "", activo: 1, proveedores: [] });
+        setMostrarFormulario(false);
+        fetch(`${API}/repuestos/?activos=${mostrarInactivos ? "false" : "true"}`)
+          .then(res => res.json())
+          .then(data => setRepuestos(data));
+      });
+  }
+
+  function handleCancel() {
+    setMostrarFormulario(false);
+    setEditCodigo(null);
+    setForm({ codigo: "", marca: "", modelo: "", activo: 1, proveedores: [] });
+  }
 
   return (
     <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
@@ -228,191 +229,198 @@ const Repuestos = () => {
                 <button
                   className="btn"
                   style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                  onClick={() => setMostrarFormulario(true)}
+                  onClick={() => {
+                    setMostrarFormulario(true);
+                    setEditCodigo(null);
+                    setForm({ codigo: "", marca: "", modelo: "", activo: 1, proveedores: [] });
+                  }}
                 >
-                  <i className="bi bi-plus-lg"></i> Agregar
+                  <i className="bi bi-plus-lg"></i> Agregar repuesto
                 </button>
               </div>
             </div>
             <div className="card-body">
-              {mensaje && (
-                <div className="alert" role="alert" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none', borderRadius: 8 }}>{mensaje}</div>
-              )}
-              {/* Modal para agregar repuesto */}
+              {error && <div style={{ background: colores.dorado, color: colores.azul, padding: "12px", borderRadius: "8px", margin: "12px 0" }}>{error}</div>}
+              {/* Formulario para agregar/editar repuesto */}
               {mostrarFormulario && (
-                <div className="modal fade show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-                  <div className="modal-dialog">
-                    <div className="modal-content" style={{ background: colores.beige, borderRadius: 16, border: `2px solid ${colores.azul}` }}>
-                      <div className="modal-header" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-                        <h5 className="modal-title">Agregar Repuesto</h5>
-                        <button type="button" className="btn-close" onClick={() => setMostrarFormulario(false)}></button>
+                <form onSubmit={editCodigo ? handleUpdate : handleSubmit} className="form-container mb-3">
+                  <div className="row">
+                    <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
+                      <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                        <i className="bi bi-gear me-2"></i>Datos del repuesto
+                      </legend>
+                      <div className="form-group mb-2">
+                        <label>
+                          <i className="bi bi-hash me-2"></i>Código
+                        </label>
+                        <input name="codigo" value={form.codigo} onChange={handleChange} required disabled={!!editCodigo} className="form-control" />
                       </div>
-                      <div className="modal-body">
-                        <form onSubmit={handleSubmit}>
-                          <div className="row">
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="codigo" value={formData.codigo} onChange={e => setFormData({ ...formData, codigo: e.target.value })} className="form-control" placeholder="Código" required />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="marca" value={formData.marca} onChange={e => setFormData({ ...formData, marca: e.target.value })} className="form-control" placeholder="Marca" required />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="modelo" value={formData.modelo} onChange={e => setFormData({ ...formData, modelo: e.target.value })} className="form-control" placeholder="Modelo" required />
-                            </div>
-                            <div className="col-12 col-md-6 mb-2">
-                              <input type="text" name="tipo" value={formData.tipo} onChange={e => setFormData({ ...formData, tipo: e.target.value })} className="form-control" placeholder="Tipo" required />
-                            </div>
-                            <div className="col-12 col-md-6 mb-2">
-                              <input type="number" name="costo" value={formData.costo} onChange={e => setFormData({ ...formData, costo: e.target.value })} className="form-control" placeholder="Costo" required />
-                            </div>
-                            <div className="col-12 mb-2">
-                              <BuscadorSelect
-                                label="Proveedor"
-                                options={proveedores}
-                                value={formData.proveedor}
-                                onChange={val => setFormData({ ...formData, proveedor: val })}
-                                placeholder="Buscar proveedor por razón social"
-                                optionLabel="razonSocial"
-                                optionValue="cuil"
-                                required
-                              />
-                            </div>
-                          </div>
-                          <div className="d-flex justify-content-end">
-                            <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>Guardar</button>
-                            <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={() => setMostrarFormulario(false)}>Cancelar</button>
-                          </div>
-                        </form>
+                      <div className="form-group mb-2">
+                        <label>
+                          <i className="bi bi-pc me-2"></i>Marca
+                        </label>
+                        <input name="marca" value={form.marca} onChange={handleChange} required className="form-control" />
                       </div>
+                      <div className="form-group mb-2">
+                        <label>
+                          <i className="bi bi-pc-display me-2"></i>Modelo
+                        </label>
+                        <input name="modelo" value={form.modelo} onChange={handleChange} required className="form-control" />
+                      </div>
+                      <div className="form-group mb-2">
+                        <label>
+                          <i className="bi bi-check2-circle me-2"></i>Estado
+                        </label>
+                        <select name="activo" value={form.activo} onChange={handleChange} className="form-control">
+                          <option value={1}>Activo</option>
+                          <option value={0}>Inactivo</option>
+                        </select>
+                      </div>
+                    </fieldset>
+                    <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
+                      <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                        <i className="bi bi-truck me-2"></i>Proveedores
+                      </legend>
+                      {form.proveedores.map((p, idx) => (
+                        <div key={idx} className="mb-2 p-2" style={{ background: "#fff", borderRadius: 8, border: `1px solid ${colores.verdeAgua}` }}>
+                          <select
+                            value={p.cuilProveedor}
+                            onChange={e => handleProveedorChange(idx, "cuilProveedor", e.target.value)}
+                            required
+                            className="form-control mb-2"
+                          >
+                            <option value="">Seleccione proveedor</option>
+                            {proveedores.map(pr => (
+                              <option key={pr.cuil} value={pr.cuil}>{pr.razonSocial} ({pr.cuil})</option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            placeholder="Costo"
+                            value={p.costo}
+                            onChange={e => handleProveedorChange(idx, "costo", e.target.value)}
+                            required
+                            className="form-control mb-2"
+                          />
+                          <input
+                            type="number"
+                            placeholder="Cantidad"
+                            value={p.cantidad}
+                            onChange={e => handleProveedorChange(idx, "cantidad", e.target.value)}
+                            required
+                            className="form-control mb-2"
+                          />
+                          <button type="button" className="btn btn-danger btn-sm" style={{ background: colores.rojo, color: colores.beige }} onClick={() => handleRemoveProveedor(idx)}>Eliminar</button>
+                        </div>
+                      ))}
+                      <button type="button" className="btn btn-info btn-sm" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600 }} onClick={handleAddProveedor}>Agregar proveedor</button>
+                    </fieldset>
+                  </div>
+                  <div className="row">
+                    <div className="col-12 d-flex flex-column flex-md-row justify-content-end">
+                      <button type="submit" className="btn mb-2 mb-md-0" style={{ background: colores.azul, color: colores.beige }}>
+                        <i className="bi bi-save me-1"></i>{editCodigo ? "Actualizar" : "Agregar"}
+                      </button>
+                      <button type="button" className="btn ms-md-2" style={{ background: colores.dorado, color: colores.azul }} onClick={handleCancel}>
+                        <i className="bi bi-x-circle me-1"></i>Cancelar
+                      </button>
                     </div>
+                  </div>
+                </form>
+              )}
+
+              {/* Modal de proveedores */}
+              {modalProveedores.open && (
+                <div style={{
+                  position: "fixed",
+                  top: 0, left: 0, width: "100vw", height: "100vh",
+                  background: "#0008", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center"
+                }}>
+                  <div style={{
+                    background: colores.beige,
+                    borderRadius: 16,
+                    padding: 32,
+                    minWidth: 350,
+                    maxWidth: 500,
+                    boxShadow: "0 4px 24px #0004",
+                    position: "relative"
+                  }}>
+                    <button
+                      onClick={handleCloseModal}
+                      style={{
+                        position: "absolute", top: 12, right: 12,
+                        background: colores.rojo, color: colores.beige, border: "none", borderRadius: 8, padding: "4px 12px", fontWeight: 600
+                      }}
+                    >X</button>
+                    <h5 style={{ color: colores.azul, marginBottom: 16 }}>
+                      Proveedores de {modalProveedores.repuesto?.codigo}
+                    </h5>
+                    {modalProveedores.lista.length === 0 ? (
+                      <div>No hay proveedores asociados.</div>
+                    ) : (
+                      <ul style={{ listStyle: "none", padding: 0 }}>
+                        {modalProveedores.lista.map((p, idx) => (
+                          <li key={idx} style={{
+                            background: "#fff",
+                            borderRadius: 8,
+                            border: `1px solid ${colores.verdeAgua}`,
+                            marginBottom: 8,
+                            padding: 12
+                          }}>
+                            <strong>{p.razonSocial || ""} ({p.cuilProveedor})</strong><br />
+                            Costo: <span style={{ color: colores.dorado }}>{p.costo}</span> | Cantidad: <span style={{ color: colores.azul }}>{p.cantidad}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* Modal para consultar/modificar repuesto */}
-              {modalVisible && repuestoActual && (
-                <div className="modal fade show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-                  <div className="modal-dialog">
-                    <div className="modal-content" style={{ background: colores.beige, borderRadius: 16, border: `2px solid ${colores.azul}` }}>
-                      <div className="modal-header" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-                        <h5 className="modal-title">{modalModo === 'consultar' ? 'Consultar Repuesto' : 'Modificar Repuesto'}</h5>
-                        <button type="button" className="btn-close" onClick={handleModalClose}></button>
-                      </div>
-                      <div className="modal-body">
-                        <form onSubmit={handleModalSave}>
-                          <div className="row">
-                            <div className="col-12 col-md-4 mb-2">
-                              <label className="form-label fw-bold">Código</label>
-                              <input type="text" value={repuestoActual.codigo} className="form-control" disabled />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <label className="form-label fw-bold">Marca</label>
-                              <input type="text" value={repuestoActual.marca} className="form-control"
-                                disabled={modalModo === 'consultar'}
-                                onChange={e => setRepuestoActual({ ...repuestoActual, marca: e.target.value })} />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <label className="form-label fw-bold">Modelo</label>
-                              <input type="text" value={repuestoActual.modelo} className="form-control"
-                                disabled={modalModo === 'consultar'}
-                                onChange={e => setRepuestoActual({ ...repuestoActual, modelo: e.target.value })} />
-                            </div>
-                            <div className="col-12 col-md-6 mb-2">
-                              <label className="form-label fw-bold">Tipo</label>
-                              <input type="text" value={repuestoActual.tipo} className="form-control"
-                                disabled={modalModo === 'consultar'}
-                                onChange={e => setRepuestoActual({ ...repuestoActual, tipo: e.target.value })} />
-                            </div>
-                            <div className="col-12 col-md-6 mb-2">
-                              <label className="form-label fw-bold">Costo</label>
-                              <input type="number" value={repuestoActual.costo} className="form-control"
-                                disabled={modalModo === 'consultar'}
-                                onChange={e => setRepuestoActual({ ...repuestoActual, costo: e.target.value })} />
-                            </div>
-                            <div className="col-12 mb-2">
-                              <label className="form-label fw-bold">Proveedor</label>
-                              {modalModo === 'consultar' ? (
-                                <input
-                                  type="text"
-                                  className="form-control"
-                                  value={
-                                    proveedores.find(p => p.cuil === repuestoActual.proveedor)?.razonSocial ||
-                                    repuestoActual.proveedor
-                                  }
-                                  disabled
-                                />
-                              ) : (
-                                <BuscadorSelect
-                                  options={proveedores}
-                                  value={repuestoActual.proveedor}
-                                  onChange={val => setRepuestoActual({ ...repuestoActual, proveedor: val })}
-                                  placeholder="Buscar proveedor por razón social"
-                                  optionLabel="razonSocial"
-                                  optionValue="cuil"
-                                  required
-                                />
-                              )}
-                            </div>
-                          </div>
-                          <div className="d-flex justify-content-end">
-                            {modalModo === 'editar' && (
-                              <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>Guardar</button>
-                            )}
-                            <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={handleModalClose}>Cerrar</button>
-                          </div>
-                        </form>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="table-responsive">
+              <div className="table-responsive mt-4">
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
                       <th>Código</th>
                       <th>Marca</th>
                       <th>Modelo</th>
-                      <th>Tipo</th>
-                      <th>Proveedor</th>
-                      <th>Costo</th>
-                      <th>Estado</th>
+                      <th>Activo</th>
+                      <th>Proveedores</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {repuestosFiltrados.map((rep, idx) => (
-                      <tr key={idx} style={rep.activo === 0 ? { opacity: 0.5 } : {}}>
-                        <td>{rep.codigo}</td>
-                        <td>{rep.marca}</td>
-                        <td>{rep.modelo}</td>
-                        <td>{rep.tipo}</td>
-                        <td>
-                          {proveedores.find(p => p.cuil === rep.proveedor)?.razonSocial || rep.proveedor}
-                        </td>
-                        <td>{rep.costo}</td>
-                        <td>{rep.activo === 1 ? "Activo" : "Inactivo"}</td>
-                        <td>
-                          <button className="btn btn-sm me-1" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                            onClick={() => handleConsultar(rep.codigo)}>
-                            <span title="Consultar"><i className="bi bi-eye"></i></span> Consultar
-                          </button>
-                          <button className="btn btn-sm me-1" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
-                            onClick={() => handleModificar(rep.codigo)}>
-                            <span title="Modificar"><i className="bi bi-pencil-square"></i></span> Modificar
-                          </button>
-                          <button className="btn btn-sm" style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}>
-                            <span title="Eliminar"><i className="bi bi-x-circle"></i></span> Eliminar
-                          </button>
+                    {repuestos.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: "center", padding: "16px" }}>
+                          No hay repuestos {mostrarInactivos ? "inactivos" : "activos"}.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      repuestos.map(r => (
+                        <tr key={r.codigo} style={r.activo === 0 ? { opacity: 0.5 } : {}}>
+                          <td>{r.codigo}</td>
+                          <td>{r.marca}</td>
+                          <td>{r.modelo}</td>
+                          <td>{r.activo ? "Sí" : "No"}</td>
+                          <td>
+                            <button onClick={() => handleConsultar(r.codigo)} className="btn btn-info btn-sm" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600 }}>
+                              Ver proveedores
+                            </button>
+                          </td>
+                          <td>
+                            <button onClick={() => handleEdit(r)} className="btn btn-warning btn-sm" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600 }}>
+                              Editar
+                            </button>
+                            <button onClick={() => handleDelete(r.codigo)} className="btn btn-danger btn-sm" style={{ background: colores.rojo, color: colores.beige, fontWeight: 600 }}>
+                              Eliminar
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
-                {repuestosFiltrados.length === 0 && (
-                  <div className="text-center text-muted py-4">No hay repuestos {mostrarInactivos ? "inactivos" : "activos"}.</div>
-                )}
               </div>
             </div>
           </div>
@@ -420,6 +428,6 @@ const Repuestos = () => {
       </div>
     </div>
   );
-};
+}
 
 export default Repuestos;

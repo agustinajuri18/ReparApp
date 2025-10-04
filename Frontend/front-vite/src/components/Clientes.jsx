@@ -1,36 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 import PiePagina from './PiePagina';
 
 const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5' };
 
-// Valida que el DNI tenga 7 u 8 dígitos numéricos
-function validarDNI(dni) {
-  return /^\d{7,8}$/.test(dni);
-}
-
-// Valida que el pasaporte tenga entre 6 y 15 caracteres alfanuméricos
-function validarPasaporte(pasaporte) {
-  return /^[A-Za-z0-9]{6,15}$/.test(pasaporte);
-}
-
-// Valida que el CUIT/CUIL tenga 11 dígitos numéricos
-function validarCuitCuil(cuit) {
-  return /^\d{11}$/.test(cuit);
-}
-
-// Valida que el teléfono tenga entre 10 y 11 dígitos numéricos
-function validarTelefono(telefono) {
-  return /^\d{10,11}$/.test(telefono);
-}
-
-const tiposDocumento = [
-  { value: "DNI", label: "DNI" },
-  { value: "PASAPORTE", label: "Pasaporte" },
-  { value: "CUIT/CUIL", label: "CUIT/CUIL" },
-];
-
-const Clientes = () => {
+function Clientes() {
+  const [tiposDocumento, setTiposDocumento] = useState([]);
   const [mensaje, setMensaje] = useState("");
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [formData, setFormData] = useState({
@@ -47,6 +22,7 @@ const Clientes = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState('consultar');
   const [clienteActual, setClienteActual] = useState(null);
+  const [editId, setEditId] = useState(null);
 
   // Función para cargar clientes
   const fetchClientes = async () => {
@@ -65,6 +41,13 @@ const Clientes = () => {
     fetchClientes();
     // eslint-disable-next-line
   }, [mostrarInactivos]);
+
+  // Carga los tipos de documento al montar el componente
+  useEffect(() => {
+    fetch("/tipos-documento/")
+      .then(res => res.json())
+      .then(data => setTiposDocumento(data));
+  }, []);
 
   //REGISTRO DE CLIENTES
   const handleSubmit = async (e) => {

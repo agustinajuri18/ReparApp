@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
-from ABMC_db import *  # alta_dispositivo, modificar_dispositivo, mostrar_dispositivos, baja_dispositivo, dispositivos_por_cliente, SessionLocal, Dispositivo
+from ABMC_db import alta_dispositivo, modificar_dispositivo, mostrar_dispositivos, baja_dispositivo, dispositivos_por_cliente
+from BDD.database import SessionLocal, Dispositivo  # importa el modelo
 
 app = Blueprint('dispositivos', __name__)
 
@@ -34,7 +35,7 @@ def registrar_dispositivo():
     marca = data.get("marca")
     modelo = data.get("modelo")
     clienteTipoDocumento = data.get("clienteTipoDocumento")
-    clienteNumeroDni = data.get("clienteNumeroDni")
+    clienteNumeroDoc = data.get("clienteNumeroDoc")  # CAMBIO: nombre según modelo
     activo = parse_activo(data.get("activo"))
 
     # validaciones
@@ -46,11 +47,11 @@ def registrar_dispositivo():
         return jsonify({"error": "modelo inválido"}), 400
     if not validar_text_field(clienteTipoDocumento):
         return jsonify({"error": "clienteTipoDocumento inválido"}), 400
-    if not validar_dni_like(clienteNumeroDni):
-        return jsonify({"error": "clienteNumeroDni inválido"}), 400
+    if not validar_dni_like(clienteNumeroDoc):
+        return jsonify({"error": "clienteNumeroDoc inválido"}), 400
 
     try:
-        alta_dispositivo(nroSerie.strip(), marca.strip(), modelo.strip(), clienteTipoDocumento.strip(), int(clienteNumeroDni), activo)
+        alta_dispositivo(nroSerie.strip(), marca.strip(), modelo.strip(), clienteTipoDocumento.strip(), int(clienteNumeroDoc), activo)
         return jsonify({"mensaje": "Dispositivo creado exitosamente"}), 201
     except Exception as e:
         return jsonify({"error": "No se pudo crear dispositivo", "detail": str(e)}), 500
@@ -68,7 +69,7 @@ def modificar_datos_dispositivo(nroSerie):
     marca = data.get("marca", dispositivo.marca)
     modelo = data.get("modelo", dispositivo.modelo)
     clienteTipoDocumento = data.get("clienteTipoDocumento", dispositivo.clienteTipoDocumento)
-    clienteNumeroDni = data.get("clienteNumeroDni", dispositivo.clienteNumeroDni)
+    clienteNumeroDoc = data.get("clienteNumeroDoc", dispositivo.clienteNumeroDoc)  # CAMBIO: nombre según modelo
     activo = parse_activo(data.get("activo", dispositivo.activo))
 
     # validaciones
@@ -84,12 +85,12 @@ def modificar_datos_dispositivo(nroSerie):
     if not validar_text_field(clienteTipoDocumento):
         session.close()
         return jsonify({"error": "clienteTipoDocumento inválido"}), 400
-    if not validar_dni_like(clienteNumeroDni):
+    if not validar_dni_like(clienteNumeroDoc):
         session.close()
-        return jsonify({"error": "clienteNumeroDni inválido"}), 400
+        return jsonify({"error": "clienteNumeroDoc inválido"}), 400
 
     try:
-        modificar_dispositivo(new_nroSerie.strip(), marca.strip(), modelo.strip(), clienteTipoDocumento.strip(), int(clienteNumeroDni), activo)
+        modificar_dispositivo(new_nroSerie.strip(), marca.strip(), modelo.strip(), clienteTipoDocumento.strip(), int(clienteNumeroDoc), activo)
         session.close()
         return jsonify({"mensaje": "Dispositivo modificado exitosamente"}), 200
     except Exception as e:
@@ -107,7 +108,7 @@ def mostrar_dispositivo(nroSerie):
             "marca": dispositivo.marca,
             "modelo": dispositivo.modelo,
             "clienteTipoDocumento": dispositivo.clienteTipoDocumento,
-            "clienteNumeroDni": dispositivo.clienteNumeroDni,
+            "clienteNumeroDoc": dispositivo.clienteNumeroDoc,  # CAMBIO: nombre según modelo
             "activo": dispositivo.activo
         }
         return jsonify(dispositivo_dict), 200
@@ -137,27 +138,28 @@ def listar_dispositivos():
         "marca": d.marca,
         "modelo": d.modelo,
         "clienteTipoDocumento": d.clienteTipoDocumento,
-        "clienteNumeroDni": d.clienteNumeroDni,
+        "clienteNumeroDoc": d.clienteNumeroDoc,  # CAMBIO: nombre según modelo
         "activo": d.activo
     } for d in dispositivos]
     return jsonify(result), 200
 
+# El endpoint dispositivos_por_cliente debe ajustarse al modelo también
 @app.route("/dispositivos/cliente", methods=["GET"])
 def dispositivos_por_cliente_endpoint():
     clienteTipoDocumento = request.args.get("clienteTipoDocumento")
-    clienteNumeroDni = request.args.get("clienteNumeroDni")
-    if not clienteTipoDocumento or not clienteNumeroDni:
-        return jsonify({"detail": "Faltan parámetros clienteTipoDocumento o clienteNumeroDni"}), 400
-    if not validar_dni_like(clienteNumeroDni):
-        return jsonify({"detail": "clienteNumeroDni inválido"}), 400
+    clienteNumeroDoc = request.args.get("clienteNumeroDoc")  # CAMBIO: nombre según modelo
+    if not clienteTipoDocumento or not clienteNumeroDoc:
+        return jsonify({"detail": "Faltan parámetros clienteTipoDocumento o clienteNumeroDoc"}), 400
+    if not validar_dni_like(clienteNumeroDoc):
+        return jsonify({"detail": "clienteNumeroDoc inválido"}), 400
     try:
-        dispositivos = dispositivos_por_cliente(clienteTipoDocumento, int(clienteNumeroDni))
+        dispositivos = dispositivos_por_cliente(clienteTipoDocumento, int(clienteNumeroDoc))
         return jsonify([{
             "nroSerie": d.nroSerie,
             "marca": d.marca,
             "modelo": d.modelo,
             "clienteTipoDocumento": d.clienteTipoDocumento,
-            "clienteNumeroDni": d.clienteNumeroDni,
+            "clienteNumeroDoc": d.clienteNumeroDoc,  # CAMBIO: nombre según modelo
             "activo": d.activo
         } for d in dispositivos]), 200
     except Exception as e:

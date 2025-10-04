@@ -18,7 +18,7 @@ export default function Dispositivos() {
         marca: "",
         modelo: "",
         clienteTipoDocumento: "",
-        clienteNumeroDni: "",
+        clienteNumeroDoc: "",
         activo: 1,
     });
     const [busquedaDni, setBusquedaDni] = useState("");
@@ -57,11 +57,11 @@ export default function Dispositivos() {
     const handleClienteSelect = e => {
         const value = e.target.value;
         if (value === "") {
-            setForm({ ...form, clienteTipoDocumento: "", clienteNumeroDni: "" });
+            setForm({ ...form, clienteTipoDocumento: "", clienteNumeroDoc: "" });
             return;
         }
-        const [tipoDocumento, numeroDni] = value.split("-");
-        setForm({ ...form, clienteTipoDocumento: tipoDocumento, clienteNumeroDni: numeroDni });
+        const [tipoDocumento, numeroDoc] = value.split("-");
+        setForm({ ...form, clienteTipoDocumento: tipoDocumento, clienteNumeroDoc: numeroDoc });
     };
 
     const handleAgregarClick = () => {
@@ -85,7 +85,7 @@ export default function Dispositivos() {
             marca: "",
             modelo: "",
             clienteTipoDocumento: "",
-            clienteNumeroDni: "",
+            clienteNumeroDoc: "",
             activo: 1,
         });
         fetchDispositivos();
@@ -229,7 +229,7 @@ export default function Dispositivos() {
                                                 </label>
                                                 <select
                                                     name="cliente"
-                                                    value={form.clienteTipoDocumento && form.clienteNumeroDni ? `${form.clienteTipoDocumento}-${form.clienteNumeroDni}` : ""}
+                                                    value={form.clienteTipoDocumento && form.clienteNumeroDoc ? `${form.clienteTipoDocumento}-${form.clienteNumeroDoc}` : ""}
                                                     onChange={handleClienteSelect}
                                                     required
                                                     className="form-control"
@@ -297,7 +297,7 @@ export default function Dispositivos() {
                                                 <td>{d.marca}</td>
                                                 <td>{d.modelo}</td>
                                                 <td>{d.clienteTipoDocumento}</td>
-                                                <td>{d.clienteNumeroDni}</td>
+                                                <td>{d.clienteNumeroDoc}</td>
                                                 <td>{d.activo === 1 ? "Activo" : "Inactivo"}</td>
                                                 <td>
                                                     <button
@@ -389,16 +389,16 @@ export default function Dispositivos() {
                                             name="cliente"
                                             className="form-control"
                                             value={
-                                                dispositivoActual.clienteTipoDocumento && dispositivoActual.clienteNumeroDni
-                                                    ? `${dispositivoActual.clienteTipoDocumento}-${dispositivoActual.clienteNumeroDni}`
+                                                dispositivoActual.clienteTipoDocumento && dispositivoActual.clienteNumeroDoc
+                                                    ? `${dispositivoActual.clienteTipoDocumento}-${dispositivoActual.clienteNumeroDoc}`
                                                     : ""
                                             }
                                             onChange={e => {
-                                                const [tipoDocumento, numeroDni] = e.target.value.split("-");
+                                                const [tipoDocumento, numeroDoc] = e.target.value.split("-");
                                                 setDispositivoActual({
                                                     ...dispositivoActual,
                                                     clienteTipoDocumento: tipoDocumento,
-                                                    clienteNumeroDni: numeroDni
+                                                    clienteNumeroDoc: numeroDoc
                                                 });
                                             }}
                                             disabled={modalModo === 'consultar'}
@@ -420,7 +420,7 @@ export default function Dispositivos() {
                                             </div>
                                             <div className="mb-2">
                                                 <label>DNI Cliente</label>
-                                                <input className="form-control" name="clienteNumeroDni" value={dispositivoActual.clienteNumeroDni} disabled />
+                                                <input className="form-control" name="clienteNumeroDoc" value={dispositivoActual.clienteNumeroDoc} disabled />
                                             </div>
                                         </>
                                     )}

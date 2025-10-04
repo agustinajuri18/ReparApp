@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 
 const colores = {
@@ -9,68 +9,77 @@ const colores = {
   beige: '#f0ede5'
 };
 
-const Usuarios = () => {
+function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
-  const [mostrarInactivos, setMostrarInactivos] = useState(false);
-  const [mensaje, setMensaje] = useState("");
-  const [formData, setFormData] = useState({
-    usuario: '',
-    password: '',
+  const [form, setForm] = useState({
+    idUsuario: "",
+    password: "",
     activo: 1
   });
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [mensaje, setMensaje] = useState("");
 
-  // Para consulta/edición
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalModo, setModalModo] = useState('consultar'); // 'consultar' o 'editar'
-  const [usuarioActual, setUsuarioActual] = useState(null);
-
-  // Cargar usuarios desde la API
   useEffect(() => {
-    fetch('http://localhost:5000/usuarios')
+    fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
       .then(res => res.json())
       .then(data => setUsuarios(data))
       .catch(() => setMensaje("Error al cargar usuarios"));
-  }, []);
+  }, [mostrarInactivos]);
 
-  // Filtro de usuarios según activos/inactivos
-  const usuariosFiltrados = usuarios.filter(u => mostrarInactivos ? u.activo === 0 : u.activo === 1);
+  function handleChange(e) {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  }
 
-  const handleSubmit = (e) => {
+  function handleSubmit(e) {
     e.preventDefault();
-    setUsuarios([...usuarios, formData]);
-    setFormData({ usuario: '', password: '', activo: 1 });
-    setMostrarFormulario(false);
-    setMensaje("Usuario agregado correctamente.");
-  };
+    fetch("/usuarios/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form)
+    })
+      .then(res => res.json())
+      .then(() => {
+        setForm({ idUsuario: "", password: "", activo: 1 });
+        fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
+          .then(res => res.json())
+          .then(data => setUsuarios(data));
+        setMensaje("Usuario agregado correctamente.");
+      });
+  }
 
-  // CONSULTAR
-  const handleConsultar = (idx) => {
-    setUsuarioActual(usuariosFiltrados[idx]);
-    setModalModo('consultar');
-    setModalVisible(true);
-  };
+  function handleDelete(idUsuario) {
+    fetch(`/usuarios/${idUsuario}`, { method: "DELETE" })
+      .then(() => {
+        fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
+          .then(res => res.json())
+          .then(data => setUsuarios(data));
+        setMensaje("Usuario eliminado correctamente.");
+      });
+  }
 
-  // EDITAR
-  const handleModificar = (idx) => {
-    setUsuarioActual({ ...usuariosFiltrados[idx] });
-    setModalModo('editar');
-    setModalVisible(true);
-  };
+  function handleEdit(usuario) {
+    setEditId(usuario.idUsuario);
+    setForm({ idUsuario: usuario.idUsuario, password: "", activo: usuario.activo });
+  }
 
-  const handleModalSave = (e) => {
+  function handleUpdate(e) {
     e.preventDefault();
-    setUsuarios(usuarios.map((u) =>
-      u.usuario === usuarioActual.usuario ? usuarioActual : u
-    ));
-    setModalVisible(false);
-    setMensaje("Usuario modificado correctamente.");
-  };
-
-  const handleModalClose = () => {
-    setModalVisible(false);
-    setUsuarioActual(null);
-  };
+    fetch(`/usuarios/${form.idUsuario}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form)
+    })
+      .then(res => res.json())
+      .then(() => {
+        setEditId(null);
+        setForm({ idUsuario: "", password: "", activo: 1 });
+        fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
+          .then(res => res.json())
+          .then(data => setUsuarios(data));
+        setMensaje("Usuario modificado correctamente.");
+      });
+  }
 
   return (
     <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
@@ -91,7 +100,7 @@ const Usuarios = () => {
                 <button
                   className="btn"
                   style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                  onClick={() => setMostrarFormulario(true)}
+                  onClick={() => setForm({ idUsuario: "", password: "", activo: 1 })}
                 >
                   <i className="bi bi-plus-lg"></i> Agregar
                 </button>
@@ -101,113 +110,47 @@ const Usuarios = () => {
               {mensaje && (
                 <div className="alert" role="alert" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none', borderRadius: 8 }}>{mensaje}</div>
               )}
-              {/* Modal para agregar usuario */}
-              {mostrarFormulario && (
-                <div className="modal fade show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-                  <div className="modal-dialog">
-                    <div className="modal-content" style={{ background: colores.beige, borderRadius: 16, border: `2px solid ${colores.azul}` }}>
-                      <div className="modal-header" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-                        <h5 className="modal-title">Agregar Usuario</h5>
-                        <button type="button" className="btn-close" onClick={() => setMostrarFormulario(false)}></button>
-                      </div>
-                      <div className="modal-body">
-                        <form onSubmit={handleSubmit}>
-                          <div className="row">
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="usuario" value={formData.usuario} onChange={e => setFormData({ ...formData, usuario: e.target.value })} className="form-control" placeholder="Usuario" required />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="password" name="password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="form-control" placeholder="Contraseña" required />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <select name="activo" value={formData.activo} onChange={e => setFormData({ ...formData, activo: Number(e.target.value) })} className="form-select">
-                                <option value={1}>Activo</option>
-                                <option value={0}>Inactivo</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div className="d-flex justify-content-end">
-                            <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>Guardar</button>
-                            <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={() => setMostrarFormulario(false)}>Cancelar</button>
-                          </div>
-                        </form>
-                      </div>
-                    </div>
+              <form onSubmit={editId ? handleUpdate : handleSubmit}>
+                <div className="row">
+                  <div className="col-12 col-md-4 mb-2">
+                    <input name="idUsuario" placeholder="ID Usuario" value={form.idUsuario} onChange={handleChange} className="form-control" required disabled={!!editId} />
+                  </div>
+                  <div className="col-12 col-md-4 mb-2">
+                    <input name="password" type="password" placeholder="Contraseña" value={form.password} onChange={handleChange} className="form-control" required />
+                  </div>
+                  <div className="col-12 col-md-4 mb-2">
+                    <select name="activo" value={form.activo} onChange={handleChange} className="form-select">
+                      <option value={1}>Activo</option>
+                      <option value={0}>Inactivo</option>
+                    </select>
                   </div>
                 </div>
-              )}
-
-              {/* Modal para consultar/editar */}
-              {modalVisible && (
-                <div className="modal fade show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-                  <div className="modal-dialog">
-                    <div className="modal-content" style={{ background: colores.beige, borderRadius: 16, border: `2px solid ${colores.azul}` }}>
-                      <div className="modal-header" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-                        <h5 className="modal-title">{modalModo === 'consultar' ? 'Consultar Usuario' : 'Modificar Usuario'}</h5>
-                        <button type="button" className="btn-close" onClick={handleModalClose}></button>
-                      </div>
-                      <div className="modal-body">
-                        {/* Formulario de consulta igual a Proveedores */}
-                        <form onSubmit={handleModalSave}>
-                          <div className="row">
-                            <div className="col-12 col-md-4 mb-2">
-                              <label className="form-label fw-bold">Usuario</label>
-                              <input type="text" value={usuarioActual?.usuario || ''} className="form-control" disabled />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <label className="form-label fw-bold">Contraseña</label>
-                              <input type="password" value={usuarioActual?.password || ''} className="form-control"
-                                disabled={modalModo === 'consultar'}
-                                onChange={e => setUsuarioActual({ ...usuarioActual, password: e.target.value })} />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <label className="form-label fw-bold">Estado</label>
-                              <select value={usuarioActual?.activo ?? 1}
-                                disabled={modalModo === 'consultar'}
-                                className="form-select"
-                                onChange={e => setUsuarioActual({ ...usuarioActual, activo: Number(e.target.value) })}>
-                                <option value={1}>Activo</option>
-                                <option value={0}>Inactivo</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div className="d-flex justify-content-end">
-                            {modalModo === 'editar' && (
-                              <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>Guardar</button>
-                            )}
-                            <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={handleModalClose}>Cerrar</button>
-                          </div>
-                        </form>
-                      </div>
-                    </div>
-                  </div>
+                <div className="d-flex justify-content-end">
+                  <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>{editId ? "Actualizar" : "Agregar"}</button>
+                  {editId && <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={() => { setEditId(null); setForm({ idUsuario: "", password: "", activo: 1 }); }}>Cancelar</button>}
                 </div>
-              )}
-
-              <div className="table-responsive">
+              </form>
+              <div className="table-responsive mt-4">
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
-                      <th>Usuario</th>
-                      <th>Estado</th>
+                      <th>ID Usuario</th>
+                      <th>Activo</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {usuariosFiltrados.map((u, idx) => (
-                      <tr key={idx} style={u.activo === 0 ? { opacity: 0.5 } : {}}>
-                        <td>{u.usuario}</td>
-                        <td>{u.activo === 1 ? "Activo" : "Inactivo"}</td>
+                    {usuarios.map(u => (
+                      <tr key={u.idUsuario}>
+                        <td>{u.idUsuario}</td>
+                        <td>{u.activo ? "Sí" : "No"}</td>
                         <td>
                           <button className="btn btn-sm me-1" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                            onClick={() => handleConsultar(idx)}>
-                            <span title="Consultar"><i className="bi bi-eye"></i></span> Consultar
+                            onClick={() => handleEdit(u)}>
+                            <span title="Editar"><i className="bi bi-pencil-square"></i></span> Editar
                           </button>
-                          <button className="btn btn-sm me-1" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
-                            onClick={() => handleModificar(idx)}>
-                            <span title="Modificar"><i className="bi bi-pencil-square"></i></span> Modificar
-                          </button>
-                          <button className="btn btn-sm" style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}>
+                          <button className="btn btn-sm" style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}
+                            onClick={() => handleDelete(u.idUsuario)}>
                             <span title="Eliminar"><i className="bi bi-x-circle"></i></span> Eliminar
                           </button>
                         </td>
@@ -215,7 +158,7 @@ const Usuarios = () => {
                     ))}
                   </tbody>
                 </table>
-                {usuariosFiltrados.length === 0 && (
+                {usuarios.length === 0 && (
                   <div className="text-center text-muted py-4">No hay usuarios {mostrarInactivos ? "inactivos" : "activos"}.</div>
                 )}
               </div>
@@ -225,6 +168,6 @@ const Usuarios = () => {
       </div>
     </div>
   );
-};
+}
 
 export default Usuarios;

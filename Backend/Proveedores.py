@@ -71,14 +71,15 @@ def eliminar_proveedor(cuil):
 
 @app.route("/proveedores/<int:cuil>", methods=["PUT"])
 def modificar_datos_proveedor(cuil):
-    if not buscar_proveedor(cuil):
+    proveedor = buscar_proveedor(cuil)
+    if not proveedor:
         return jsonify({"detail": "Proveedor no encontrado"}), 404
 
     data = request.get_json() or {}
     razonSocial = data.get("razonSocial")
     telefono = data.get("telefono")
     mail = data.get("mail")
-    activo = data.get("activo", 1)
+    activo = data.get("activo", getattr(proveedor, "activo", 1))
 
     if razonSocial is not None and not validar_razon_social(razonSocial):
         return jsonify({"error": "razonSocial inválida"}), 400

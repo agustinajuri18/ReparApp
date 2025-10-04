@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
-from ABMC_db import *  # alta_servicio, modificar_servicio, mostrar_servicios, baja_servicio, buscar_servicio, SessionLocal, Servicio
+from ABMC_db import alta_servicio, modificar_servicio, mostrar_servicios, baja_servicio
+from BDD.database import SessionLocal, Servicio
 
 app = Blueprint('servicios', __name__)
 
@@ -36,7 +37,6 @@ def registrar_servicio():
     codigo = data.get("codigo")
     descripcion = data.get("descripcion")
     precioBase = data.get("precioBase")
-    tiempoEstimado = data.get("tiempoEstimado") 
     activo = parse_activo(data.get("activo"))
 
     if not validar_codigo(codigo):
@@ -55,7 +55,7 @@ def registrar_servicio():
         session.close()
 
     try:
-        alta_servicio(codigo.strip(), descripcion.strip(), float(precioBase), tiempoEstimado, activo)
+        alta_servicio(codigo.strip(), descripcion.strip(), float(precioBase), activo)
         return jsonify({"mensaje": "Servicio creado exitosamente"}), 201
     except Exception as e:
         return jsonify({"error": "No se pudo crear servicio", "detail": str(e)}), 500
@@ -71,7 +71,6 @@ def modificar_datos_servicio(codigo):
     data = request.get_json() or {}
     descripcion = data.get("descripcion", servicio.descripcion)
     precioBase = data.get("precioBase", servicio.precioBase)
-    tiempoEstimado = data.get("tiempoEstimado", getattr(servicio, "tiempoEstimado", None))
     activo = parse_activo(data.get("activo", servicio.activo))
 
     if not validar_text_field(descripcion):
@@ -82,7 +81,7 @@ def modificar_datos_servicio(codigo):
         return jsonify({"error": "precioBase inválido"}), 400
 
     try:
-        modificar_servicio(codigo, descripcion.strip(), float(precioBase), tiempoEstimado, activo)
+        modificar_servicio(codigo, descripcion.strip(), float(precioBase), activo)
         session.close()
         return jsonify({"mensaje": "Servicio modificado exitosamente"}), 200
     except Exception as e:
@@ -99,7 +98,6 @@ def mostrar_servicio(codigo):
             "codigo": servicio.codigo,
             "descripcion": servicio.descripcion,
             "precioBase": servicio.precioBase,
-            "tiempoEstimado": getattr(servicio, "tiempoEstimado", None),
             "activo": getattr(servicio, "activo", 1)
         }
         return jsonify(servicio_dict), 200
@@ -113,7 +111,7 @@ def baja_logica_servicio(codigo):
         session.close()
         return jsonify({"detail": "Servicio no encontrado"}), 404
     try:
-        baja_servicio(codigo)  # debe marcar activo=0 en ABMC_db
+        baja_servicio(codigo)
         session.close()
         return jsonify({"mensaje": "Servicio dado de baja"}), 200
     except Exception as e:
@@ -124,15 +122,14 @@ def baja_logica_servicio(codigo):
 def listar_servicios():
     activos = request.args.get("activos", "true").lower() == "true"
     try:
-        servicios = mostrar_servicios()
+        servicios = mostrar_servicios(activos_only=activos)
         result = [
             {
                 "codigo": s.codigo,
                 "descripcion": s.descripcion,
                 "precioBase": s.precioBase,
-                "tiempoEstimado": getattr(s, "tiempoEstimado", None),
                 "activo": getattr(s, "activo", 1)
-            } for s in servicios if (not activos) or getattr(s, "activo", 1) == 1
+            } for s in servicios
         ]
         return jsonify(result), 200
     except Exception as e:

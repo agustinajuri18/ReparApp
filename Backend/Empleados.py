@@ -25,27 +25,21 @@ def parse_id_maybe_int(value):
 @app.route("/empleados/", methods=["POST"])
 def registrar_empleado():
     data = request.get_json() or {}
-    idEmpleado = data.get("idEmpleado")
     nombre = data.get("nombre")
     apellido = data.get("apellido")
-    idRol = data.get("idRol")
+    idCargo = data.get("idCargo")
     idUsuario = data.get("idUsuario")
     activo = data.get("activo", 1)
 
-    if not validar_id(idEmpleado):
-        return jsonify({"error": "idEmpleado inválido"}), 400
     if not validar_text_field(nombre):
         return jsonify({"error": "nombre inválido"}), 400
     if not validar_text_field(apellido):
         return jsonify({"error": "apellido inválido"}), 400
-    if not validar_id(idRol):
-        return jsonify({"error": "idRol inválido"}), 400
-
-    if buscar_empleado(int(idEmpleado)):
-        return jsonify({"error": "Empleado ya existe"}), 409
+    if not validar_id(idCargo):
+        return jsonify({"error": "idCargo inválido"}), 400
 
     try:
-        alta_empleado(int(idEmpleado), nombre.strip(), apellido.strip(), int(idRol), parse_id_maybe_int(idUsuario))
+        alta_empleado(nombre.strip(), apellido.strip(), int(idCargo), parse_id_maybe_int(idUsuario))
         return jsonify({"mensaje": "Empleado registrado exitosamente"}), 201
     except Exception as e:
         return jsonify({"error": "No se pudo crear empleado", "detail": str(e)}), 500
@@ -69,7 +63,7 @@ def modificar_datos_empleado(idEmpleado):
     data = request.get_json() or {}
     nombre = data.get("nombre", empleado.nombre)
     apellido = data.get("apellido", empleado.apellido)
-    idRol = data.get("idRol", empleado.idRol)
+    idCargo = data.get("idCargo", empleado.idCargo)
     idUsuario = data.get("idUsuario", empleado.idUsuario)
     activo = data.get("activo", empleado.activo)
 
@@ -77,12 +71,11 @@ def modificar_datos_empleado(idEmpleado):
         return jsonify({"error": "nombre inválido"}), 400
     if not validar_text_field(apellido):
         return jsonify({"error": "apellido inválido"}), 400
-    if not validar_id(idRol):
-        return jsonify({"error": "idRol inválido"}), 400
+    if not validar_id(idCargo):
+        return jsonify({"error": "idCargo inválido"}), 400
 
     try:
-        modificar_empleado(idEmpleado, nombre.strip(), apellido.strip(), int(idRol),
-            idUsuario)
+        modificar_empleado(idEmpleado, nombre.strip(), apellido.strip(), int(idCargo), idUsuario, activo)
         return jsonify({"mensaje": "Empleado modificado exitosamente"}), 200
     except Exception as e:
         return jsonify({"error": "No se pudo modificar empleado", "detail": str(e)}), 500
@@ -95,7 +88,7 @@ def mostrar_empleado(idEmpleado):
             "idEmpleado": empleado.idEmpleado,
             "nombre": empleado.nombre,
             "apellido": empleado.apellido,
-            "idRol": empleado.idRol,
+            "idCargo": empleado.idCargo,
             "idUsuario": empleado.idUsuario,
             "activo": empleado.activo
         }
@@ -110,7 +103,7 @@ def listar_empleados():
             "idEmpleado": e.idEmpleado,
             "nombre": e.nombre,
             "apellido": e.apellido,
-            "idRol": e.idRol,
+            "idCargo": e.idCargo,
             "idUsuario": e.idUsuario,
             "activo": e.activo
         }

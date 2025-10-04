@@ -30,8 +30,7 @@ def parse_activo(value):
 
 def find_user_by_id(id_value):
     for u in mostrar_usuarios():
-        # intentar varias convenciones de nombre de atributo
-        uid = getattr(u, "id_usuario", None) or getattr(u, "idUsuario", None) or getattr(u, "id", None)
+        uid = getattr(u, "idUsuario", None)
         if uid is not None and str(uid) == str(id_value):
             return u
     return None
@@ -39,12 +38,12 @@ def find_user_by_id(id_value):
 @app.route("/usuarios/", methods=["POST"])
 def registrar_usuario():
     data = request.get_json() or {}
-    id_usuario = data.get("id_usuario") or data.get("idUsuario") or data.get("id")
+    id_usuario = data.get("idUsuario")
     password = data.get("password")
     activo = parse_activo(data.get("activo"))
 
     if not validar_id(id_usuario):
-        return jsonify({"error": "id_usuario inválido"}), 400
+        return jsonify({"error": "idUsuario inválido"}), 400
     if not validar_password(password):
         return jsonify({"error": "password inválido (mínimo 6 caracteres)"}), 400
 
@@ -53,7 +52,7 @@ def registrar_usuario():
 
     hashed = generate_password_hash(password)
     try:
-        alta_usuario(id_usuario, hashed)  # ABMC_db debe aceptar el valor para guardar
+        alta_usuario(id_usuario, hashed)
         return jsonify({"mensaje": "Usuario creado exitosamente"}), 201
     except Exception as e:
         return jsonify({"error": "No se pudo crear usuario", "detail": str(e)}), 500
@@ -87,8 +86,7 @@ def modificar_usuario_endpoint(id_usuario):
             hashed = generate_password_hash(new_password)
             modificar_usuario(id_usuario, hashed)
         else:
-            # si solo se modifica activo, llamar a modificar_usuario con mismo password si el ABMC lo requiere
-            modificar_usuario(id_usuario, getattr(u, "password", getattr(u, "contrasena", None)))
+            modificar_usuario(id_usuario, getattr(u, "password", getattr(u, "contraseña", None)))
         return jsonify({"mensaje": "Usuario modificado exitosamente"}), 200
     except Exception as e:
         return jsonify({"error": "No se pudo modificar usuario", "detail": str(e)}), 500
@@ -98,7 +96,7 @@ def mostrar_usuario(id_usuario):
     u = find_user_by_id(id_usuario)
     if not u:
         return jsonify({"detail": "Usuario no encontrado"}), 404
-    uid = getattr(u, "id_usuario", None) or getattr(u, "idUsuario", None) or getattr(u, "id", None)
+    uid = getattr(u, "idUsuario", None)
     return jsonify({
         "idUsuario": uid,
         "activo": getattr(u, "activo", 1)
@@ -113,7 +111,7 @@ def listar_usuarios():
         activo_val = getattr(u, "activo", 1)
         if activos and activo_val != 1:
             continue
-        uid = getattr(u, "id_usuario", None) or getattr(u, "idUsuario", None) or getattr(u, "id", None)
+        uid = getattr(u, "idUsuario", None)
         result.append({
             "idUsuario": uid,
             "activo": activo_val

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 
 const colores = {
@@ -9,70 +9,84 @@ const colores = {
   beige: '#f0ede5'
 };
 
-const Empleados = () => {
+function Empleados() {
   const [empleados, setEmpleados] = useState([]);
-  const [mostrarInactivos, setMostrarInactivos] = useState(false);
-  const [mensaje, setMensaje] = useState("");
-  const [formData, setFormData] = useState({
-    idEmpleado: '',
-    nombre: '',
-    apellido: '',
-    idRol: '',
-    idUsuario: '',
+  const [form, setForm] = useState({
+    nombre: "",
+    apellido: "",
+    idCargo: "",
+    idUsuario: "",
     activo: 1
   });
+  const [editId, setEditId] = useState(null);
+  const [mensaje, setMensaje] = useState("");
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
 
-  // Para consulta/edición
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalModo, setModalModo] = useState('consultar'); // 'consultar' o 'editar'
-  const [empleadoActual, setEmpleadoActual] = useState(null);
-
-  // Cargar empleados desde la API
+  // Cargar empleados
   useEffect(() => {
-    fetch('http://localhost:5000/empleados')
+    fetch("http://localhost:5000/empleados")
       .then(res => res.json())
       .then(data => setEmpleados(data))
       .catch(() => setMensaje("Error al cargar empleados"));
   }, []);
 
-  // Filtro de empleados según activos/inactivos
-  const empleadosFiltrados = empleados.filter(e => mostrarInactivos ? e.activo === 0 : e.activo === 1);
+  function handleChange(e) {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  }
 
-  const handleSubmit = (e) => {
+  function handleSubmit(e) {
     e.preventDefault();
-    setFormData({ idEmpleado: '', nombre: '', apellido: '', idRol: '', idUsuario: '', activo: 1 });
-    setMostrarFormulario(false);
-    setMensaje("Empleado agregado correctamente.");
-  };
+    fetch("http://localhost:5000/empleados", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form)
+    })
+      .then(res => res.json())
+      .then(() => {
+        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
+        setMostrarFormulario(false);
+        setMensaje("Empleado agregado correctamente.");
+        fetch("http://localhost:5000/empleados")
+          .then(res => res.json())
+          .then(data => setEmpleados(data))
+          .catch(() => setMensaje("Error al cargar empleados"));
+      });
+  }
 
-  // CONSULTAR
-  const handleConsultar = (idx) => {
-    setEmpleadoActual(empleadosFiltrados[idx]);
-    setModalModo('consultar');
-    setModalVisible(true);
-  };
+  function handleDelete(idEmpleado) {
+    fetch(`http://localhost:5000/empleados/${idEmpleado}`, { method: "DELETE" })
+      .then(() => {
+        fetch("http://localhost:5000/empleados")
+          .then(res => res.json())
+          .then(data => setEmpleados(data))
+          .catch(() => setMensaje("Error al cargar empleados"));
+      });
+  }
 
-  // EDITAR
-  const handleModificar = (idx) => {
-    setEmpleadoActual({ ...empleadosFiltrados[idx] });
-    setModalModo('editar');
-    setModalVisible(true);
-  };
+  function handleEdit(empleado) {
+    setEditId(empleado.idEmpleado);
+    setForm(empleado);
+  }
 
-  const handleModalSave = (e) => {
+  function handleUpdate(e) {
     e.preventDefault();
-    setEmpleados(empleados.map((emp) =>
-      emp.idEmpleado === empleadoActual.idEmpleado ? empleadoActual : emp
-    ));
-    setModalVisible(false);
-    setMensaje("Empleado modificado correctamente.");
-  };
-
-  const handleModalClose = () => {
-    setModalVisible(false);
-    setEmpleadoActual(null);
-  };
+    fetch(`http://localhost:5000/empleados/${form.idEmpleado}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form)
+    })
+      .then(res => res.json())
+      .then(() => {
+        setEditId(null);
+        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
+        setMensaje("Empleado modificado correctamente.");
+        fetch("http://localhost:5000/empleados")
+          .then(res => res.json())
+          .then(data => setEmpleados(data))
+          .catch(() => setMensaje("Error al cargar empleados"));
+      });
+  }
 
   return (
     <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
@@ -116,19 +130,19 @@ const Empleados = () => {
                         <form onSubmit={handleSubmit}>
                           <div className="row">
                             <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="nombre" value={formData.nombre} onChange={e => setFormData({ ...formData, nombre: e.target.value })} className="form-control" placeholder="Nombre" required />
+                              <input type="text" name="nombre" value={form.nombre} onChange={handleChange} className="form-control" placeholder="Nombre" required />
                             </div>
                             <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="apellido" value={formData.apellido} onChange={e => setFormData({ ...formData, apellido: e.target.value })} className="form-control" placeholder="Apellido" required />
+                              <input type="text" name="apellido" value={form.apellido} onChange={handleChange} className="form-control" placeholder="Apellido" required />
                             </div>
                             <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="idRol" value={formData.idRol} onChange={e => setFormData({ ...formData, idRol: e.target.value })} className="form-control" placeholder="Rol" required />
+                              <input type="text" name="idCargo" value={form.idCargo} onChange={handleChange} className="form-control" placeholder="Rol" required />
                             </div>
                             <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="idUsuario" value={formData.idUsuario} onChange={e => setFormData({ ...formData, idUsuario: e.target.value })} className="form-control" placeholder="Usuario" required />
+                              <input type="text" name="idUsuario" value={form.idUsuario} onChange={handleChange} className="form-control" placeholder="Usuario" required />
                             </div>
                             <div className="col-12 col-md-4 mb-2">
-                              <select name="activo" value={formData.activo} onChange={e => setFormData({ ...formData, activo: Number(e.target.value) })} className="form-select">
+                              <select name="activo" value={form.activo} onChange={handleChange} className="form-select">
                                 <option value={1}>Activo</option>
                                 <option value={0}>Inactivo</option>
                               </select>
@@ -146,52 +160,49 @@ const Empleados = () => {
               )}
 
               {/* Modal para consultar/editar */}
-              {modalVisible && (
+              {editId && (
                 <div className="modal fade show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
                   <div className="modal-dialog">
                     <div className="modal-content" style={{ background: colores.beige, borderRadius: 16, border: `2px solid ${colores.azul}` }}>
                       <div className="modal-header" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-                        <h5 className="modal-title">{modalModo === 'consultar' ? 'Consultar Empleado' : 'Modificar Empleado'}</h5>
-                        <button type="button" className="btn-close" onClick={handleModalClose}></button>
+                        <h5 className="modal-title">Modificar Empleado</h5>
+                        <button type="button" className="btn-close" onClick={() => { setEditId(null); setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 }); }}></button>
                       </div>
                       <div className="modal-body">
-                        <form onSubmit={handleModalSave}>
+                        <form onSubmit={handleUpdate}>
                           <div className="row">
                             <div className="col-12 col-md-4 mb-2">
-                              <input type="text" value={empleadoActual?.nombre || ''} className="form-control" placeholder="Nombre"
-                                disabled={modalModo === 'consultar'}
-                                onChange={e => setEmpleadoActual({ ...empleadoActual, nombre: e.target.value })} />
+                              <input type="text" name="nombre" value={form.nombre} onChange={handleChange} className="form-control" placeholder="Nombre"
+                                disabled={editId === null}
+                              />
                             </div>
                             <div className="col-12 col-md-4 mb-2">
-                              <input type="text" value={empleadoActual?.apellido || ''} className="form-control" placeholder="Apellido"
-                                disabled={modalModo === 'consultar'}
-                                onChange={e => setEmpleadoActual({ ...empleadoActual, apellido: e.target.value })} />
+                              <input type="text" name="apellido" value={form.apellido} onChange={handleChange} className="form-control" placeholder="Apellido"
+                                disabled={editId === null}
+                              />
                             </div>
                             <div className="col-12 col-md-4 mb-2">
-                              <input type="text" value={empleadoActual?.idRol || ''} className="form-control" placeholder="Rol"
-                                disabled={modalModo === 'consultar'}
-                                onChange={e => setEmpleadoActual({ ...empleadoActual, idRol: e.target.value })} />
+                              <input type="text" name="idCargo" value={form.idCargo} onChange={handleChange} className="form-control" placeholder="Rol"
+                                disabled={editId === null}
+                              />
                             </div>
                             <div className="col-12 col-md-4 mb-2">
-                              <input type="text" value={empleadoActual?.idUsuario || ''} className="form-control" placeholder="Usuario"
-                                disabled={modalModo === 'consultar'}
-                                onChange={e => setEmpleadoActual({ ...empleadoActual, idUsuario: e.target.value })} />
+                              <input type="text" name="idUsuario" value={form.idUsuario} onChange={handleChange} className="form-control" placeholder="Usuario"
+                                disabled={editId === null}
+                              />
                             </div>
                             <div className="col-12 col-md-4 mb-2">
-                              <select value={empleadoActual?.activo ?? 1}
-                                disabled={modalModo === 'consultar'}
-                                className="form-select"
-                                onChange={e => setEmpleadoActual({ ...empleadoActual, activo: Number(e.target.value) })}>
+                              <select name="activo" value={form.activo} onChange={handleChange} className="form-select"
+                                disabled={editId === null}
+                              >
                                 <option value={1}>Activo</option>
                                 <option value={0}>Inactivo</option>
                               </select>
                             </div>
                           </div>
                           <div className="d-flex justify-content-end">
-                            {modalModo === 'editar' && (
-                              <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>Guardar</button>
-                            )}
-                            <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={handleModalClose}>Cerrar</button>
+                            <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>Guardar</button>
+                            <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={() => { setEditId(null); setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 }); }}>Cancelar</button>
                           </div>
                         </form>
                       </div>
@@ -204,32 +215,31 @@ const Empleados = () => {
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
+                      <th>ID</th>
                       <th>Nombre</th>
                       <th>Apellido</th>
-                      <th>Rol</th>
-                      <th>Usuario</th>
-                      <th>Estado</th>
+                      <th>ID Cargo</th>
+                      <th>ID Usuario</th>
+                      <th>Activo</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {empleadosFiltrados.map((e, idx) => (
-                      <tr key={idx} style={e.activo === 0 ? { opacity: 0.5 } : {}}>
+                    {empleados.map(e => (
+                      <tr key={e.idEmpleado}>
+                        <td>{e.idEmpleado}</td>
                         <td>{e.nombre}</td>
                         <td>{e.apellido}</td>
-                        <td>{e.idRol}</td>
+                        <td>{e.idCargo}</td>
                         <td>{e.idUsuario}</td>
-                        <td>{e.activo === 1 ? "Activo" : "Inactivo"}</td>
+                        <td>{e.activo ? "Sí" : "No"}</td>
                         <td>
                           <button className="btn btn-sm me-1" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                            onClick={() => handleConsultar(idx)}>
-                            <span title="Consultar"><i className="bi bi-eye"></i></span> Consultar
-                          </button>
-                          <button className="btn btn-sm me-1" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
-                            onClick={() => handleModificar(idx)}>
+                            onClick={() => handleEdit(e)}>
                             <span title="Modificar"><i className="bi bi-pencil-square"></i></span> Modificar
                           </button>
-                          <button className="btn btn-sm" style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}>
+                          <button className="btn btn-sm" style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}
+                            onClick={() => handleDelete(e.idEmpleado)}>
                             <span title="Eliminar"><i className="bi bi-x-circle"></i></span> Eliminar
                           </button>
                         </td>
@@ -237,8 +247,8 @@ const Empleados = () => {
                     ))}
                   </tbody>
                 </table>
-                {empleadosFiltrados.length === 0 && (
-                  <div className="text-center text-muted py-4">No hay empleados {mostrarInactivos ? "inactivos" : "activos"}.</div>
+                {empleados.length === 0 && (
+                  <div className="text-center text-muted py-4">No hay empleados registrados.</div>
                 )}
               </div>
             </div>
@@ -247,6 +257,6 @@ const Empleados = () => {
       </div>
     </div>
   );
-};
+}
 
 export default Empleados;

@@ -1,264 +1,80 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 
 const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5', mentaSuave: '#c6e8e8' };
 
-const Proveedores = () => {
+function Proveedores() {
   const [proveedores, setProveedores] = useState([]);
-  const [mostrarInactivos, setMostrarInactivos] = useState(false);
-  const [mensaje, setMensaje] = useState("");
-  const [formData, setFormData] = useState({
-    cuil: '',
-    razonSocial: '',
-    telefono: '',
+  const [form, setForm] = useState({
+    cuil: "",
+    razonSocial: "",
+    telefono: "",
+    mail: "",
     activo: 1
   });
+  const [editId, setEditId] = useState(null);
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [mensaje, setMensaje] = useState("");
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [modalModo, setModalModo] = useState('consultar');
-  const [proveedorActual, setProveedorActual] = useState(null);
 
-  // Función para cargar proveedores
-  const fetchProveedores = async () => {
-    try {
-      let url = 'http://localhost:5000/proveedores/';
-      url += mostrarInactivos ? '?activos=false' : '?activos=true';
-      const response = await fetch(url);
-      const data = await response.json();
-      setProveedores(Array.isArray(data) ? data : []);
-    } catch (error) {
-      setMensaje("Error al cargar proveedores.");
-    }
-  };
-
+  // Cargar proveedores
   useEffect(() => {
-    fetchProveedores();
-    // eslint-disable-next-line
+    fetch(`/proveedores/?activos=${mostrarInactivos ? "false" : "true"}`)
+      .then(res => res.json())
+      .then(data => setProveedores(data));
   }, [mostrarInactivos]);
 
-  const handleEliminar = async (cuil) => {
-    if (window.confirm('¿Seguro que desea dar de baja este proveedor?')) {
-      try {
-        const response = await fetch(`http://localhost:5000/proveedores/${cuil}`, {
-          method: 'DELETE'
-        });
-        const resultado = await response.json();
-        setMensaje(resultado.mensaje || resultado.detail);
-        setProveedores(proveedores.map(p =>
-          p.cuil === cuil ? { ...p, activo: false } : p
-        ));
-      } catch (error) {
-        setMensaje('Error al eliminar proveedor.');
-      }
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const { cuil, telefono } = formData;
-    if (!validarCuit(cuil)) {
-      alert("CUIT inválido");
-      return;
-    }
-    if (!validarTelefono(telefono)) {
-      alert("Teléfono inválido");
-      return;
-    }
-    const response = await fetch('http://localhost:5000/proveedores/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    });
-    const resultado = await response.json();
-    setMensaje(resultado.mensaje || resultado.detail);
-    setMostrarFormulario(false);
-    setFormData({ cuil: '', razonSocial: '', telefono: '', activo: 1 });
-    setProveedores([...proveedores, formData]);
-  };
-
-  // CONSULTAR proveedor
-  const handleConsultar = async (cuil) => {
-    const response = await fetch(`http://localhost:5000/proveedores/${cuil}`);
-    if (!response.ok) {
-      setMensaje("Proveedor no encontrado");
-      return;
-    }
-    const datos = await response.json();
-    setProveedorActual(datos);
-    setModalModo('consultar');
-    setModalVisible(true);
-  };
-
-  // MODIFICAR proveedor
-  const handleModificar = async (cuil) => {
-    const response = await fetch(`http://localhost:5000/proveedores/${cuil}`);
-    if (!response.ok) {
-      setMensaje("Proveedor no encontrado");
-      return;
-    }
-    const datos = await response.json();
-
-    // Aseguramos que activo tenga valor correcto
-    setProveedorActual({
-      ...datos,
-      activo: Boolean(datos.activo)
-    });
-    setModalModo('modificar');
-    setModalVisible(true);
-  };
-
-
-  const modificarProveedor = async (cuil, datos) => {
-    const response = await fetch(`http://localhost:5000/proveedores/${cuil}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(datos)
-    });
-    return await response.json();
-  };
-
-  const handleModalSave = async (e) => {
-    e.preventDefault();
-    if (proveedorActual) {
-      if (!validarCuit(proveedorActual.cuil)) {
-        alert("CUIT inválido");
-        return;
-      }
-      if (!validarTelefono(proveedorActual.telefono)) {
-        alert("Teléfono inválido");
-        return;
-      }
-      const resultado = await modificarProveedor(proveedorActual.cuil, proveedorActual);
-      setMensaje(resultado.mensaje || resultado.detail);
-      setModalVisible(false);
-      setProveedorActual(null);
-      setProveedores(proveedores.map(p =>
-        String(p.cuil) === String(proveedorActual.cuil)
-          ? proveedorActual : p
-      ));
-    }
-  };
-
-  const handleModalClose = () => {
-    setModalVisible(false);
-    setProveedorActual(null);
-  };
-
-  function validarCuit(cuit) {
-    return /^\d{11}$/.test(cuit);
+  function handleChange(e) {
+    setForm({ ...form, [e.target.name]: e.target.value });
   }
 
-  function validarTelefono(telefono) {
-    return /^\d{10,11}$/.test(telefono);
+  function handleSubmit(e) {
+    e.preventDefault();
+    fetch("/proveedores/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form)
+    })
+      .then(res => res.json())
+      .then(() => {
+        setForm({ cuil: "", razonSocial: "", telefono: "", mail: "", activo: 1 });
+        fetch(`/proveedores/?activos=${mostrarInactivos ? "false" : "true"}`)
+          .then(res => res.json())
+          .then(data => setProveedores(data));
+      });
   }
 
-  // Función para el botón de listar proveedores (usa la lista actual)
-  const handleListarProveedores = (proveedores) => {
-    const lista = proveedores ? [...proveedores] : [];
-    mostrarVentanaEmergente(lista);
-  };
+  function handleDelete(cuil) {
+    fetch(`/proveedores/${cuil}`, { method: "DELETE" })
+      .then(() => {
+        fetch(`/proveedores/?activos=${mostrarInactivos ? "false" : "true"}`)
+          .then(res => res.json())
+          .then(data => setProveedores(data));
+      });
+  }
 
-  const mostrarVentanaEmergente = (lista) => {
-    // Crear ventana emergente
-    const ventana = window.open(
-      'about:blank',
-      "ListaProveedores",
-      // Aseguramos que el scroll esté habilitado: "scrollbars=yes"
-      "width=900,height=700,scrollbars=yes,resizable=yes"
-    );
+  function handleEdit(proveedor) {
+    setEditId(proveedor.cuil);
+    setForm(proveedor);
+  }
 
-    if (!ventana) return;
-
-    ventana.document.write(`
-    <html>
-      <head>
-        <title>Listado de Proveedores</title>
-        <link 
-          rel="stylesheet" 
-          href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
-        >
-        <link 
-          rel="stylesheet" 
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css"
-        >
-        <style>
-          /* Estilos generales */
-          body { 
-            padding: 30px; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f8f9fa;
-            /* IMPORTANTE: Un padding inferior amplio para que el botón de cierre no se pegue abajo */
-            padding-bottom: 80px; 
-          }
-          /* ... (resto de tus estilos) ... */
-          h2 { 
-            margin-bottom: 25px;
-            color: #343a40;
-            border-bottom: 3px solid #007bff;
-            padding-bottom: 10px;
-            font-weight: 600;
-          }
-          .table-hover tbody tr:hover {
-            background-color: #e2f4ff;
-            cursor: default;
-          }
-          .activo-si { color: #28a745; font-weight: bold; }
-          .activo-no { color: #dc3545; font-weight: bold; }
-          .btn-container {
-            margin-top: 30px;
-            text-align: right;
-            /* Opcional: Para mantener el botón visible si el scroll es muy lento */
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container-fluid">
-          <h2><i class="fas fa-users"></i> Listado de Proveedores (${lista.length} Registros)</h2>
-          <table class="table table-bordered table-striped table-hover">
-            <thead class="thead-dark">
-              <tr>
-                <th>CUIL</th>
-                <th>Razón Social</th>
-                <th>Teléfono</th>
-                <th class="text-center">Activo</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${lista
-        .map((p) => {
-          const esActivo = p.activo;
-          const claseActivo = esActivo ? 'activo-si' : 'activo-no';
-          const iconoActivo = esActivo
-            ? '<i class="fas fa-check-circle"></i> Sí'
-            : '<i class="fas fa-times-circle"></i> No';
-
-          return `
-                    <tr>
-                      <td>${p.cuil}</td>
-                      <td>${p.razonSocial}</td>
-                      <td>${p.telefono}</td>
-                      <td class="text-center ${claseActivo}">
-                        ${iconoActivo}
-                      </td>
-                    </tr>
-                  `;
-        })
-        .join("")}
-            </tbody>
-          </table>
-          
-          <div class="btn-container">
-            <button class="btn btn-primary btn-lg" onclick="window.close()">
-              <i class="fas fa-times-circle"></i> Cerrar Listado
-            </button>
-          </div>
-        </div>
-      </body>
-    </html>
-  `);
-
-    ventana.document.close();
-  };
+  function handleUpdate(e) {
+    e.preventDefault();
+    fetch(`/proveedores/${form.cuil}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form)
+    })
+      .then(res => res.json())
+      .then(() => {
+        setEditId(null);
+        setForm({ cuil: "", razonSocial: "", telefono: "", mail: "", activo: 1 });
+        fetch(`/proveedores/?activos=${mostrarInactivos ? "false" : "true"}`)
+          .then(res => res.json())
+          .then(data => setProveedores(data));
+      });
+  }
 
   return (
     <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
@@ -310,16 +126,19 @@ const Proveedores = () => {
                         <form onSubmit={handleSubmit}>
                           <div className="row">
                             <div className="col-12 col-md-3 mb-2">
-                              <input type="text" name="cuil" value={formData.cuil} onChange={e => setFormData({ ...formData, cuil: e.target.value })} className="form-control" placeholder="CUIL" required />
+                              <input type="text" name="cuil" value={form.cuil} onChange={handleChange} className="form-control" placeholder="CUIL" required />
                             </div>
                             <div className="col-12 col-md-3 mb-2">
-                              <input type="text" name="razonSocial" value={formData.razonSocial} onChange={e => setFormData({ ...formData, razonSocial: e.target.value })} className="form-control" placeholder="Razón Social" required />
+                              <input type="text" name="razonSocial" value={form.razonSocial} onChange={handleChange} className="form-control" placeholder="Razón Social" required />
                             </div>
                             <div className="col-12 col-md-3 mb-2">
-                              <input type="text" name="telefono" value={formData.telefono} onChange={e => setFormData({ ...formData, telefono: e.target.value })} className="form-control" placeholder="Teléfono" required />
+                              <input type="text" name="telefono" value={form.telefono} onChange={handleChange} className="form-control" placeholder="Teléfono" required />
                             </div>
                             <div className="col-12 col-md-3 mb-2">
-                              <select name="activo" value={formData.activo} onChange={e => setFormData({ ...formData, activo: Number(e.target.value) })} className="form-select">
+                              <input type="email" name="mail" value={form.mail} onChange={handleChange} className="form-control" placeholder="Email" />
+                            </div>
+                            <div className="col-12 col-md-3 mb-2">
+                              <select name="activo" value={form.activo} onChange={handleChange} className="form-select">
                                 <option value="1">Activo</option>
                                 <option value="0">Inactivo</option>
                               </select>
@@ -369,6 +188,10 @@ const Proveedores = () => {
                               <div className="form-group mb-2">
                                 <i className="bi bi-telephone me-2"></i>
                                 <b>Teléfono:</b> {proveedorActual.telefono}
+                              </div>
+                              <div className="form-group mb-2">
+                                <i className="bi bi-envelope me-2"></i>
+                                <b>Email:</b> {proveedorActual.mail}
                               </div>
                             </fieldset>
                             <fieldset style={{ border: "none" }}>
@@ -428,6 +251,17 @@ const Proveedores = () => {
                                   required
                                 />
                               </div>
+                              <div className="form-group mb-2">
+                                <label className="form-label" style={{ color: colores.azul }}>
+                                  <i className="bi bi-envelope me-2"></i>Email
+                                </label>
+                                <input
+                                  type="email"
+                                  className="form-control"
+                                  value={proveedorActual.mail}
+                                  onChange={e => setProveedorActual({ ...proveedorActual, mail: e.target.value })}
+                                />
+                              </div>
                             </fieldset>
                             <fieldset style={{ border: "none" }}>
                               <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
@@ -470,17 +304,18 @@ const Proveedores = () => {
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
-                      <th>CUIL</th>
+                      <th>CUIL/CUIT</th>
                       <th>Razón Social</th>
                       <th>Teléfono</th>
-                      <th>Estado</th>
+                      <th>Email</th>
+                      <th>Activo</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {proveedores.map((prov) => (
                       <tr key={prov.cuil} style={Number(prov.activo) == 0 ? { opacity: 0.5 } : {}}>
-                        <td>{prov.cuil}</td><td>{prov.razonSocial}</td><td>{prov.telefono}</td><td>{prov.activo === 1 ? "Activo" : "Inactivo"}</td><td>
+                        <td>{prov.cuil}</td><td>{prov.razonSocial}</td><td>{prov.telefono}</td><td>{prov.mail}</td><td>{prov.activo === 1 ? "Activo" : "Inactivo"}</td><td>
                           <button
                             className="btn btn-sm me-1"
                             style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
