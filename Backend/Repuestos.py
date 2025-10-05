@@ -4,7 +4,7 @@ from ABMC_db import (
     baja_repuestoxproveedor,
     alta_repuesto, modificar_repuesto, mostrar_repuestos, baja_repuesto, buscar_repuesto
 )
-from BDD.database import SessionLocal, Repuesto, RepuestoxProveedor
+from BDD.database import SessionLocal, Repuesto, RepuestoxProveedor, Proveedor
 
 app = Blueprint('repuestos', __name__)
 
@@ -192,6 +192,45 @@ def eliminar_repuestoxproveedor():
         return jsonify({"mensaje": "Proveedor eliminado del repuesto"}), 200
     except Exception as e:
         return jsonify({"error": "No se pudo eliminar", "detail": str(e)}), 500
+
+@app.route("/repuestos_con_proveedores", methods=["GET"])
+def listar_repuestos_con_proveedores():
+    session = SessionLocal()
+    try:
+
+        # Hacemos un JOIN entre Repuesto, RepuestoxProveedor y Proveedor
+        datos = (
+            session.query(Repuesto, RepuestoxProveedor, Proveedor)
+            .join(RepuestoxProveedor, RepuestoxProveedor.codigoRepuesto == Repuesto.codigo)
+            .join(Proveedor, RepuestoxProveedor.cuilProveedor == Proveedor.cuil)
+            .all()
+        )
+
+        repuestos_dict = {}
+        for r, rxp, p in datos:
+            if r.codigo not in repuestos_dict:
+                repuestos_dict[r.codigo] = {
+                    "codigo": r.codigo,
+                    "marca": r.marca,
+                    "modelo": r.modelo,
+                    "activo": r.activo,
+                    "proveedores": []
+                }
+            repuestos_dict[r.codigo]["proveedores"].append({
+                "cuilProveedor": p.cuil,
+                "razonSocial": p.razonSocial,
+                "telefono": p.telefono,
+                "costo": rxp.costo,
+                "cantidad": rxp.cantidad
+            })
+
+        session.close()
+        return jsonify(list(repuestos_dict.values())), 200
+    except Exception as e:
+        session.close()
+        import traceback; traceback.print_exc()
+        return jsonify({"error": "Error al listar repuestos con proveedores", "detail": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)

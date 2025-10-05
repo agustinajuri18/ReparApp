@@ -177,7 +177,7 @@ export default function Clientes() {
                   style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
                   onClick={() => setMostrarInactivos(!mostrarInactivos)}
                 >
-                  {mostrarInactivos ? "Ver activos" : "Ver también inactivos"}
+                  {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                 </button>
                 <button
                   className="btn"
