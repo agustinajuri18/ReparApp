@@ -11,6 +11,7 @@ const colores = {
 
 function Empleados() {
   const [empleados, setEmpleados] = useState([]);
+  const [cargos, setCargos] = useState([]);
   const [form, setForm] = useState({
     nombre: "",
     apellido: "",
@@ -25,18 +26,43 @@ function Empleados() {
 
   // Cargar empleados
   useEffect(() => {
-    fetch("http://localhost:5000/empleados")
+    fetch(`http://localhost:5000/empleados${mostrarInactivos ? "?activos=false" : ""}`)
       .then(res => res.json())
       .then(data => setEmpleados(data))
       .catch(() => setMensaje("Error al cargar empleados"));
+  }, [mostrarInactivos]);
+
+  // Cargar cargos desde la base de datos
+  useEffect(() => {
+    fetch("http://localhost:5000/cargos")
+      .then(res => res.json())
+      .then(data => setCargos(data))
+      .catch(() => setMensaje("Error al cargar cargos"));
   }, []);
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
+  function validarEmpleado(form) {
+    if (!form.tipoDocumento) return "Debe seleccionar el tipo de documento.";
+    if (!form.numeroDoc || !/^\d{7,8}$/.test(form.numeroDoc)) return "Número de documento inválido.";
+    if (!form.nombre || form.nombre.trim().length < 2) return "El nombre es obligatorio y debe tener al menos 2 caracteres.";
+    if (!form.apellido || form.apellido.trim().length < 2) return "El apellido es obligatorio y debe tener al menos 2 caracteres.";
+    if (!form.telefono || form.telefono.trim().length < 6) return "El teléfono es obligatorio y debe tener al menos 6 caracteres.";
+    if (!form.email || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.email)) return "El email no es válido.";
+    if (!form.cargo || form.cargo.trim().length < 2) return "El cargo es obligatorio.";
+    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
+    return null;
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
+    const error = validarEmpleado(form);
+    if (error) {
+      setMensaje(error);
+      return;
+    }
     fetch("http://localhost:5000/empleados", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -114,49 +140,70 @@ function Empleados() {
               </div>
             </div>
             <div className="card-body">
-              {mensaje && (
-                <div className="alert" role="alert" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none', borderRadius: 8 }}>{mensaje}</div>
-              )}
               {/* Modal para agregar empleado */}
               {mostrarFormulario && (
-                <div className="modal fade show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-                  <div className="modal-dialog">
-                    <div className="modal-content" style={{ background: colores.beige, borderRadius: 16, border: `2px solid ${colores.azul}` }}>
-                      <div className="modal-header" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-                        <h5 className="modal-title">Agregar Empleado</h5>
-                        <button type="button" className="btn-close" onClick={() => setMostrarFormulario(false)}></button>
-                      </div>
-                      <div className="modal-body">
-                        <form onSubmit={handleSubmit}>
-                          <div className="row">
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="nombre" value={form.nombre} onChange={handleChange} className="form-control" placeholder="Nombre" required />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="apellido" value={form.apellido} onChange={handleChange} className="form-control" placeholder="Apellido" required />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="idCargo" value={form.idCargo} onChange={handleChange} className="form-control" placeholder="Rol" required />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="idUsuario" value={form.idUsuario} onChange={handleChange} className="form-control" placeholder="Usuario" required />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <select name="activo" value={form.activo} onChange={handleChange} className="form-select">
-                                <option value={1}>Activo</option>
-                                <option value={0}>Inactivo</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div className="d-flex justify-content-end">
-                            <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>Guardar</button>
-                            <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={() => setMostrarFormulario(false)}>Cancelar</button>
-                          </div>
-                        </form>
-                      </div>
+                <form onSubmit={handleSubmit} className="form-container mb-3">
+                  <div className="row g-4">
+                    <div className="col-12 col-md-6">
+                      <fieldset style={{ border: "none" }}>
+                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
+                          <i className="bi bi-person-badge me-2"></i>Datos personales
+                        </legend>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-person me-2"></i>Nombre</label>
+                          <input type="text" name="nombre" value={form.nombre} onChange={handleChange} required className="form-control" placeholder="Nombre" />
+                        </div>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-person me-2"></i>Apellido</label>
+                          <input type="text" name="apellido" value={form.apellido} onChange={handleChange} required className="form-control" placeholder="Apellido" />
+                        </div>
+                      </fieldset>
+                    </div>
+                    <div className="col-12 col-md-6">
+                      <fieldset style={{ border: "none" }}>
+                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
+                          <i className="bi bi-briefcase me-2"></i>Datos laborales
+                        </legend>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-briefcase me-2"></i>Cargo</label>
+                          <select name="idCargo" value={form.idCargo} onChange={handleChange} className="form-select" required>
+                            <option value="">Seleccione cargo</option>
+                            {cargos.map(c => (
+                              <option key={c.idCargo} value={c.idCargo}>{c.nombreCargo}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-person-badge me-2"></i>ID Usuario</label>
+                          <input type="text" name="idUsuario" value={form.idUsuario} onChange={handleChange} required className="form-control" placeholder="Usuario" />
+                        </div>
+                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
+                          <i className="bi bi-check2-circle me-2"></i>Estado
+                        </legend>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
+                          <select name="activo" value={form.activo} onChange={handleChange} className="form-select">
+                            <option value={1}>Activo</option>
+                            <option value={0}>Inactivo</option>
+                          </select>
+                        </div>
+                      </fieldset>
                     </div>
                   </div>
-                </div>
+                  {mensaje && (
+                    <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
+                      {mensaje}
+                    </div>
+                  )}
+                  <div className="d-flex justify-content-end gap-2 mt-3">
+                    <button type="submit" className="btn" style={{ background: colores.azul, color: colores.beige, fontWeight: 600, borderRadius: "8px" }}>
+                      <i className="bi bi-save me-1"></i>Guardar
+                    </button>
+                    <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }} onClick={() => setMostrarFormulario(false)}>
+                      <i className="bi bi-x-circle me-1"></i>Cancelar
+                    </button>
+                  </div>
+                </form>
               )}
 
               {/* Modal para consultar/editar */}
@@ -182,9 +229,19 @@ function Empleados() {
                               />
                             </div>
                             <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="idCargo" value={form.idCargo} onChange={handleChange} className="form-control" placeholder="Rol"
+                              <select
+                                name="idCargo"
+                                value={form.idCargo}
+                                onChange={handleChange}
+                                className="form-select"
+                                required
                                 disabled={editId === null}
-                              />
+                              >
+                                <option value="">Seleccione cargo</option>
+                                {cargos.map(c => (
+                                  <option key={c.idCargo} value={c.idCargo}>{c.nombreCargo}</option>
+                                ))}
+                              </select>
                             </div>
                             <div className="col-12 col-md-4 mb-2">
                               <input type="text" name="idUsuario" value={form.idUsuario} onChange={handleChange} className="form-control" placeholder="Usuario"
@@ -200,6 +257,11 @@ function Empleados() {
                               </select>
                             </div>
                           </div>
+                          {mensaje && (
+                            <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
+                              {mensaje}
+                            </div>
+                          )}
                           <div className="d-flex justify-content-end">
                             <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>Guardar</button>
                             <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={() => { setEditId(null); setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 }); }}>Cancelar</button>
@@ -218,7 +280,7 @@ function Empleados() {
                       <th>ID</th>
                       <th>Nombre</th>
                       <th>Apellido</th>
-                      <th>ID Cargo</th>
+                      <th>Cargo</th>
                       <th>ID Usuario</th>
                       <th>Activo</th>
                       <th>Acciones</th>
@@ -230,7 +292,9 @@ function Empleados() {
                         <td>{e.idEmpleado}</td>
                         <td>{e.nombre}</td>
                         <td>{e.apellido}</td>
-                        <td>{e.idCargo}</td>
+                        <td>
+                          {cargos.find(c => c.idCargo === e.idCargo)?.nombreCargo || e.idCargo}
+                        </td>
                         <td>{e.idUsuario}</td>
                         <td>{e.activo ? "Sí" : "No"}</td>
                         <td>

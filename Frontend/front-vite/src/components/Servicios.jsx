@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import MenuLateral from './MenuLateral';
 
 const colores = {
@@ -9,85 +9,122 @@ const colores = {
   beige: '#f0ede5'
 };
 
-function Servicios() {
+const API_URL = "http://localhost:5000/servicios/";
+
+export default function Servicios() {
   const [servicios, setServicios] = useState([]);
-  const [form, setForm] = useState({
-    codigo: "",
-    descripcion: "",
-    precioBase: "",
-    activo: 1
-  });
-  const [editCodigo, setEditCodigo] = useState(null);
-  const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [editCodigo, setEditCodigo] = useState(null);
+  const [form, setForm] = useState({ codigo: "", descripcion: "", precioBase: "", activo: 1 });
   const [mensaje, setMensaje] = useState("");
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
 
   useEffect(() => {
-    fetch(`/servicios/?activos=${mostrarInactivos ? "false" : "true"}`)
-      .then(res => res.json())
-      .then(data => setServicios(data))
-      .catch(() => setMensaje("Error al cargar servicios"));
+    fetchServicios();
   }, [mostrarInactivos]);
 
-  function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const fetchServicios = async () => {
+    const res = await fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`);
+    const data = await res.json();
+    setServicios(data);
+  };
+
+  function validarServicio(form) {
+    if (!form.codigo || String(form.codigo).trim() === "") return "El código es obligatorio.";
+    if (!form.descripcion || form.descripcion.trim().length < 3) return "La descripción es obligatoria y debe tener al menos 3 caracteres.";
+    if (!form.precioBase || isNaN(Number(form.precioBase)) || Number(form.precioBase) <= 0) return "El precio base debe ser un número mayor a 0.";
+    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
+    return null;
   }
 
-  function handleSubmit(e) {
+  function esCodigoDuplicado(codigo) {
+    return servicios.some(s => Number(s.codigo) === Number(codigo));
+  }
+
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setForm(f => ({
+      ...f,
+      [name]: name === "codigo" || name === "precioBase" || name === "activo" ? Number(value) : value
+    }));
+  };
+
+  const handleSubmit = async e => {
     e.preventDefault();
-    fetch("/servicios/", {
+    if (esCodigoDuplicado(form.codigo)) {
+      setMensaje("Ya existe un servicio con ese código.");
+      return;
+    }
+    const error = validarServicio(form);
+    if (error) {
+      setMensaje(error);
+      return;
+    }
+    const datos = {
+      codigo: Number(form.codigo),
+      descripcion: form.descripcion,
+      precioBase: Number(form.precioBase),
+      activo: Number(form.activo)
+    };
+    const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
-    })
-      .then(res => res.json())
-      .then(() => {
-        setForm({ codigo: "", descripcion: "", precioBase: "", activo: 1 });
-        setMostrarFormulario(false);
-        fetch(`/servicios/?activos=${mostrarInactivos ? "false" : "true"}`)
-          .then(res => res.json())
-          .then(data => setServicios(data));
-      });
-  }
+      body: JSON.stringify(datos)
+    });
+    if (res.ok) {
+      setMostrarFormulario(false);
+      setForm({ codigo: "", descripcion: "", precioBase: "", activo: 1 });
+      setMensaje("");
+      fetchServicios();
+    } else {
+      const data = await res.json();
+      setMensaje(data?.error || "Error al agregar servicio");
+    }
+  };
 
-  function handleDelete(codigo) {
-    fetch(`/servicios/${codigo}`, { method: "DELETE" })
-      .then(() => {
-        fetch(`/servicios/?activos=${mostrarInactivos ? "false" : "true"}`)
-          .then(res => res.json())
-          .then(data => setServicios(data));
-      });
-  }
-
-  function handleEdit(servicio) {
-    setEditCodigo(servicio.codigo);
-    setMostrarFormulario(true);
-    setForm(servicio);
-  }
-
-  function handleUpdate(e) {
+  const handleUpdate = async e => {
     e.preventDefault();
-    fetch(`/servicios/${form.codigo}`, {
+    const error = validarServicio(form);
+    if (error) {
+      setMensaje(error);
+      return;
+    }
+    const datos = { ...form, codigo: Number(form.codigo), precioBase: Number(form.precioBase), activo: Number(form.activo) };
+    const res = await fetch(`${API_URL}${editCodigo}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
-    })
-      .then(res => res.json())
-      .then(() => {
-        setEditCodigo(null);
-        setForm({ codigo: "", descripcion: "", precioBase: "", activo: 1 });
-        setMostrarFormulario(false);
-        fetch(`/servicios/?activos=${mostrarInactivos ? "false" : "true"}`)
-          .then(res => res.json())
-          .then(data => setServicios(data));
-      });
-  }
+      body: JSON.stringify(datos)
+    });
+    if (res.ok) {
+      setMostrarFormulario(false);
+      setEditCodigo(null);
+      setForm({ codigo: "", descripcion: "", precioBase: "", activo: 1 });
+      setMensaje("");
+      fetchServicios();
+    } else {
+      const data = await res.json();
+      setMensaje(data?.error || "Error al modificar servicio");
+    }
+  };
 
-  function handleCancel() {
+  const handleEdit = servicio => {
+    setEditCodigo(servicio.codigo);
+    setForm({
+      codigo: servicio.codigo,
+      descripcion: servicio.descripcion,
+      precioBase: servicio.precioBase,
+      activo: servicio.activo
+    });
+    setMostrarFormulario(true);
+    setMensaje("");
+  };
+
+  const handleCancel = () => {
     setMostrarFormulario(false);
     setEditCodigo(null);
     setForm({ codigo: "", descripcion: "", precioBase: "", activo: 1 });
-  }
+    setMensaje("");
+  };
 
   return (
     <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
@@ -96,7 +133,7 @@ function Servicios() {
         <main className="col-12 col-md-10 pt-4 px-2 px-md-4" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
           <div className="card shadow-sm mb-4" style={{ border: `1.5px solid ${colores.azul}`, borderRadius: 16, background: colores.beige }}>
             <div className="card-header d-flex justify-content-between align-items-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-              <h4 className="mb-0">Gestión de Servicios</h4>
+              <h4 className="mb-0"><i className="bi bi-gear me-2"></i>Gestión de Servicios</h4>
               <div className="d-flex gap-2">
                 <button
                   className="btn"
@@ -108,70 +145,96 @@ function Servicios() {
                 <button
                   className="btn"
                   style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                  onClick={() => setForm({ codigo: "", descripcion: "", precioBase: "", activo: 1 })}
+                  onClick={() => {
+                    setMostrarFormulario(true);
+                    setEditCodigo(null);
+                    setForm({ codigo: "", descripcion: "", precioBase: "", activo: 1 });
+                    setMensaje("");
+                  }}
                 >
-                  <i className="bi bi-plus-lg"></i> Agregar
+                  <i className="bi bi-plus-lg"></i> Agregar servicio
                 </button>
               </div>
             </div>
             <div className="card-body">
-              {mensaje && (
-                <div className="alert" role="alert" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none', borderRadius: 8 }}>{mensaje}</div>
-              )}
-              {!mostrarFormulario && (
-                <div className="d-flex justify-content-end">
-                  <button
-                    className="btn"
-                    style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                    onClick={() => {
-                      setMostrarFormulario(true);
-                      setEditCodigo(null);
-                      setForm({ codigo: "", descripcion: "", precioBase: "", activo: 1 });
-                    }}
-                  >
-                    <i className="bi bi-plus-lg"></i> Agregar servicio
-                  </button>
-                </div>
-              )}
               {mostrarFormulario && (
-                <form onSubmit={editCodigo ? handleUpdate : handleSubmit} style={{ marginTop: "16px" }}>
-                  <div className="row">
-                    <h4>Datos del Servicio</h4>
-                  </div>
-                  <div className="row mt-3 mb-3">
-                    <div className='input-group'>
-                      <span className='input-group-text'>Código</span>
-                      <input type="number" name="codigo" value={form.codigo} onChange={handleChange} className="form-control" placeholder="Código" required disabled={!!editCodigo} />
+                <form onSubmit={editCodigo ? handleUpdate : handleSubmit} className="form-container mb-3">
+                  <div className="row g-4">
+                    <div className="col-12 col-md-6">
+                      <fieldset style={{ border: "none" }}>
+                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
+                          <i className="bi bi-gear me-2"></i>Datos del servicio
+                        </legend>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-hash me-2"></i>Código</label>
+                          <input
+                            type="number"
+                            name="codigo"
+                            value={form.codigo}
+                            onChange={handleChange}
+                            required
+                            className="form-control"
+                            placeholder="Código"
+                            disabled={!!editCodigo}
+                          />
+                        </div>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-file-text me-2"></i>Descripción</label>
+                          <input
+                            type="text"
+                            name="descripcion"
+                            value={form.descripcion}
+                            onChange={handleChange}
+                            required
+                            className="form-control"
+                            placeholder="Descripción"
+                          />
+                        </div>
+                      </fieldset>
+                    </div>
+                    <div className="col-12 col-md-6">
+                      <fieldset style={{ border: "none" }}>
+                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
+                          <i className="bi bi-cash-coin me-2"></i>Precio y estado
+                        </legend>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-currency-dollar me-2"></i>Precio Base</label>
+                          <input
+                            type="number"
+                            name="precioBase"
+                            value={form.precioBase}
+                            onChange={handleChange}
+                            required
+                            className="form-control"
+                            placeholder="Precio Base"
+                          />
+                        </div>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
+                          <select name="activo" value={form.activo} onChange={handleChange} className="form-select">
+                            <option value={1}>Activo</option>
+                            <option value={0}>Inactivo</option>
+                          </select>
+                        </div>
+                      </fieldset>
                     </div>
                   </div>
-                  <div className="row mt-3 mb-3">
-                    <div className='input-group'>
-                      <span className='input-group-text'>Descripción</span>
-                      <input type="text" name="descripcion" value={form.descripcion} onChange={handleChange} className="form-control" placeholder="Descripción" required />
+                  {mensaje && (
+                    <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
+                      {mensaje}
                     </div>
-                  </div>
-                  <div className="row mt-3 mb-3">
-                    <div className='input-group'>
-                      <span className='input-group-text'>$</span>
-                      <input type="number" name="precioBase" value={form.precioBase} onChange={handleChange} className="form-control" placeholder="Precio Base" required />
-                    </div>
-                  </div>
-                  <div className="row mt-3 mb-3">
-                    <div className='input-group'>
-                      <span className='input-group-text'>Activo</span>
-                        <select name="activo" value={form.activo} onChange={handleChange} className="form-select">
-                          <option value={1}>Activo</option>
-                          <option value={0}>Inactivo</option>
-                        </select>
-                    </div>
-                  </div>
-                  <div className="d-flex justify-content-end">
-                    <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>{editCodigo ? "Actualizar" : "Guardar"}</button>
-                    <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={handleCancel}>Cancelar</button>
+                  )}
+                  <div className="d-flex justify-content-end gap-2 mt-3">
+                    <button type="submit" className="btn" style={{ background: colores.azul, color: colores.beige, fontWeight: 600, borderRadius: "8px" }}>
+                      <i className="bi bi-save me-1"></i>{editCodigo ? "Actualizar" : "Guardar"}
+                    </button>
+                    <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }} onClick={handleCancel}>
+                      <i className="bi bi-x-circle me-1"></i>Cancelar
+                    </button>
                   </div>
                 </form>
               )}
-              <div className="table-responsive mt-4">
+              <div className="table-responsive">
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
@@ -190,22 +253,26 @@ function Servicios() {
                         <td>${s.precioBase}</td>
                         <td>{s.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
-                          <button className="btn btn-sm me-1" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                            onClick={() => handleEdit(s)}>
-                            <span title="Modificar"><i className="bi bi-pencil-square"></i></span> Modificar
-                          </button>
-                          <button className="btn btn-sm" style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}
-                            onClick={() => handleDelete(s.codigo)}>
-                            <span title="Eliminar"><i className="bi bi-x-circle"></i></span> Eliminar
+                          <button
+                            className="btn btn-sm"
+                            style={{
+                              background: colores.dorado,
+                              color: colores.azul,
+                              borderRadius: "8px",
+                              fontWeight: 600,
+                              marginRight: "6px",
+                              border: "none",
+                              boxShadow: "0 1px 4px #0001"
+                            }}
+                            onClick={() => handleEdit(s)}
+                          >
+                            <i className="bi bi-pencil-square me-1"></i>Modificar
                           </button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {servicios.length === 0 && (
-                  <div className="text-center text-muted py-4">No hay servicios {mostrarInactivos ? "inactivos" : "activos"}.</div>
-                )}
               </div>
             </div>
           </div>
@@ -214,5 +281,3 @@ function Servicios() {
     </div>
   );
 }
-
-export default Servicios;

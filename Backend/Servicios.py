@@ -5,7 +5,7 @@ from BDD.database import SessionLocal, Servicio
 app = Blueprint('servicios', __name__)
 
 def validar_codigo(codigo):
-    return isinstance(codigo, str) and codigo.strip() != "" and len(codigo.strip()) <= 50
+    return isinstance(codigo, int) and codigo > 0
 
 def validar_text_field(v, min_len=1, max_len=255):
     return isinstance(v, str) and min_len <= len(v.strip()) <= max_len
@@ -55,7 +55,7 @@ def registrar_servicio():
         session.close()
 
     try:
-        alta_servicio(codigo.strip(), descripcion.strip(), float(precioBase), activo)
+        alta_servicio(codigo, descripcion.strip(), float(precioBase), activo)
         return jsonify({"mensaje": "Servicio creado exitosamente"}), 201
     except Exception as e:
         return jsonify({"error": "No se pudo crear servicio", "detail": str(e)}), 500

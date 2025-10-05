@@ -10,7 +10,7 @@ if ROOT not in sys.path:
 from BDD.database import (
     SessionLocal, Usuario, Cliente, Dispositivo, Empleado, Estado,
     HistorialArreglos, OrdenDeReparacion, Servicio, Repuesto,
-    HistorialEstadoOrden, Proveedor, Permiso, CargoxPermiso, RepuestoxProveedor, Sesion
+    HistorialEstadoOrden, Proveedor, Permiso, CargoxPermiso, RepuestoxProveedor, Sesion, Cargo
 )
 
 # ----------- ABMC para Usuario -----------
@@ -130,10 +130,7 @@ def mostrar_dispositivos(activos_only=True):
     else:
         dispositivos = session.query(Dispositivo).all()
     session.close()
-    return [
-        {k: v for k, v in d.__dict__.items() if k != '_sa_instance_state'}
-        for d in dispositivos
-    ]
+    return dispositivos
 
 def dispositivos_por_cliente(clienteTipoDocumento, clienteNumeroDoc):
     """

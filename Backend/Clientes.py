@@ -28,7 +28,9 @@ def registrar_cliente():
     nombre = data.get("nombre")
     apellido = data.get("apellido")
     telefono = data.get("telefono")
-    mail = data.get("mail")
+    email = data.get("email")  # CAMBIO: nombre según modelo
+
+    print("Datos recibidos:", data)
 
     if not tipoDocumento or not numeroDoc or not nombre or not apellido:
         return jsonify({"error": "Faltan campos obligatorios"}), 400
@@ -36,11 +38,11 @@ def registrar_cliente():
         return jsonify({"error": "DNI inválido"}), 400
     if telefono and not validar_telefono(telefono):
         return jsonify({"error": "Teléfono inválido"}), 400
-    if mail and not validar_email(mail):
+    if email and not validar_email(email):
         return jsonify({"error": "Email inválido"}), 400
 
     try:
-        alta_cliente(tipoDocumento, int(numeroDoc), nombre, apellido, telefono, mail)
+        alta_cliente(tipoDocumento, int(numeroDoc), nombre, apellido, telefono, email)
         return jsonify({"ok": True}), 201
     except Exception as e:
         return jsonify({"error": "No se pudo crear cliente", "detail": str(e)}), 500
@@ -51,9 +53,9 @@ def modificar_datos_cliente(tipoDocumento, numeroDoc):
     nombre = data.get("nombre")
     apellido = data.get("apellido")
     telefono = data.get("telefono")
-    mail = data.get("mail")
+    email = data.get("email")
     activo = data.get("activo", 1)
-    modificar_cliente(tipoDocumento, numeroDoc, nombre, apellido, telefono, mail, activo)
+    modificar_cliente(tipoDocumento, numeroDoc, nombre, apellido, telefono, email, activo)
     return jsonify({"mensaje": "Cliente modificado exitosamente"}), 200
 
 @app.route("/clientes/<tipoDocumento>/<int:numeroDoc>", methods=["GET"])
@@ -68,7 +70,7 @@ def mostrar_cliente(tipoDocumento, numeroDoc):
             "nombre": cliente.nombre,
             "apellido": cliente.apellido,
             "telefono": cliente.telefono,
-            "mail": cliente.mail,
+            "email": cliente.email,
             "activo": cliente.activo
         }
         return jsonify(cliente_dict), 200
@@ -88,12 +90,13 @@ def listar_clientes():
         clientes = mostrar_clientes(activos_only=True)
     return jsonify([
         {
+            "idCliente": f"{c.tipoDocumento}-{c.numeroDoc}",  # identificador compuesto
             "tipoDocumento": c.tipoDocumento,
             "numeroDoc": c.numeroDoc,
             "nombre": c.nombre,
             "apellido": c.apellido,
             "telefono": c.telefono,
-            "mail": c.mail,
+            "email": c.mail,
             "activo": c.activo
         } for c in clientes
     ]), 200
@@ -102,11 +105,12 @@ def listar_clientes():
 def listar_tipos_documento():
     session = SessionLocal()
     tipos = session.query(TipoDocumento).all()
-    session.close()
-    return jsonify([
-        {"value": t.codigo, "label": t.descripcion}
+    resultado = [
+        {"codigo": t.codTipoDoc, "nombre": t.nombre}
         for t in tipos
-    ])
+    ]
+    session.close()
+    return jsonify(resultado)
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ const colores = {
   beige: '#f0ede5'
 };
 
-function Usuarios() {
+export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [form, setForm] = useState({
     idUsuario: "",
@@ -19,6 +19,7 @@ function Usuarios() {
   const [editId, setEditId] = useState(null);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mensaje, setMensaje] = useState("");
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
   useEffect(() => {
     fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
@@ -31,8 +32,20 @@ function Usuarios() {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
+  function validarUsuario(form) {
+    if (!form.idUsuario || form.idUsuario.trim().length < 4) return "El usuario es obligatorio y debe tener al menos 4 caracteres.";
+    if (!form.password || form.password.trim().length < 6) return "La contraseña es obligatoria y debe tener al menos 6 caracteres.";
+    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
+    return null;
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
+    const error = validarUsuario(form);
+    if (error) {
+      setMensaje(error);
+      return;
+    }
     fetch("/usuarios/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -100,36 +113,66 @@ function Usuarios() {
                 <button
                   className="btn"
                   style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                  onClick={() => setForm({ idUsuario: "", password: "", activo: 1 })}
+                  onClick={() => {
+                    setMostrarFormulario(true);
+                    setEditId(null);
+                    setForm({ idUsuario: "", password: "", activo: 1 });
+                    setMensaje("");
+                  }}
                 >
-                  <i className="bi bi-plus-lg"></i> Agregar
+                  <i className="bi bi-plus-lg"></i> Agregar usuario
                 </button>
               </div>
             </div>
             <div className="card-body">
-              {mensaje && (
-                <div className="alert" role="alert" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none', borderRadius: 8 }}>{mensaje}</div>
+              {mostrarFormulario && (
+                <form onSubmit={editId ? handleUpdate : handleSubmit} className="form-container mb-3">
+                  <div className="row g-4">
+                    <div className="col-12 col-md-6">
+                      <fieldset style={{ border: "none" }}>
+                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
+                          <i className="bi bi-person-badge me-2"></i>Datos de usuario
+                        </legend>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-person me-2"></i>ID Usuario</label>
+                          <input name="idUsuario" placeholder="ID Usuario" value={form.idUsuario} onChange={handleChange} className="form-control" required disabled={!!editId} />
+                        </div>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-key me-2"></i>Contraseña</label>
+                          <input name="password" type="password" placeholder="Contraseña" value={form.password} onChange={handleChange} className="form-control" required />
+                        </div>
+                      </fieldset>
+                    </div>
+                    <div className="col-12 col-md-6">
+                      <fieldset style={{ border: "none" }}>
+                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
+                          <i className="bi bi-check2-circle me-2"></i>Estado
+                        </legend>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
+                          <select name="activo" value={form.activo} onChange={handleChange} className="form-select">
+                            <option value={1}>Activo</option>
+                            <option value={0}>Inactivo</option>
+                          </select>
+                        </div>
+                      </fieldset>
+                    </div>
+                  </div>
+                  {mensaje && (
+                    <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
+                      {mensaje}
+                    </div>
+                  )}
+                  <div className="d-flex justify-content-end gap-2 mt-3">
+                    <button type="submit" className="btn" style={{ background: colores.azul, color: colores.beige, fontWeight: 600, borderRadius: "8px" }}>
+                      <i className="bi bi-save me-1"></i>{editId ? "Actualizar" : "Agregar"}
+                    </button>
+                    <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }} onClick={() => { setMostrarFormulario(false); setEditId(null); setForm({ idUsuario: "", password: "", activo: 1 }); setMensaje(""); }}>
+                      <i className="bi bi-x-circle me-1"></i>Cancelar
+                    </button>
+                  </div>
+                </form>
               )}
-              <form onSubmit={editId ? handleUpdate : handleSubmit}>
-                <div className="row">
-                  <div className="col-12 col-md-4 mb-2">
-                    <input name="idUsuario" placeholder="ID Usuario" value={form.idUsuario} onChange={handleChange} className="form-control" required disabled={!!editId} />
-                  </div>
-                  <div className="col-12 col-md-4 mb-2">
-                    <input name="password" type="password" placeholder="Contraseña" value={form.password} onChange={handleChange} className="form-control" required />
-                  </div>
-                  <div className="col-12 col-md-4 mb-2">
-                    <select name="activo" value={form.activo} onChange={handleChange} className="form-select">
-                      <option value={1}>Activo</option>
-                      <option value={0}>Inactivo</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="d-flex justify-content-end">
-                  <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>{editId ? "Actualizar" : "Agregar"}</button>
-                  {editId && <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={() => { setEditId(null); setForm({ idUsuario: "", password: "", activo: 1 }); }}>Cancelar</button>}
-                </div>
-              </form>
               <div className="table-responsive mt-4">
                 <table className="table table-striped table-hover align-middle">
                   <thead>
@@ -169,5 +212,3 @@ function Usuarios() {
     </div>
   );
 }
-
-export default Usuarios;

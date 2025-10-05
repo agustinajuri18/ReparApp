@@ -235,12 +235,6 @@ class HistorialArreglos(Base):
     def __repr__(self):
         return f"<HistorialArreglos(idHistorial={self.idHistorial}, nroDeOrden={self.nroDeOrden}, nroSerieDispositivo={self.nroSerieDispositivo})>"
 
-# --- Tablas que estaban en tu código original pero no en el PDF (Eliminadas) ---
-# Se eliminaron las clases 'Rol', 'RepuestoxServicio' y se renombró 'RolxPermiso' a 'CargoxPermiso'.
-# Se eliminaron los campos 'tiempoEstimado' y 'codigoServicio' de OrdenDeReparacion (estaban en DetalleOrden).
-# Se eliminaron los campos 'tipo' y 'cuilProveedor' de Repuesto (RepuestoxProveedor maneja la relación).
-
-# --- Creación de tablas ---
 
 if __name__ == "__main__":
     Base.metadata.create_all(engine)

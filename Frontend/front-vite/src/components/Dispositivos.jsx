@@ -6,10 +6,12 @@ const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua
 
 const API_URL = "http://localhost:5000/dispositivos/";
 const CLIENTES_URL = "http://localhost:5000/clientes/";
+const TIPOS_DOC_URL = "http://localhost:5000/tipos-documento/";
 
 export default function Dispositivos() {
     const [dispositivos, setDispositivos] = useState([]);
     const [clientes, setClientes] = useState([]);
+    const [tiposDocumento, setTiposDocumento] = useState([]);
     const [mostrarInactivos, setMostrarInactivos] = useState(false);
     const [mostrarFormulario, setMostrarFormulario] = useState(false);
     const [mensaje, setMensaje] = useState("");
@@ -46,6 +48,9 @@ export default function Dispositivos() {
     useEffect(() => {
         fetchDispositivos();
         fetchClientes();
+        fetch(TIPOS_DOC_URL)
+            .then(res => res.json())
+            .then(data => setTiposDocumento(Array.isArray(data) ? data : []));
         // eslint-disable-next-line
     }, [mostrarInactivos]);
 
@@ -70,8 +75,24 @@ export default function Dispositivos() {
         setBusquedaDni("");
     };
 
+    function validarDispositivo(form) {
+      if (!form.nroSerie || form.nroSerie.trim().length < 3) return "El número de serie es obligatorio y debe tener al menos 3 caracteres.";
+      if (!form.marca || form.marca.trim().length < 2) return "La marca es obligatoria y debe tener al menos 2 caracteres.";
+      if (!form.modelo || form.modelo.trim().length < 2) return "El modelo es obligatorio y debe tener al menos 2 caracteres.";
+      if (!form.clienteTipoDocumento) return "Debe seleccionar el tipo de documento del cliente.";
+      if (!form.clienteNumeroDoc || !/^\d{7,8}$/.test(form.clienteNumeroDoc)) return "Debe seleccionar un cliente válido con DNI de 7 u 8 dígitos.";
+      if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
+      return null;
+    }
+
     const handleSubmit = async e => {
         e.preventDefault();
+        const error = validarDispositivo(form);
+        if (error) {
+            setMensaje(error);
+            return;
+        }
+        console.log("Datos enviados:", form);
         const res = await fetch(API_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -122,6 +143,11 @@ export default function Dispositivos() {
 
     // Guardar modificación
     const handleGuardarModificacion = async () => {
+        const error = validarDispositivo(dispositivoActual);
+        if (error) {
+            setMensaje(error);
+            return;
+        }
         await fetch(`${API_URL}${dispositivoActual.nroSerie}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -143,7 +169,7 @@ export default function Dispositivos() {
                 <main className="col-12 col-md-10 pt-4 px-2 px-md-4 d-flex flex-column" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
                     <div className="card shadow-sm mb-4" style={{ border: `1.5px solid ${colores.azul}`, borderRadius: 16, background: colores.beige }}>
                         <div className="card-header d-flex justify-content-between align-items-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-                            <h4 className="mb-0">Gestión de Dispositivos</h4>
+                            <h4 className="mb-0"><i className="bi bi-cpu me-2"></i>Gestión de Dispositivos</h4>
                             <div className="d-flex gap-2">
                                 <button
                                     className="btn"
@@ -157,123 +183,113 @@ export default function Dispositivos() {
                                     style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
                                     onClick={() => setMostrarFormulario(true)}
                                 >
-                                    <i className="bi bi-plus-lg"></i> Agregar
+                                    <i className="bi bi-plus-lg"></i> Agregar dispositivo
                                 </button>
                             </div>
                         </div>
                         <div className="card-body">
                             {mostrarFormulario && (
                                 <form onSubmit={handleSubmit} className="form-container mb-3">
-                                    <div className="row">
-                                        <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
-                                            <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
-                                                <i className="bi bi-cpu me-2"></i>Datos del dispositivo
-                                            </legend>
-                                            <div className="form-group mb-2">
-                                                <label>
-                                                    <i className="bi bi-hash me-2"></i>Nro Serie
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    name="nroSerie"
-                                                    value={form.nroSerie}
-                                                    onChange={handleChange}
-                                                    required
-                                                    className="form-control"
-                                                />
-                                            </div>
-                                            <div className="form-group mb-2">
-                                                <label>
-                                                    <i className="bi bi-pc me-2"></i>Marca
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    name="marca"
-                                                    value={form.marca}
-                                                    onChange={handleChange}
-                                                    required
-                                                    className="form-control"
-                                                />
-                                            </div>
-                                            <div className="form-group mb-2">
-                                                <label>
-                                                    <i className="bi bi-pc-display me-2"></i>Modelo
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    name="modelo"
-                                                    value={form.modelo}
-                                                    onChange={handleChange}
-                                                    required
-                                                    className="form-control"
-                                                />
-                                            </div>
-                                        </fieldset>
-                                        <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
-                                            <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
-                                                <i className="bi bi-person-badge me-2"></i>Seleccionar cliente
-                                            </legend>
-                                            <div className="form-group mb-2">
-                                                <label>
-                                                    <i className="bi bi-search me-2"></i>Buscar cliente por DNI
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    className="form-control mb-2"
-                                                    placeholder="Ingrese DNI"
-                                                    value={busquedaDni}
-                                                    onChange={e => setBusquedaDni(e.target.value)}
-                                                />
-                                                <label>
-                                                    <i className="bi bi-person-lines-fill me-2"></i>Cliente
-                                                </label>
-                                                <select
-                                                    name="cliente"
-                                                    value={form.clienteTipoDocumento && form.clienteNumeroDoc ? `${form.clienteTipoDocumento}-${form.clienteNumeroDoc}` : ""}
-                                                    onChange={handleClienteSelect}
-                                                    required
-                                                    className="form-control"
-                                                >
-                                                    <option value="">Seleccione un cliente...</option>
-                                                    {clientesFiltrados.map(c => (
-                                                        <option key={`${c.tipoDocumento}-${c.numeroDni}`} value={`${c.tipoDocumento}-${c.numeroDni}`}>
-                                                            {c.tipoDocumento} - {c.numeroDni} ({c.nombre} {c.apellido})
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <fieldset style={{ border: "none", marginBottom: "1.5rem" }}>
-                                                <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                                    <div className="row g-4">
+                                        <div className="col-12 col-md-6">
+                                            <fieldset style={{ border: "none" }}>
+                                                <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
+                                                    <i className="bi bi-cpu me-2"></i>Datos del dispositivo
+                                                </legend>
+                                                <div className="mb-3">
+                                                    <label className="fw-semibold"><i className="bi bi-hash me-2"></i>Nro Serie</label>
+                                                    <input
+                                                        type="text"
+                                                        name="nroSerie"
+                                                        value={form.nroSerie}
+                                                        onChange={handleChange}
+                                                        required
+                                                        className="form-control"
+                                                    />
+                                                </div>
+                                                <div className="mb-3">
+                                                    <label className="fw-semibold"><i className="bi bi-pc me-2"></i>Marca</label>
+                                                    <input
+                                                        type="text"
+                                                        name="marca"
+                                                        value={form.marca}
+                                                        onChange={handleChange}
+                                                        required
+                                                        className="form-control"
+                                                    />
+                                                </div>
+                                                <div className="mb-3">
+                                                    <label className="fw-semibold"><i className="bi bi-pc-display me-2"></i>Modelo</label>
+                                                    <input
+                                                        type="text"
+                                                        name="modelo"
+                                                        value={form.modelo}
+                                                        onChange={handleChange}
+                                                        required
+                                                        className="form-control"
+                                                    />
+                                                </div>
+                                            </fieldset>
+                                        </div>
+                                        <div className="col-12 col-md-6">
+                                            <fieldset style={{ border: "none" }}>
+                                                <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
+                                                    <i className="bi bi-person-badge me-2"></i>Seleccionar cliente
+                                                </legend>
+                                                <div className="mb-3">
+                                                    <label className="fw-semibold"><i className="bi bi-search me-2"></i>Buscar cliente por DNI</label>
+                                                    <input
+                                                        type="text"
+                                                        className="form-control mb-2"
+                                                        placeholder="Ingrese DNI"
+                                                        value={busquedaDni}
+                                                        onChange={e => setBusquedaDni(e.target.value)}
+                                                    />
+                                                    <label className="fw-semibold"><i className="bi bi-person-lines-fill me-2"></i>Cliente</label>
+                                                    <select
+                                                        name="cliente"
+                                                        value={form.clienteTipoDocumento && form.clienteNumeroDoc ? `${form.clienteTipoDocumento}-${form.clienteNumeroDoc}` : ""}
+                                                        onChange={handleClienteSelect}
+                                                        required
+                                                        className="form-control"
+                                                    >
+                                                        <option value="">Seleccione un cliente...</option>
+                                                        {clientesFiltrados.map(c => (
+                                                            <option key={`${c.tipoDocumento}-${c.numeroDoc || c.numeroDni}`} value={`${c.tipoDocumento}-${c.numeroDoc || c.numeroDni}`}>
+                                                                {c.tipoDocumento} - {c.numeroDoc || c.numeroDni} ({c.nombre} {c.apellido})
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
                                                     <i className="bi bi-check2-circle me-2"></i>Estado
                                                 </legend>
-                                                <div className="form-group mb-2">
-                                                    <label>
-                                                        <i className="bi bi-check2-circle me-2"></i>Estado
-                                                    </label>
+                                                <div className="mb-3">
+                                                    <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
                                                     <select name="activo" value={form.activo} onChange={handleChange} className="form-control">
                                                         <option value={1}>Activo</option>
                                                         <option value={0}>Inactivo</option>
                                                     </select>
                                                 </div>
                                             </fieldset>
-                                        </fieldset>
+                                        </div>
                                     </div>
-                                    <div className="row">
-                                        <div className="col-12 d-flex flex-column flex-md-row justify-content-end">
-                                            <button type="submit" className="btn mb-2 mb-md-0" style={{ background: colores.azul, color: colores.beige }}>
+                                    {mensaje && (
+                                        <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
+                                            {mensaje}
+                                        </div>
+                                    )}
+                                    <div className="row mt-3">
+                                        <div className="col-12 d-flex flex-column flex-md-row justify-content-end gap-2">
+                                            <button type="submit" className="btn" style={{ background: colores.azul, color: colores.beige, fontWeight: 600, borderRadius: "8px" }}>
                                                 <i className="bi bi-save me-1"></i>Guardar
                                             </button>
-                                            <button type="button" className="btn ms-md-2" style={{ background: colores.dorado, color: colores.azul }} onClick={handleAgregarClick}>
+                                            <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }} onClick={handleAgregarClick}>
                                                 <i className="bi bi-x-circle me-1"></i>Cancelar
                                             </button>
                                         </div>
                                     </div>
                                 </form>
-                            )}
-                            {mensaje && (
-                                <div className="alert" role="alert" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none', borderRadius: 8 }}>
-                                    {mensaje}
-                                </div>
                             )}
                             <div className="table-responsive">
                                 <table className="table table-striped table-hover align-middle">
@@ -282,21 +298,24 @@ export default function Dispositivos() {
                                             <th>Nro Serie</th>
                                             <th>Marca</th>
                                             <th>Modelo</th>
-                                            <th>Tipo Doc Cliente</th>
-                                            <th>DNI Cliente</th>
+                                            <th>Tipo Documento</th>
+                                            <th>Numero Documento</th>
                                             <th>Estado</th>
+                                            <th>Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {dispositivos.map(d => (
-                                            <tr
-                                                key={d.nroSerie}
-                                                style={d.activo === 0 ? { opacity: 0.5 } : {}}
-                                            >
+                                            <tr key={d.nroSerie} style={d.activo === 0 ? { opacity: 0.5 } : {}}>
                                                 <td>{d.nroSerie}</td>
                                                 <td>{d.marca}</td>
                                                 <td>{d.modelo}</td>
-                                                <td>{d.clienteTipoDocumento}</td>
+                                                <td>
+                                                    {
+                                                        tiposDocumento.find(td => String(td.codigo) === String(d.clienteTipoDocumento))?.nombre
+                                                        || d.clienteTipoDocumento
+                                                    }
+                                                </td>
                                                 <td>{d.clienteNumeroDoc}</td>
                                                 <td>{d.activo === 1 ? "Activo" : "Inactivo"}</td>
                                                 <td>
@@ -360,7 +379,7 @@ export default function Dispositivos() {
                     display: "block", background: "#0008", position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", zIndex: 9999
                 }}>
                     <div className="modal-dialog" style={{ margin: "5rem auto", maxWidth: 500 }}>
-                        <div className="modal-content">
+                        <div className="modal-content" style={{ background: colores.beige, borderRadius: 16 }}>
                             <div className="modal-header" style={{ background: colores.azul, color: colores.beige }}>
                                 <h5 className="modal-title">
                                     {modalModo === 'consultar' ? "Consultar dispositivo" : "Modificar dispositivo"}
@@ -369,71 +388,106 @@ export default function Dispositivos() {
                             </div>
                             <div className="modal-body">
                                 <form>
-                                    <div className="mb-2">
-                                        <label>Nro Serie</label>
-                                        <input className="form-control" name="nroSerie" value={dispositivoActual.nroSerie} disabled />
+                                    <div className="row g-4">
+                                        <div className="col-12 col-md-6">
+                                            <fieldset style={{ border: "none" }}>
+                                                <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
+                                                    <i className="bi bi-cpu me-2"></i>Datos del dispositivo
+                                                </legend>
+                                                <div className="mb-3">
+                                                    <label className="fw-semibold"><i className="bi bi-hash me-2"></i>Nro Serie</label>
+                                                    <input className="form-control" name="nroSerie" value={dispositivoActual.nroSerie} disabled />
+                                                </div>
+                                                <div className="mb-3">
+                                                    <label className="fw-semibold"><i className="bi bi-pc me-2"></i>Marca</label>
+                                                    <input className="form-control" name="marca" value={dispositivoActual.marca}
+                                                        onChange={handleModalChange} disabled={modalModo === 'consultar'} />
+                                                </div>
+                                                <div className="mb-3">
+                                                    <label className="fw-semibold"><i className="bi bi-pc-display me-2"></i>Modelo</label>
+                                                    <input className="form-control" name="modelo" value={dispositivoActual.modelo}
+                                                        onChange={handleModalChange} disabled={modalModo === 'consultar'} />
+                                                </div>
+                                            </fieldset>
+                                        </div>
+                                        <div className="col-12 col-md-6">
+                                            <fieldset style={{ border: "none" }}>
+                                                <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
+                                                    <i className="bi bi-person-badge me-2"></i>Cliente
+                                                </legend>
+                                                <div className="mb-3">
+                                                    {modalModo === 'consultar' ? (
+                                                        // Mostrar datos del cliente en modo consulta
+                                                        (() => {
+                                                            const cliente = clientes.find(c =>
+                                                                String(c.tipoDocumento) === String(dispositivoActual.clienteTipoDocumento) &&
+                                                                (
+                                                                    String(c.numeroDoc) === String(dispositivoActual.clienteNumeroDoc) ||
+                                                                    String(c.numeroDni) === String(dispositivoActual.clienteNumeroDoc)
+                                                                )
+                                                            );
+                                                            return cliente ? (
+                                                                <div style={{ background: colores.mentaSuave || "#e8f7f7", borderRadius: 8, padding: "12px" }}>
+                                                                    <div><b>Nombre:</b> {cliente.nombre} {cliente.apellido}</div>
+                                                                    <div><b>Documento:</b> {cliente.tipoDocumento} - {cliente.numeroDoc || cliente.numeroDni}</div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-danger">Cliente no encontrado</div>
+                                                            );
+                                                        })()
+                                                    ) : (
+                                                        // Modo modificar: seleccionar cliente
+                                                        <>
+                                                            <label className="fw-semibold"><i className="bi bi-person-lines-fill me-2"></i>Cliente</label>
+                                                            <select
+                                                                name="cliente"
+                                                                className="form-control"
+                                                                value={
+                                                                    dispositivoActual.clienteTipoDocumento && dispositivoActual.clienteNumeroDoc
+                                                                        ? `${dispositivoActual.clienteTipoDocumento}-${dispositivoActual.clienteNumeroDoc}`
+                                                                        : ""
+                                                                }
+                                                                onChange={e => {
+                                                                    const [tipoDocumento, numeroDoc] = e.target.value.split("-");
+                                                                    setDispositivoActual({
+                                                                        ...dispositivoActual,
+                                                                        clienteTipoDocumento: tipoDocumento,
+                                                                        clienteNumeroDoc: numeroDoc // SIEMPRE usa numeroDoc aquí
+                                                                    });
+                                                                }}
+                                                                disabled={modalModo === 'consultar'}
+                                                            >
+                                                                <option value="">Seleccione un cliente...</option>
+                                                                {clientes.map(c => (
+                                                                    <option key={`${c.tipoDocumento}-${c.numeroDoc}`} value={`${c.tipoDocumento}-${c.numeroDoc}`}>
+                                                                        {c.tipoDocumento} - {c.numeroDoc} ({c.nombre} {c.apellido})
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </>
+                                                    )}
+                                                </div>
+                                                <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
+                                                    <i className="bi bi-check2-circle me-2"></i>Estado
+                                                </legend>
+                                                <div className="mb-3">
+                                                    <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
+                                                    <select className="form-control" name="activo"
+                                                        value={dispositivoActual.activo}
+                                                        onChange={handleModalChange}
+                                                        disabled={modalModo === 'consultar'}>
+                                                        <option value={1}>Activo</option>
+                                                        <option value={0}>Inactivo</option>
+                                                    </select>
+                                                </div>
+                                            </fieldset>
+                                        </div>
                                     </div>
-                                    <div className="mb-2">
-                                        <label>Marca</label>
-                                        <input className="form-control" name="marca" value={dispositivoActual.marca}
-                                            onChange={handleModalChange} disabled={modalModo === 'consultar'} />
-                                    </div>
-                                    <div className="mb-2">
-                                        <label>Modelo</label>
-                                        <input className="form-control" name="modelo" value={dispositivoActual.modelo}
-                                            onChange={handleModalChange} disabled={modalModo === 'consultar'} />
-                                    </div>
-                                    <div className="mb-2">
-                                        <label>Cliente</label>
-                                        <select
-                                            name="cliente"
-                                            className="form-control"
-                                            value={
-                                                dispositivoActual.clienteTipoDocumento && dispositivoActual.clienteNumeroDoc
-                                                    ? `${dispositivoActual.clienteTipoDocumento}-${dispositivoActual.clienteNumeroDoc}`
-                                                    : ""
-                                            }
-                                            onChange={e => {
-                                                const [tipoDocumento, numeroDoc] = e.target.value.split("-");
-                                                setDispositivoActual({
-                                                    ...dispositivoActual,
-                                                    clienteTipoDocumento: tipoDocumento,
-                                                    clienteNumeroDoc: numeroDoc
-                                                });
-                                            }}
-                                            disabled={modalModo === 'consultar'}
-                                            style={{ marginBottom: "8px" }}
-                                        >
-                                            <option value="">Seleccione un cliente...</option>
-                                            {clientes.map(c => (
-                                                <option key={`${c.tipoDocumento}-${c.numeroDni}`} value={`${c.tipoDocumento}-${c.numeroDni}`}>
-                                                    {c.tipoDocumento} - {c.numeroDni} ({c.nombre} {c.apellido})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    {modalModo === 'consultar' && (
-                                        <>
-                                            <div className="mb-2">
-                                                <label>Tipo Doc Cliente</label>
-                                                <input className="form-control" name="clienteTipoDocumento" value={dispositivoActual.clienteTipoDocumento} disabled />
-                                            </div>
-                                            <div className="mb-2">
-                                                <label>DNI Cliente</label>
-                                                <input className="form-control" name="clienteNumeroDoc" value={dispositivoActual.clienteNumeroDoc} disabled />
-                                            </div>
-                                        </>
+                                    {mensaje && (
+                                        <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
+                                            {mensaje}
+                                        </div>
                                     )}
-                                    <div className="mb-2">
-                                        <label>Estado</label>
-                                        <select className="form-control" name="activo"
-                                            value={dispositivoActual.activo}
-                                            onChange={handleModalChange}
-                                            disabled={modalModo === 'consultar'}>
-                                            <option value={1}>Activo</option>
-                                            <option value={0}>Inactivo</option>
-                                        </select>
-                                    </div>
                                 </form>
                             </div>
                             <div className="modal-footer">

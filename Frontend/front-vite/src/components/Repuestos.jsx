@@ -25,6 +25,7 @@ function Repuestos() {
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [error, setError] = useState("");
+  const [mensaje, setMensaje] = useState("");
   const [modalProveedores, setModalProveedores] = useState({ open: false, lista: [], repuesto: null });
 
   useEffect(() => {
@@ -105,8 +106,27 @@ function Repuestos() {
     });
   }
 
+  function validarRepuesto(form) {
+    if (!form.codigo || form.codigo.trim().length < 2) return "El código es obligatorio.";
+    if (!form.marca || form.marca.trim().length < 2) return "La marca es obligatoria.";
+    if (!form.modelo || form.modelo.trim().length < 2) return "El modelo es obligatorio.";
+    if (form.proveedores.length === 0) return "Debe agregar al menos un proveedor.";
+    for (let p of form.proveedores) {
+      if (!p.cuilProveedor) return "El proveedor es obligatorio.";
+      if (p.costo === "" || isNaN(p.costo)) return "El costo debe ser un número.";
+      if (p.cantidad === "" || isNaN(p.cantidad)) return "La cantidad debe ser un número.";
+    }
+    return null;
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
+    const error = validarRepuesto(form);
+    if (error) {
+      setMensaje(error);
+      return;
+    }
+    setMensaje("");
     fetch(`${API}/repuestos/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -241,6 +261,11 @@ function Repuestos() {
             </div>
             <div className="card-body">
               {error && <div style={{ background: colores.dorado, color: colores.azul, padding: "12px", borderRadius: "8px", margin: "12px 0" }}>{error}</div>}
+              {mensaje && (
+                <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
+                  {mensaje}
+                </div>
+              )}
               {/* Formulario para agregar/editar repuesto */}
               {mostrarFormulario && (
                 <form onSubmit={editCodigo ? handleUpdate : handleSubmit} className="form-container mb-3">
@@ -326,6 +351,11 @@ function Repuestos() {
                       </button>
                     </div>
                   </div>
+                  {mensaje && (
+                    <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
+                      {mensaje}
+                    </div>
+                  )}
                 </form>
               )}
 

@@ -1,6 +1,7 @@
 import re
 from flask import Blueprint, request, jsonify
 from ABMC_db import alta_empleado, baja_empleado, modificar_empleado, buscar_empleado, mostrar_empleados
+from ABMC_db import Cargo, SessionLocal
 
 app = Blueprint('empleados', __name__)
 
@@ -109,3 +110,11 @@ def listar_empleados():
         }
         for e in empleados
     ]), 200
+
+@app.route('/cargos/', methods=['GET'])
+def obtener_cargos():
+    session = SessionLocal()
+    cargos = session.query(Cargo).all()
+    resultado = [{"idCargo": c.idCargo, "nombreCargo": c.descripcion} for c in cargos]
+    session.close()
+    return jsonify(resultado)
