@@ -6,7 +6,8 @@ const colores = {
   dorado: '#c78f57',
   rojo: '#b54745',
   verdeAgua: '#85abab',
-  beige: '#f0ede5'
+  beige: '#f0ede5',
+  mentaSuave: '#c6e8e8'
 };
 
 const API = "http://localhost:5000";
@@ -27,6 +28,7 @@ function Repuestos() {
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [modalProveedores, setModalProveedores] = useState({ open: false, lista: [], repuesto: null });
+  const [modalTodosRepuestos, setModalTodosRepuestos] = useState({ open: false, lista: [] });
 
   useEffect(() => {
     setError("");
@@ -230,6 +232,21 @@ function Repuestos() {
     setForm({ codigo: "", marca: "", modelo: "", activo: 1, proveedores: [] });
   }
 
+  function handleVerTodosRepuestos() {
+    fetch(`${API}/repuestos_con_proveedores`)
+      .then(res => res.json())
+      .then(data => {
+        setModalTodosRepuestos({ open: true, lista: data });
+      })
+      .catch(() => {
+        setModalTodosRepuestos({ open: true, lista: [] });
+      });
+  }
+
+  function handleCloseModalTodosRepuestos() {
+    setModalTodosRepuestos({ open: false, lista: [] });
+  }
+
   return (
     <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
       <div className="row flex-nowrap">
@@ -244,7 +261,7 @@ function Repuestos() {
                   style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
                   onClick={() => setMostrarInactivos(!mostrarInactivos)}
                 >
-                  {mostrarInactivos ? "Ver activos" : "Ver también inactivos"}
+                  {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                 </button>
                 <button
                   className="btn"
@@ -256,6 +273,13 @@ function Repuestos() {
                   }}
                 >
                   <i className="bi bi-plus-lg"></i> Agregar repuesto
+                </button>
+                <button
+                  className="btn"
+                  style={{ background: colores.mentaSuave, color: colores.azul, fontWeight: 600, border: 'none' }}
+                  onClick={handleVerTodosRepuestos}
+                >
+                  Listar Repuestos
                 </button>
               </div>
             </div>
@@ -454,6 +478,81 @@ function Repuestos() {
               </div>
             </div>
           </div>
+          {modalTodosRepuestos.open && (
+            <div style={{
+              position: "fixed",
+              top: 0, left: 0, width: "100vw", height: "100vh",
+              background: "#0008",
+              zIndex: 9999,
+              display: "flex", alignItems: "center", justifyContent: "center"
+            }}>
+              <div style={{
+                background: colores.beige,
+                borderRadius: 16,
+                padding: 32,
+                width: "95%",
+                maxHeight: "90vh",
+                overflowY: "auto",
+                boxShadow: "0 4px 24px #0004",
+                position: "relative"
+              }}>
+                {/* BOTÓN CERRAR */}
+                <button
+                  onClick={handleCloseModalTodosRepuestos}
+                  style={{
+                    position: "absolute", top: 12, right: 12,
+                    background: colores.rojo, color: colores.beige,
+                    border: "none", borderRadius: 8, padding: "4px 12px",
+                    fontWeight: 600, cursor: "pointer"
+                  }}
+                >
+                  X
+                </button>
+                <h4 style={{color: colores.azul, marginBottom: 20, fontWeight: 700}}> Listado de repuestos y proveedores</h4>
+                {/* VALIDO QUE HAYA LISTADO, SINO MUESTRA UN MENSAJE */}
+                {modalTodosRepuestos.lista.length === 0 ? (
+                  <div style={{ textAlign: "center", color: colores.rojo }}>
+                    No se encontraron repuestos.
+                  </div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-striped align-middle">
+                      <thead className="table-primary">
+                        <tr>
+                          <th>Código</th>
+                          <th>Marca</th>
+                          <th>Modelo</th>
+                          <th>Activo</th>
+                          <th>CUIL</th>
+                          <th>Teléfono</th>
+                          <th>Razón Social</th>
+                          <th>Costo</th>
+                          <th>Cantidad</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {modalTodosRepuestos.lista.flatMap((r, idx) =>
+                          r.proveedores.map((p, i) => (
+                            <tr key={`${idx}-${i}`}>
+                              <td>{r.codigo}</td>
+                              <td>{r.marca}</td>
+                              <td>{r.modelo}</td>
+                              <td>{r.activo ? "Sí" : "No"}</td>
+                              <td>{p.cuilProveedor}</td>
+                              <td>{p.telefono}</td>
+                              <td>{p.razonSocial}</td>
+                              <td>${p.costo}</td>
+                              <td>{p.cantidad}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>
