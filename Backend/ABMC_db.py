@@ -10,7 +10,7 @@ if ROOT not in sys.path:
 from BDD.database import (
     SessionLocal, Usuario, Cliente, Dispositivo, Empleado, Estado,
     HistorialArreglos, OrdenDeReparacion, Servicio, Repuesto,
-    HistorialEstadoOrden, Proveedor, Permiso, CargoxPermiso, RepuestoxProveedor, Sesion, Cargo
+    HistorialEstadoOrden, Proveedor, Permiso, CargoxPermiso, RepuestoxProveedor, Sesion, Cargo, DetalleOrden
 )
 
 # ----------- ABMC para Usuario -----------
@@ -446,3 +446,48 @@ def buscar_proveedores_por_repuesto(codigo):
     )
     session.close()
     return proveedores
+
+# ----------- ABMC para DetalleOrden -----------
+
+def alta_detalle_orden(idDetalle, nroDeOrden, codigoServicio, codRepuestos, cuitProveedor, costoServicio, costoRepuesto, subtotal):
+    session = SessionLocal()
+    detalle = DetalleOrden(
+        idDetalle=idDetalle,
+        nroDeOrden=nroDeOrden,
+        codigoServicio=codigoServicio,
+        codRepuestos=codRepuestos,
+        cuitProveedor=cuitProveedor,
+        costoServicio=costoServicio,
+        costoRepuesto=costoRepuesto,
+        subtotal=subtotal
+    )
+    session.add(detalle)
+    session.commit()
+    session.close()
+
+def modificar_detalle_orden(idDetalle, nroDeOrden, codigoServicio, codRepuestos, cuitProveedor, costoServicio, costoRepuesto, subtotal):
+    session = SessionLocal()
+    detalle = session.query(DetalleOrden).get((idDetalle, nroDeOrden))
+    if detalle:
+        detalle.codigoServicio = codigoServicio
+        detalle.codRepuestos = codRepuestos
+        detalle.cuitProveedor = cuitProveedor
+        detalle.costoServicio = costoServicio
+        detalle.costoRepuesto = costoRepuesto
+        detalle.subtotal = subtotal
+        session.commit()
+    session.close()
+
+def mostrar_detalles_orden(nroDeOrden):
+    session = SessionLocal()
+    detalles = session.query(DetalleOrden).filter_by(nroDeOrden=nroDeOrden).all()
+    session.close()
+    return detalles
+
+def baja_detalle_orden(idDetalle, nroDeOrden):
+    session = SessionLocal()
+    detalle = session.query(DetalleOrden).get((idDetalle, nroDeOrden))
+    if detalle:
+        session.delete(detalle)
+        session.commit()
+    session.close()

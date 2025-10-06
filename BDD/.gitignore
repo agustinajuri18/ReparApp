@@ -1,0 +1,36 @@
+# --- Archivos compilados de Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Entornos virtuales ---
+venv/
+.env/
+.venv/
+
+# --- Archivos de configuración local ---
+.env
+*.env
+
+# --- Archivos temporales / de logs ---
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+*.swp
+*.swo
+*.bak
+
+# --- Archivos del sistema operativo ---
+.DS_Store
+Thumbs.db
+
+# --- Archivos de IDEs comunes ---
+.vscode/
+.idea/
+*.iml
+
+# --- Archivos de dependencias locales ---
+pip-wheel-metadata/
+__pypackages__/
