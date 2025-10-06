@@ -43,17 +43,17 @@ function Empleados() {
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
-
+{
   function validarEmpleado(form) {
-    if (!form.tipoDocumento) return "Debe seleccionar el tipo de documento.";
-    if (!form.numeroDoc || !/^\d{7,8}$/.test(form.numeroDoc)) return "Número de documento inválido.";
+    // if (!form.tipoDocumento) return "Debe seleccionar el tipo de documento.";
+    // if (!form.numeroDoc || !/^\d{7,8}$/.test(form.numeroDoc)) return "Número de documento inválido.";
     if (!form.nombre || form.nombre.trim().length < 2) return "El nombre es obligatorio y debe tener al menos 2 caracteres.";
     if (!form.apellido || form.apellido.trim().length < 2) return "El apellido es obligatorio y debe tener al menos 2 caracteres.";
-    if (!form.telefono || form.telefono.trim().length < 6) return "El teléfono es obligatorio y debe tener al menos 6 caracteres.";
-    if (!form.email || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.email)) return "El email no es válido.";
+    // if (!form.telefono || form.telefono.trim().length < 6) return "El teléfono es obligatorio y debe tener al menos 6 caracteres.";
+    // if (!form.email || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.email)) return "El email no es válido.";
     if (!form.cargo || form.cargo.trim().length < 2) return "El cargo es obligatorio.";
     if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
-    return null;
+    return null;}
   }
 
   function handleSubmit(e) {

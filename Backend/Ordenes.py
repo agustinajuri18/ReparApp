@@ -14,28 +14,17 @@ def validar_fecha(fecha):
         return True
     except Exception:
         return False
-
 @app.route("/ordenes/", methods=["POST"])
 def registrar_orden():
-    data = request.get_json() or {}
-    nroSerieDispositivo = data.get("nroSerieDispositivo")
-    fecha = data.get("fecha")
-    descripcionDanos = data.get("descripcionDanos")
-    diagnostico = data.get("diagnostico")
-    presupuesto = data.get("presupuesto")
-    idEmpleado = data.get("idEmpleado")
-
-    if not nroSerieDispositivo or not validar_fecha(fecha):
-        return jsonify({"error": "Datos de orden inválidos"}), 400
-
+    
     try:
         alta_orden_de_reparacion(
-            nroSerieDispositivo,
-            fecha,
-            descripcionDanos,
-            diagnostico,
-            presupuesto,
-            idEmpleado
+            nroSerieDispositivo = 123,
+            fecha="2023-10-10",
+            descripcionDanos= "descripcionDanos",
+            diagnostico= "diagnostico",
+            presupuesto_int= 1000,
+            idEmpleado_int= 1
         )
         return jsonify({"mensaje": "Orden creada exitosamente"}), 201
     except Exception as e:
