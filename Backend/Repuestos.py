@@ -168,6 +168,16 @@ def agregar_repuestoxproveedor():
         if not repuesto:
             session.close()
             return jsonify({"error": "Repuesto no encontrado"}), 404
+
+        # VERIFICAR SI YA EXISTE LA RELACIÓN
+        existe = session.query(RepuestoxProveedor).filter_by(
+            codigoRepuesto=codigoRepuesto,
+            cuilProveedor=cuilProveedor
+        ).first()
+        if existe:
+            session.close()
+            return jsonify({"error": "La relación repuesto-proveedor ya existe"}), 409
+
         session.close()
         alta_repuestoxproveedor(codigoRepuesto, cuilProveedor, costo, cantidad)
         return jsonify({"mensaje": "Relación repuesto-proveedor creada"}), 201

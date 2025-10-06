@@ -11,6 +11,9 @@ def validar_id(value):
     s = str(value).strip()
     return s != ""
 
+def validar_nombre_usuario(nombre):
+    return isinstance(nombre, str) and len(nombre.strip()) >= 3
+
 def validar_password(pw):
     return isinstance(pw, str) and len(pw) >= 6
 
@@ -39,11 +42,14 @@ def find_user_by_id(id_value):
 def registrar_usuario():
     data = request.get_json() or {}
     id_usuario = data.get("idUsuario")
+    nombre_usuario = data.get("nombreUsuario")
     password = data.get("password")
     activo = parse_activo(data.get("activo"))
 
     if not validar_id(id_usuario):
         return jsonify({"error": "idUsuario inválido"}), 400
+    if not validar_nombre_usuario(nombre_usuario):
+        return jsonify({"error": "nombreUsuario inválido (mínimo 3 caracteres)"}), 400
     if not validar_password(password):
         return jsonify({"error": "password inválido (mínimo 6 caracteres)"}), 400
 
@@ -52,7 +58,8 @@ def registrar_usuario():
 
     hashed = generate_password_hash(password)
     try:
-        alta_usuario(id_usuario, hashed)
+        # Asegúrate que alta_usuario acepte nombre_usuario y activo
+        alta_usuario(id_usuario, nombre_usuario, hashed, activo)
         return jsonify({"mensaje": "Usuario creado exitosamente"}), 201
     except Exception as e:
         return jsonify({"error": "No se pudo crear usuario", "detail": str(e)}), 500
@@ -76,17 +83,20 @@ def modificar_usuario_endpoint(id_usuario):
 
     data = request.get_json() or {}
     new_password = data.get("password")
+    nombre_usuario = data.get("nombreUsuario", getattr(u, "nombreUsuario", ""))
     activo = data.get("activo", getattr(u, "activo", 1))
 
+    if nombre_usuario and not validar_nombre_usuario(nombre_usuario):
+        return jsonify({"error": "nombreUsuario inválido (mínimo 3 caracteres)"}), 400
     if new_password is not None and not validar_password(new_password):
         return jsonify({"error": "password inválido (mínimo 6 caracteres)"}), 400
 
     try:
         if new_password is not None:
             hashed = generate_password_hash(new_password)
-            modificar_usuario(id_usuario, hashed)
+            modificar_usuario(id_usuario, nombre_usuario, hashed, activo)
         else:
-            modificar_usuario(id_usuario, getattr(u, "password", getattr(u, "contraseña", None)))
+            modificar_usuario(id_usuario, nombre_usuario, getattr(u, "password", getattr(u, "contraseña", None)), activo)
         return jsonify({"mensaje": "Usuario modificado exitosamente"}), 200
     except Exception as e:
         return jsonify({"error": "No se pudo modificar usuario", "detail": str(e)}), 500
@@ -99,6 +109,7 @@ def mostrar_usuario(id_usuario):
     uid = getattr(u, "idUsuario", None)
     return jsonify({
         "idUsuario": uid,
+        "nombreUsuario": getattr(u, "nombreUsuario", ""),
         "activo": getattr(u, "activo", 1)
     }), 200
 
@@ -114,6 +125,7 @@ def listar_usuarios():
         uid = getattr(u, "idUsuario", None)
         result.append({
             "idUsuario": uid,
+            "nombreUsuario": getattr(u, "nombreUsuario", ""),
             "activo": activo_val
         })
     return jsonify(result), 200

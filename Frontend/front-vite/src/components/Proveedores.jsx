@@ -35,7 +35,7 @@ function Proveedores() {
   function validarProveedor(form) {
     if (!form.cuil || !/^\d{11}$/.test(form.cuil)) return "El CUIL/CUIT debe tener 11 dígitos numéricos.";
     if (!form.razonSocial || form.razonSocial.trim().length < 2) return "La razón social es obligatoria y debe tener al menos 2 caracteres.";
-    if (!form.telefono || form.telefono.trim().length < 6) return "El teléfono es obligatorio y debe tener al menos 6 caracteres.";
+    if (!form.telefono || String(form.telefono).trim().length < 10) return "El teléfono es obligatorio y debe tener al menos 10 caracteres.";
     if (form.mail && !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.mail)) return "El email no es válido.";
     if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
     return null;

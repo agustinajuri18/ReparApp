@@ -29,6 +29,7 @@ function Repuestos() {
   const [mensaje, setMensaje] = useState("");
   const [modalProveedores, setModalProveedores] = useState({ open: false, lista: [], repuesto: null });
   const [modalTodosRepuestos, setModalTodosRepuestos] = useState({ open: false, lista: [] });
+  const [formMode, setFormMode] = useState("editar"); // nuevo estado para el modo del formulario
 
   useEffect(() => {
     setError("");
@@ -139,25 +140,36 @@ function Repuestos() {
         activo: form.activo
       })
     })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error("Error al crear el repuesto");
+        return res.json();
+      })
       .then(() => {
-        form.proveedores.forEach(p => {
-          fetch(`${API}/repuestoxproveedor/`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              codigoRepuesto: form.codigo,
-              cuilProveedor: p.cuilProveedor,
-              costo: p.costo,
-              cantidad: p.cantidad
+        // Usar Promise.all para esperar todas las inserciones de proveedores
+        return Promise.all(
+          form.proveedores.map(p =>
+            fetch(`${API}/repuestoxproveedor/`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                codigoRepuesto: form.codigo,
+                cuilProveedor: p.cuilProveedor,
+                costo: Number(p.costo),      // <-- Asegura que sea número
+                cantidad: Number(p.cantidad) // <-- Asegura que sea número
+              })
             })
-          });
-        });
+          )
+        );
+      })
+      .then(() => {
         setForm({ codigo: "", marca: "", modelo: "", activo: 1, proveedores: [] });
         setMostrarFormulario(false);
         fetch(`${API}/repuestos/?activos=${mostrarInactivos ? "false" : "true"}`)
           .then(res => res.json())
           .then(data => setRepuestos(data));
+      })
+      .catch(err => {
+        setMensaje("Error al guardar el repuesto o sus proveedores.");
       });
   }
 
@@ -173,6 +185,7 @@ function Repuestos() {
   function handleEdit(repuesto) {
     setEditCodigo(repuesto.codigo);
     setMostrarFormulario(true);
+    setFormMode("editar"); // cambiar a modo editar
     fetch(`${API}/repuestos/${repuesto.codigo}`)
       .then(res => res.json())
       .then(data => {
@@ -270,6 +283,7 @@ function Repuestos() {
                     setMostrarFormulario(true);
                     setEditCodigo(null);
                     setForm({ codigo: "", marca: "", modelo: "", activo: 1, proveedores: [] });
+                    setFormMode("editar"); // por defecto, el modo es editar al agregar un nuevo repuesto
                   }}
                 >
                   <i className="bi bi-plus-lg"></i> Agregar repuesto
@@ -291,7 +305,7 @@ function Repuestos() {
                 </div>
               )}
               {/* Formulario para agregar/editar repuesto */}
-              {mostrarFormulario && (
+              {mostrarFormulario && formMode === "editar" && (
                 <form onSubmit={editCodigo ? handleUpdate : handleSubmit} className="form-container mb-3">
                   <div className="row">
                     <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
@@ -383,6 +397,72 @@ function Repuestos() {
                 </form>
               )}
 
+              {/* Formulario solo lectura para consultar repuesto */}
+              {mostrarFormulario && formMode === "consultar" && (
+                <form className="form-container mb-3">
+                  <div className="row">
+                    <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
+                      <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                        <i className="bi bi-gear me-2"></i>Datos del repuesto
+                      </legend>
+                      <div className="form-group mb-2">
+                        <label><i className="bi bi-hash me-2"></i>Código</label>
+                        <input value={form.codigo} className="form-control" disabled readOnly />
+                      </div>
+                      <div className="form-group mb-2">
+                        <label><i className="bi bi-pc me-2"></i>Marca</label>
+                        <input value={form.marca} className="form-control" disabled readOnly />
+                      </div>
+                      <div className="form-group mb-2">
+                        <label><i className="bi bi-pc-display me-2"></i>Modelo</label>
+                        <input value={form.modelo} className="form-control" disabled readOnly />
+                      </div>
+                      <div className="form-group mb-2">
+                        <label><i className="bi bi-check2-circle me-2"></i>Estado</label>
+                        <input value={form.activo ? "Activo" : "Inactivo"} className="form-control" disabled readOnly />
+                      </div>
+                    </fieldset>
+                    <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
+                      <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
+                        <i className="bi bi-truck me-2"></i>Proveedores asociados
+                      </legend>
+                      <div className="table-responsive mb-2">
+                        <table className="table table-bordered table-sm align-middle" style={{ background: colores.mentaSuave }}>
+                          <thead>
+                            <tr>
+                              <th>Proveedor</th>
+                              <th>Costo</th>
+                              <th>Cantidad</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {proveedoresMM.length === 0 && (
+                              <tr>
+                                <td colSpan={3} className="text-center text-muted">Sin proveedores</td>
+                              </tr>
+                            )}
+                            {proveedoresMM.map((p, idx) => (
+                              <tr key={idx}>
+                                <td>{p.razon_social}</td>
+                                <td>${p.costo}</td>
+                                <td>{p.cantidad}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </fieldset>
+                  </div>
+                  <div className="row">
+                    <div className="col-12 d-flex flex-column flex-md-row justify-content-end">
+                      <button type="button" className="btn ms-md-2" style={{ background: colores.dorado, color: colores.azul }} onClick={handleCancel}>
+                        <i className="bi bi-x-circle me-1"></i> Cerrar
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+
               {/* Modal de proveedores */}
               {modalProveedores.open && (
                 <div style={{
@@ -439,7 +519,6 @@ function Repuestos() {
                       <th>Marca</th>
                       <th>Modelo</th>
                       <th>Activo</th>
-                      <th>Proveedores</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
@@ -458,16 +537,29 @@ function Repuestos() {
                           <td>{r.modelo}</td>
                           <td>{r.activo ? "Sí" : "No"}</td>
                           <td>
-                            <button onClick={() => handleConsultar(r.codigo)} className="btn btn-info btn-sm" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600 }}>
-                              Ver proveedores
+                            <button
+                              onClick={() => handleConsultar(r)}
+                              className="btn btn-sm me-1"
+                              style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600 }}
+                              title="Consultar"
+                            >
+                              <i className="bi bi-eye me-1"></i> Consultar
                             </button>
-                          </td>
-                          <td>
-                            <button onClick={() => handleEdit(r)} className="btn btn-warning btn-sm" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600 }}>
-                              Editar
+                            <button
+                              onClick={() => handleEdit(r)}
+                              className="btn btn-sm me-1"
+                              style={{ background: colores.dorado, color: colores.azul, fontWeight: 600 }}
+                              title="Modificar"
+                            >
+                              <i className="bi bi-pencil-square me-1"></i> Modificar
                             </button>
-                            <button onClick={() => handleDelete(r.codigo)} className="btn btn-danger btn-sm" style={{ background: colores.rojo, color: colores.beige, fontWeight: 600 }}>
-                              Eliminar
+                            <button
+                              onClick={() => handleDelete(r.codigo)}
+                              className="btn btn-sm"
+                              style={{ background: colores.rojo, color: colores.beige, fontWeight: 600 }}
+                              title="Eliminar"
+                            >
+                              <i className="bi bi-x-circle me-1"></i> Eliminar
                             </button>
                           </td>
                         </tr>

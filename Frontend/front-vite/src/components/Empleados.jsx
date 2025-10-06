@@ -12,6 +12,7 @@ const colores = {
 function Empleados() {
   const [empleados, setEmpleados] = useState([]);
   const [cargos, setCargos] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
   const [form, setForm] = useState({
     nombre: "",
     apellido: "",
@@ -20,19 +21,20 @@ function Empleados() {
     activo: 1
   });
   const [editId, setEditId] = useState(null);
+  const [formMode, setFormMode] = useState(""); // "consultar" | "modificar" | "agregar" | ""
   const [mensaje, setMensaje] = useState("");
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
 
-  // Cargar empleados
+  // Cargar empleados según activos/inactivos
   useEffect(() => {
-    fetch(`http://localhost:5000/empleados${mostrarInactivos ? "?activos=false" : ""}`)
+    fetch(`http://localhost:5000/empleados?activos=${!mostrarInactivos}`)
       .then(res => res.json())
       .then(data => setEmpleados(data))
       .catch(() => setMensaje("Error al cargar empleados"));
   }, [mostrarInactivos]);
 
-  // Cargar cargos desde la base de datos
+  // Cargar cargos
   useEffect(() => {
     fetch("http://localhost:5000/cargos")
       .then(res => res.json())
@@ -40,18 +42,23 @@ function Empleados() {
       .catch(() => setMensaje("Error al cargar cargos"));
   }, []);
 
+  // Cargar usuarios activos
+  useEffect(() => {
+    fetch("http://localhost:5000/usuarios/?activos=true")
+      .then(res => res.json())
+      .then(data => setUsuarios(data))
+      .catch(() => setMensaje("Error al cargar usuarios"));
+  }, []);
+
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
   function validarEmpleado(form) {
-    if (!form.tipoDocumento) return "Debe seleccionar el tipo de documento.";
-    if (!form.numeroDoc || !/^\d{7,8}$/.test(form.numeroDoc)) return "Número de documento inválido.";
     if (!form.nombre || form.nombre.trim().length < 2) return "El nombre es obligatorio y debe tener al menos 2 caracteres.";
     if (!form.apellido || form.apellido.trim().length < 2) return "El apellido es obligatorio y debe tener al menos 2 caracteres.";
-    if (!form.telefono || form.telefono.trim().length < 6) return "El teléfono es obligatorio y debe tener al menos 6 caracteres.";
-    if (!form.email || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.email)) return "El email no es válido.";
-    if (!form.cargo || form.cargo.trim().length < 2) return "El cargo es obligatorio.";
+    if (!form.idCargo) return "Debe seleccionar un cargo.";
+    if (!form.idUsuario) return "Debe seleccionar un usuario.";
     if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
     return null;
   }
@@ -72,8 +79,9 @@ function Empleados() {
       .then(() => {
         setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
         setMostrarFormulario(false);
+        setFormMode("");
         setMensaje("Empleado agregado correctamente.");
-        fetch("http://localhost:5000/empleados")
+        fetch(`http://localhost:5000/empleados?activos=${!mostrarInactivos}`)
           .then(res => res.json())
           .then(data => setEmpleados(data))
           .catch(() => setMensaje("Error al cargar empleados"));
@@ -81,9 +89,10 @@ function Empleados() {
   }
 
   function handleDelete(idEmpleado) {
+    if (!window.confirm("¿Seguro que desea eliminar este empleado?")) return;
     fetch(`http://localhost:5000/empleados/${idEmpleado}`, { method: "DELETE" })
       .then(() => {
-        fetch("http://localhost:5000/empleados")
+        fetch(`http://localhost:5000/empleados?activos=${!mostrarInactivos}`)
           .then(res => res.json())
           .then(data => setEmpleados(data))
           .catch(() => setMensaje("Error al cargar empleados"));
@@ -93,6 +102,31 @@ function Empleados() {
   function handleEdit(empleado) {
     setEditId(empleado.idEmpleado);
     setForm(empleado);
+    setFormMode("modificar");
+    setMostrarFormulario(true);
+  }
+
+  function handleConsultar(empleado) {
+    setEditId(empleado.idEmpleado);
+    setForm(empleado);
+    setFormMode("consultar");
+    setMostrarFormulario(true);
+  }
+
+  function handleAgregar() {
+    setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
+    setEditId(null);
+    setFormMode("agregar");
+    setMostrarFormulario(true);
+    setMensaje("");
+  }
+
+  function handleCancelar() {
+    setMostrarFormulario(false);
+    setEditId(null);
+    setFormMode("");
+    setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
+    setMensaje("");
   }
 
   function handleUpdate(e) {
@@ -106,8 +140,10 @@ function Empleados() {
       .then(() => {
         setEditId(null);
         setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
+        setMostrarFormulario(false);
+        setFormMode("");
         setMensaje("Empleado modificado correctamente.");
-        fetch("http://localhost:5000/empleados")
+        fetch(`http://localhost:5000/empleados?activos=${!mostrarInactivos}`)
           .then(res => res.json())
           .then(data => setEmpleados(data))
           .catch(() => setMensaje("Error al cargar empleados"));
@@ -126,23 +162,23 @@ function Empleados() {
                 <button
                   className="btn"
                   style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
-                  onClick={() => setMostrarInactivos(!mostrarInactivos)}
+                  onClick={() => setMostrarInactivos(v => !v)}
                 >
                   {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                 </button>
                 <button
                   className="btn"
                   style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                  onClick={() => setMostrarFormulario(true)}
+                  onClick={handleAgregar}
                 >
                   <i className="bi bi-plus-lg"></i> Agregar
                 </button>
               </div>
             </div>
             <div className="card-body">
-              {/* Modal para agregar empleado */}
+              {/* Formulario arriba */}
               {mostrarFormulario && (
-                <form onSubmit={handleSubmit} className="form-container mb-3">
+                <form onSubmit={formMode === "modificar" ? handleUpdate : handleSubmit} className="form-container mb-3">
                   <div className="row g-4">
                     <div className="col-12 col-md-6">
                       <fieldset style={{ border: "none" }}>
@@ -151,11 +187,29 @@ function Empleados() {
                         </legend>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-person me-2"></i>Nombre</label>
-                          <input type="text" name="nombre" value={form.nombre} onChange={handleChange} required className="form-control" placeholder="Nombre" />
+                          <input
+                            type="text"
+                            name="nombre"
+                            value={form.nombre}
+                            onChange={handleChange}
+                            required
+                            className="form-control"
+                            placeholder="Nombre"
+                            readOnly={formMode === "consultar"}
+                          />
                         </div>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-person me-2"></i>Apellido</label>
-                          <input type="text" name="apellido" value={form.apellido} onChange={handleChange} required className="form-control" placeholder="Apellido" />
+                          <input
+                            type="text"
+                            name="apellido"
+                            value={form.apellido}
+                            onChange={handleChange}
+                            required
+                            className="form-control"
+                            placeholder="Apellido"
+                            readOnly={formMode === "consultar"}
+                          />
                         </div>
                       </fieldset>
                     </div>
@@ -166,7 +220,14 @@ function Empleados() {
                         </legend>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-briefcase me-2"></i>Cargo</label>
-                          <select name="idCargo" value={form.idCargo} onChange={handleChange} className="form-select" required>
+                          <select
+                            name="idCargo"
+                            value={form.idCargo}
+                            onChange={handleChange}
+                            className="form-select"
+                            required
+                            disabled={formMode === "consultar"}
+                          >
                             <option value="">Seleccione cargo</option>
                             {cargos.map(c => (
                               <option key={c.idCargo} value={c.idCargo}>{c.nombreCargo}</option>
@@ -175,14 +236,32 @@ function Empleados() {
                         </div>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-person-badge me-2"></i>ID Usuario</label>
-                          <input type="text" name="idUsuario" value={form.idUsuario} onChange={handleChange} required className="form-control" placeholder="Usuario" />
+                          <select
+                            name="idUsuario"
+                            value={form.idUsuario}
+                            onChange={handleChange}
+                            className="form-select"
+                            required
+                            disabled={formMode === "consultar"}
+                          >
+                            <option value="">Seleccione usuario</option>
+                            {usuarios.map(u => (
+                              <option key={u.idUsuario} value={u.idUsuario}>{u.nombreUsuario}</option>
+                            ))}
+                          </select>
                         </div>
                         <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
                           <i className="bi bi-check2-circle me-2"></i>Estado
                         </legend>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
-                          <select name="activo" value={form.activo} onChange={handleChange} className="form-select">
+                          <select
+                            name="activo"
+                            value={form.activo}
+                            onChange={handleChange}
+                            className="form-select"
+                            disabled={formMode === "consultar"}
+                          >
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
                           </select>
@@ -196,81 +275,16 @@ function Empleados() {
                     </div>
                   )}
                   <div className="d-flex justify-content-end gap-2 mt-3">
-                    <button type="submit" className="btn" style={{ background: colores.azul, color: colores.beige, fontWeight: 600, borderRadius: "8px" }}>
-                      <i className="bi bi-save me-1"></i>Guardar
-                    </button>
-                    <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }} onClick={() => setMostrarFormulario(false)}>
+                    {formMode !== "consultar" && (
+                      <button type="submit" className="btn" style={{ background: colores.azul, color: colores.beige, fontWeight: 600, borderRadius: "8px" }}>
+                        <i className="bi bi-save me-1"></i>{formMode === "modificar" ? "Actualizar" : "Agregar"}
+                      </button>
+                    )}
+                    <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }} onClick={handleCancelar}>
                       <i className="bi bi-x-circle me-1"></i>Cancelar
                     </button>
                   </div>
                 </form>
-              )}
-
-              {/* Modal para consultar/editar */}
-              {editId && (
-                <div className="modal fade show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-                  <div className="modal-dialog">
-                    <div className="modal-content" style={{ background: colores.beige, borderRadius: 16, border: `2px solid ${colores.azul}` }}>
-                      <div className="modal-header" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-                        <h5 className="modal-title">Modificar Empleado</h5>
-                        <button type="button" className="btn-close" onClick={() => { setEditId(null); setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 }); }}></button>
-                      </div>
-                      <div className="modal-body">
-                        <form onSubmit={handleUpdate}>
-                          <div className="row">
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="nombre" value={form.nombre} onChange={handleChange} className="form-control" placeholder="Nombre"
-                                disabled={editId === null}
-                              />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="apellido" value={form.apellido} onChange={handleChange} className="form-control" placeholder="Apellido"
-                                disabled={editId === null}
-                              />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <select
-                                name="idCargo"
-                                value={form.idCargo}
-                                onChange={handleChange}
-                                className="form-select"
-                                required
-                                disabled={editId === null}
-                              >
-                                <option value="">Seleccione cargo</option>
-                                {cargos.map(c => (
-                                  <option key={c.idCargo} value={c.idCargo}>{c.nombreCargo}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <input type="text" name="idUsuario" value={form.idUsuario} onChange={handleChange} className="form-control" placeholder="Usuario"
-                                disabled={editId === null}
-                              />
-                            </div>
-                            <div className="col-12 col-md-4 mb-2">
-                              <select name="activo" value={form.activo} onChange={handleChange} className="form-select"
-                                disabled={editId === null}
-                              >
-                                <option value={1}>Activo</option>
-                                <option value={0}>Inactivo</option>
-                              </select>
-                            </div>
-                          </div>
-                          {mensaje && (
-                            <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
-                              {mensaje}
-                            </div>
-                          )}
-                          <div className="d-flex justify-content-end">
-                            <button type="submit" className="btn" style={{ background: colores.verdeAgua, color: colores.azul }}>Guardar</button>
-                            <button type="button" className="btn ms-2" style={{ background: colores.dorado, color: colores.azul }} onClick={() => { setEditId(null); setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 }); }}>Cancelar</button>
-                          </div>
-                        </form>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               )}
 
               <div className="table-responsive">
@@ -281,7 +295,7 @@ function Empleados() {
                       <th>Nombre</th>
                       <th>Apellido</th>
                       <th>Cargo</th>
-                      <th>ID Usuario</th>
+                      <th>Usuario</th>
                       <th>Activo</th>
                       <th>Acciones</th>
                     </tr>
@@ -292,19 +306,21 @@ function Empleados() {
                         <td>{e.idEmpleado}</td>
                         <td>{e.nombre}</td>
                         <td>{e.apellido}</td>
-                        <td>
-                          {cargos.find(c => c.idCargo === e.idCargo)?.nombreCargo || e.idCargo}
-                        </td>
-                        <td>{e.idUsuario}</td>
+                        <td>{cargos.find(c => c.idCargo === e.idCargo)?.nombreCargo || e.idCargo}</td>
+                        <td>{usuarios.find(u => u.idUsuario === e.idUsuario)?.nombreUsuario || e.idUsuario}</td>
                         <td>{e.activo ? "Sí" : "No"}</td>
                         <td>
                           <button className="btn btn-sm me-1" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
+                            onClick={() => handleConsultar(e)}>
+                            <i className="bi bi-eye"></i> Consultar
+                          </button>
+                          <button className="btn btn-sm me-1" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
                             onClick={() => handleEdit(e)}>
-                            <span title="Modificar"><i className="bi bi-pencil-square"></i></span> Modificar
+                            <i className="bi bi-pencil-square"></i> Modificar
                           </button>
                           <button className="btn btn-sm" style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}
                             onClick={() => handleDelete(e.idEmpleado)}>
-                            <span title="Eliminar"><i className="bi bi-x-circle"></i></span> Eliminar
+                            <i className="bi bi-x-circle"></i> Eliminar
                           </button>
                         </td>
                       </tr>
@@ -312,7 +328,7 @@ function Empleados() {
                   </tbody>
                 </table>
                 {empleados.length === 0 && (
-                  <div className="text-center text-muted py-4">No hay empleados registrados.</div>
+                  <div className="text-center text-muted py-4">No hay empleados {mostrarInactivos ? "inactivos" : "activos"}.</div>
                 )}
               </div>
             </div>

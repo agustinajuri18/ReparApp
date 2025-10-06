@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 
+const API_URL = "http://localhost:5000";
 const colores = {
   azul: '#1f3345',
   dorado: '#c78f57',
@@ -13,16 +14,18 @@ export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [form, setForm] = useState({
     idUsuario: "",
+    nombreUsuario: "",
     password: "",
     activo: 1
   });
   const [editId, setEditId] = useState(null);
-  const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [formMode, setFormMode] = useState(""); // "consultar" | "modificar" | "agregar" | ""
   const [mensaje, setMensaje] = useState("");
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
 
   useEffect(() => {
-    fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
+    fetch(`${API_URL}/usuarios/?activos=${!mostrarInactivos}`)
       .then(res => res.json())
       .then(data => setUsuarios(data))
       .catch(() => setMensaje("Error al cargar usuarios"));
@@ -33,8 +36,9 @@ export default function Usuarios() {
   }
 
   function validarUsuario(form) {
-    if (!form.idUsuario || form.idUsuario.trim().length < 4) return "El usuario es obligatorio y debe tener al menos 4 caracteres.";
-    if (!form.password || form.password.trim().length < 6) return "La contraseña es obligatoria y debe tener al menos 6 caracteres.";
+    if (!form.idUsuario || String(form.idUsuario).trim().length < 1) return "El ID de usuario es obligatorio.";
+    if (!form.nombreUsuario || form.nombreUsuario.trim().length < 3) return "El nombre de usuario es obligatorio y debe tener al menos 3 caracteres.";
+    if (formMode !== "consultar" && (!form.password || form.password.trim().length < 6)) return "La contraseña es obligatoria y debe tener al menos 6 caracteres.";
     if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
     return null;
   }
@@ -46,15 +50,17 @@ export default function Usuarios() {
       setMensaje(error);
       return;
     }
-    fetch("/usuarios/", {
+    fetch(`${API_URL}/usuarios/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form)
     })
       .then(res => res.json())
       .then(() => {
-        setForm({ idUsuario: "", password: "", activo: 1 });
-        fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
+        setForm({ idUsuario: "", nombreUsuario: "", password: "", activo: 1 });
+        setMostrarFormulario(false);
+        setFormMode("");
+        fetch(`${API_URL}/usuarios/?activos=${!mostrarInactivos}`)
           .then(res => res.json())
           .then(data => setUsuarios(data));
         setMensaje("Usuario agregado correctamente.");
@@ -62,9 +68,10 @@ export default function Usuarios() {
   }
 
   function handleDelete(idUsuario) {
-    fetch(`/usuarios/${idUsuario}`, { method: "DELETE" })
+    if (!window.confirm("¿Seguro que desea eliminar este usuario?")) return;
+    fetch(`${API_URL}/usuarios/${idUsuario}`, { method: "DELETE" })
       .then(() => {
-        fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
+        fetch(`${API_URL}/usuarios/?activos=${!mostrarInactivos}`)
           .then(res => res.json())
           .then(data => setUsuarios(data));
         setMensaje("Usuario eliminado correctamente.");
@@ -73,12 +80,42 @@ export default function Usuarios() {
 
   function handleEdit(usuario) {
     setEditId(usuario.idUsuario);
-    setForm({ idUsuario: usuario.idUsuario, password: "", activo: usuario.activo });
+    setForm({ ...usuario, password: "" });
+    setFormMode("modificar");
+    setMostrarFormulario(true);
+  }
+
+  function handleConsultar(usuario) {
+    setEditId(usuario.idUsuario);
+    setForm({ ...usuario, password: "" });
+    setFormMode("consultar");
+    setMostrarFormulario(true);
+  }
+
+  function handleAgregar() {
+    setForm({ idUsuario: "", nombreUsuario: "", password: "", activo: 1 });
+    setEditId(null);
+    setFormMode("agregar");
+    setMostrarFormulario(true);
+    setMensaje("");
+  }
+
+  function handleCancelar() {
+    setMostrarFormulario(false);
+    setEditId(null);
+    setFormMode("");
+    setForm({ idUsuario: "", nombreUsuario: "", password: "", activo: 1 });
+    setMensaje("");
   }
 
   function handleUpdate(e) {
     e.preventDefault();
-    fetch(`/usuarios/${form.idUsuario}`, {
+    const error = validarUsuario(form);
+    if (error) {
+      setMensaje(error);
+      return;
+    }
+    fetch(`${API_URL}/usuarios/${form.idUsuario}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form)
@@ -86,8 +123,10 @@ export default function Usuarios() {
       .then(res => res.json())
       .then(() => {
         setEditId(null);
-        setForm({ idUsuario: "", password: "", activo: 1 });
-        fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
+        setForm({ idUsuario: "", nombreUsuario: "", password: "", activo: 1 });
+        setMostrarFormulario(false);
+        setFormMode("");
+        fetch(`${API_URL}/usuarios/?activos=${!mostrarInactivos}`)
           .then(res => res.json())
           .then(data => setUsuarios(data));
         setMensaje("Usuario modificado correctamente.");
@@ -106,19 +145,14 @@ export default function Usuarios() {
                 <button
                   className="btn"
                   style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
-                  onClick={() => setMostrarInactivos(!mostrarInactivos)}
+                  onClick={() => setMostrarInactivos(v => !v)}
                 >
                   {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                 </button>
                 <button
                   className="btn"
                   style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                  onClick={() => {
-                    setMostrarFormulario(true);
-                    setEditId(null);
-                    setForm({ idUsuario: "", password: "", activo: 1 });
-                    setMensaje("");
-                  }}
+                  onClick={handleAgregar}
                 >
                   <i className="bi bi-plus-lg"></i> Agregar usuario
                 </button>
@@ -126,7 +160,7 @@ export default function Usuarios() {
             </div>
             <div className="card-body">
               {mostrarFormulario && (
-                <form onSubmit={editId ? handleUpdate : handleSubmit} className="form-container mb-3">
+                <form onSubmit={formMode === "modificar" ? handleUpdate : handleSubmit} className="form-container mb-3">
                   <div className="row g-4">
                     <div className="col-12 col-md-6">
                       <fieldset style={{ border: "none" }}>
@@ -135,11 +169,41 @@ export default function Usuarios() {
                         </legend>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-person me-2"></i>ID Usuario</label>
-                          <input name="idUsuario" placeholder="ID Usuario" value={form.idUsuario} onChange={handleChange} className="form-control" required disabled={!!editId} />
+                          <input
+                            name="idUsuario"
+                            placeholder="ID Usuario"
+                            value={form.idUsuario}
+                            onChange={handleChange}
+                            className="form-control"
+                            required
+                            disabled={formMode === "modificar" || formMode === "consultar"}
+                            readOnly={formMode === "consultar"}
+                          />
+                        </div>
+                        <div className="mb-3">
+                          <label className="fw-semibold"><i className="bi bi-person me-2"></i>Nombre de usuario</label>
+                          <input
+                            name="nombreUsuario"
+                            placeholder="Nombre de usuario"
+                            value={form.nombreUsuario}
+                            onChange={handleChange}
+                            className="form-control"
+                            required
+                            readOnly={formMode === "consultar"}
+                          />
                         </div>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-key me-2"></i>Contraseña</label>
-                          <input name="password" type="password" placeholder="Contraseña" value={form.password} onChange={handleChange} className="form-control" required />
+                          <input
+                            name="password"
+                            type="password"
+                            placeholder="Contraseña"
+                            value={form.password}
+                            onChange={handleChange}
+                            className="form-control"
+                            required={formMode !== "consultar"}
+                            readOnly={formMode === "consultar"}
+                          />
                         </div>
                       </fieldset>
                     </div>
@@ -150,7 +214,13 @@ export default function Usuarios() {
                         </legend>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
-                          <select name="activo" value={form.activo} onChange={handleChange} className="form-select">
+                          <select
+                            name="activo"
+                            value={form.activo}
+                            onChange={handleChange}
+                            className="form-select"
+                            disabled={formMode === "consultar"}
+                          >
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
                           </select>
@@ -164,20 +234,24 @@ export default function Usuarios() {
                     </div>
                   )}
                   <div className="d-flex justify-content-end gap-2 mt-3">
-                    <button type="submit" className="btn" style={{ background: colores.azul, color: colores.beige, fontWeight: 600, borderRadius: "8px" }}>
-                      <i className="bi bi-save me-1"></i>{editId ? "Actualizar" : "Agregar"}
-                    </button>
-                    <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }} onClick={() => { setMostrarFormulario(false); setEditId(null); setForm({ idUsuario: "", password: "", activo: 1 }); setMensaje(""); }}>
+                    {formMode !== "consultar" && (
+                      <button type="submit" className="btn" style={{ background: colores.azul, color: colores.beige, fontWeight: 600, borderRadius: "8px" }}>
+                        <i className="bi bi-save me-1"></i>{formMode === "modificar" ? "Actualizar" : "Agregar"}
+                      </button>
+                    )}
+                    <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }} onClick={handleCancelar}>
                       <i className="bi bi-x-circle me-1"></i>Cancelar
                     </button>
                   </div>
                 </form>
               )}
+
               <div className="table-responsive mt-4">
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
                       <th>ID Usuario</th>
+                      <th>Nombre de usuario</th>
                       <th>Activo</th>
                       <th>Acciones</th>
                     </tr>
@@ -186,15 +260,20 @@ export default function Usuarios() {
                     {usuarios.map(u => (
                       <tr key={u.idUsuario}>
                         <td>{u.idUsuario}</td>
+                        <td>{u.nombreUsuario}</td>
                         <td>{u.activo ? "Sí" : "No"}</td>
                         <td>
                           <button className="btn btn-sm me-1" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
+                            onClick={() => handleConsultar(u)}>
+                            <i className="bi bi-eye"></i> Consultar
+                          </button>
+                          <button className="btn btn-sm me-1" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
                             onClick={() => handleEdit(u)}>
-                            <span title="Editar"><i className="bi bi-pencil-square"></i></span> Editar
+                            <i className="bi bi-pencil-square"></i> Modificar
                           </button>
                           <button className="btn btn-sm" style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}
                             onClick={() => handleDelete(u.idUsuario)}>
-                            <span title="Eliminar"><i className="bi bi-x-circle"></i></span> Eliminar
+                            <i className="bi bi-x-circle"></i> Eliminar
                           </button>
                         </td>
                       </tr>
