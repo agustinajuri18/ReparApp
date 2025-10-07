@@ -37,6 +37,7 @@ def find_user_by_id(id_value):
 
 @app.route("/usuarios/", methods=["POST"])
 def registrar_usuario():
+    print("POST /usuarios/ llamado")
     data = request.get_json() or {}
     id_usuario = data.get("idUsuario")
     password = data.get("password")
@@ -76,20 +77,17 @@ def modificar_usuario_endpoint(id_usuario):
 
     data = request.get_json() or {}
     new_password = data.get("password")
-    activo = data.get("activo", getattr(u, "activo", 1))
+    activo = parse_activo(data.get("activo"))
 
-    if new_password is not None and not validar_password(new_password):
+    if new_password and not validar_password(new_password):
         return jsonify({"error": "password inválido (mínimo 6 caracteres)"}), 400
 
     try:
-        if new_password is not None:
-            hashed = generate_password_hash(new_password)
-            modificar_usuario(id_usuario, hashed)
-        else:
-            modificar_usuario(id_usuario, getattr(u, "password", getattr(u, "contraseña", None)))
+        modificar_usuario(id_usuario, nueva_contraseña=new_password, nuevo_activo=activo)
         return jsonify({"mensaje": "Usuario modificado exitosamente"}), 200
     except Exception as e:
         return jsonify({"error": "No se pudo modificar usuario", "detail": str(e)}), 500
+
 
 @app.route("/usuarios/<id_usuario>", methods=["GET"])
 def mostrar_usuario(id_usuario):
