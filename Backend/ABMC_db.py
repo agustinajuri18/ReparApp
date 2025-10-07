@@ -43,6 +43,21 @@ def mostrar_usuarios():
     session.close()
     return usuarios
 
+#Modifica el usuario y/o el estado (activo/inactivo)
+def modificar_usuario(idUsuario, nueva_contraseña=None, nuevo_activo=None):
+    session = SessionLocal()
+    usuario = session.query(Usuario).get(idUsuario)
+    if usuario:
+        # Actualiza contraseña solo si se pasó algo
+        if nueva_contraseña is not None:
+            usuario.contraseña = nueva_contraseña
+        # Actualiza activo solo si se pasó algo
+        if nuevo_activo is not None:
+            usuario.activo = nuevo_activo
+        session.commit()
+    session.close()
+
+
 # ----------- ABMC para Cliente -----------
 def alta_cliente(tipoDocumento, numeroDoc, nombre, apellido, telefono, mail):
     session = SessionLocal()
