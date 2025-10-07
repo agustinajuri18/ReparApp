@@ -10,10 +10,8 @@ function Proveedores() {
     cuil: "",
     razonSocial: "",
     telefono: "",
-    mail: "",
     activo: 1
   });
-  const [editId, setEditId] = useState(null);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
@@ -36,7 +34,6 @@ function Proveedores() {
     if (!form.cuil || !/^\d{11}$/.test(form.cuil)) return "El CUIL/CUIT debe tener 11 dígitos numéricos.";
     if (!form.razonSocial || form.razonSocial.trim().length < 2) return "La razón social es obligatoria y debe tener al menos 2 caracteres.";
     if (!form.telefono || String(form.telefono).trim().length < 10) return "El teléfono es obligatorio y debe tener al menos 10 caracteres.";
-    if (form.mail && !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.mail)) return "El email no es válido.";
     if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
     return null;
   }
@@ -56,7 +53,7 @@ function Proveedores() {
     })
       .then(res => res.json())
       .then(() => {
-        setForm({ cuil: "", razonSocial: "", telefono: "", mail: "", activo: 1 });
+        setForm({ cuil: "", razonSocial: "", telefono: "", activo: 1 });
         setMostrarFormulario(false);
         fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`)
           .then(res => res.json())
@@ -90,6 +87,7 @@ function Proveedores() {
   function handleModalClose() {
     setModalVisible(false);
     setProveedorActual(null);
+    setMensaje("");
   }
 
   function handleModalSave(e) {
@@ -115,24 +113,22 @@ function Proveedores() {
   }
 
   return (
-    <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
+    <div className="container-fluid main-background" style={{ minHeight: '100vh' }}>
       <div className="row flex-nowrap">
         <MenuLateral />
-        <main className="col-12 col-md-10 pt-4 px-2 px-md-4" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
-          <div className="card shadow-sm mb-4" style={{ border: `1.5px solid ${colores.azul}`, borderRadius: 16, background: colores.beige }}>
-            <div className="card-header d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-              <h4 className="mb-2 mb-md-0"><i className="bi bi-truck me-2"></i>Gestión de Proveedores</h4>
-              <div>
+        <main className="col-12 col-md-10 pt-4 px-2 px-md-4 d-flex flex-column" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
+          <div className="card shadow-sm mb-4" style={{ border: `1.5px solid ${colores.azul}`, borderRadius: 16, background: "var(--color-beige)" }}>
+            <div className="card-header d-flex justify-content-between align-items-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+              <h4 className="mb-0"><i className="bi bi-truck me-2"></i>Gestión de Proveedores</h4>
+              <div className="d-flex gap-2">
                 <button
-                  className="btn me-2"
-                  style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
+                  className="btn btn-dorado"
                   onClick={() => setMostrarInactivos(!mostrarInactivos)}
                 >
                   {mostrarInactivos ? 'Ver activos' : 'Ver inactivos'}
                 </button>
                 <button
-                  className="btn"
-                  style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
+                  className="btn btn-verdeAgua"
                   onClick={() => setMostrarFormulario(true)}
                 >
                   <i className="bi bi-plus-lg"></i> Agregar proveedor
@@ -143,12 +139,12 @@ function Proveedores() {
               {/* Formulario de alta estilizado */}
               {mostrarFormulario && (
                 <form onSubmit={handleSubmit} className="form-container mb-3">
-                  <div className="row g-4">
-                    <div className="col-12 col-md-6">
-                      <fieldset style={{ border: "none" }}>
-                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                          <i className="bi bi-person-badge me-2"></i>Datos personales
-                        </legend>
+                  <fieldset style={{ border: "none" }}>
+                    <legend>
+                      <i className="bi bi-person-badge me-2"></i>Datos del proveedor
+                    </legend>
+                    <div className="row g-4">
+                      <div className="col-12 col-md-6">
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-credit-card-2-front me-2"></i>CUIL/CUIT</label>
                           <input
@@ -173,13 +169,8 @@ function Proveedores() {
                             placeholder="Razón Social"
                           />
                         </div>
-                      </fieldset>
-                    </div>
-                    <div className="col-12 col-md-6">
-                      <fieldset style={{ border: "none" }}>
-                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                          <i className="bi bi-telephone me-2"></i>Datos de contacto
-                        </legend>
+                      </div>
+                      <div className="col-12 col-md-6">
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-telephone me-2"></i>Teléfono</label>
                           <input
@@ -193,66 +184,48 @@ function Proveedores() {
                           />
                         </div>
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-envelope me-2"></i>Email</label>
-                          <input
-                            type="email"
-                            name="mail"
-                            value={form.mail || ""}
-                            onChange={handleChange}
-                            className="form-control"
-                            placeholder="Email"
-                          />
-                        </div>
-                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                          <i className="bi bi-check2-circle me-2"></i>Estado
-                        </legend>
-                        <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
                           <select name="activo" value={form.activo} onChange={handleChange} className="form-control">
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
                           </select>
                         </div>
-                      </fieldset>
+                      </div>
                     </div>
-                  </div>
+                  </fieldset>
                   {mensaje && (
-                    <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
-                      {mensaje}
-                    </div>
+                    <div className="alert alert-danger">{mensaje}</div>
                   )}
-                  <div className="row mt-3">
-                    <div className="col-12 d-flex flex-column flex-md-row justify-content-end gap-2">
-                      <button type="submit" className="btn" style={{ background: colores.azul, color: colores.beige, fontWeight: 600, borderRadius: "8px" }}>
-                        <i className="bi bi-save me-1"></i>Guardar
-                      </button>
-                      <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }} onClick={() => setMostrarFormulario(false)}>
-                        <i className="bi bi-x-circle me-1"></i>Cancelar
-                      </button>
-                    </div>
+                  <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
+                    <button type="submit" className="btn btn-azul fw-bold">
+                      <i className="bi bi-save me-1"></i>Guardar
+                    </button>
+                    <button type="button" className="btn btn-dorado fw-bold" onClick={() => setMostrarFormulario(false)}>
+                      <i className="bi bi-x-circle me-1"></i>Cancelar
+                    </button>
                   </div>
                 </form>
               )}
               {/* Modal para consultar o modificar proveedor */}
               {modalVisible && proveedorActual && (
-                <div className="modal fade show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-                  <div className="modal-dialog">
-                    <div className="modal-content" style={{ background: colores.beige, borderRadius: 16, border: `2px solid ${colores.azul}` }}>
-                      <div className="modal-header" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+                <div className="modal" style={{ display: "block" }}>
+                  <div className="modal-dialog" style={{ maxWidth: "100vw" }}>
+                    <div className="modal-content" style={{ width: "100vw", maxWidth: "100vw" }}>
+                      <div className="modal-header">
                         <h5 className="modal-title">
                           {modalModo === 'consultar' ? 'Datos del Proveedor' : 'Modificar Proveedor'}
                         </h5>
                         <button type="button" className="btn-close" onClick={handleModalClose}></button>
                       </div>
-                      <div className="modal-body">
+                      <div className="modal-body" style={{ padding: 0 }}>
                         {modalModo === 'consultar' ? (
                           <div className="form-container" style={{ boxShadow: "none", padding: "1rem", background: colores.beige }}>
-                            <div className="row g-4">
-                              <div className="col-12 col-md-6">
-                                <fieldset style={{ border: "none" }}>
-                                  <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                                    <i className="bi bi-person-badge me-2"></i>Datos personales
-                                  </legend>
+                            <fieldset style={{ border: "none" }}>
+                              <legend>
+                                <i className="bi bi-person-badge me-2"></i>Datos del proveedor
+                              </legend>
+                              <div className="row g-4">
+                                <div className="col-12 col-md-6">
                                   <div className="mb-3">
                                     <i className="bi bi-credit-card-2-front me-2"></i>
                                     <b>CUIL/CUIT:</b> {proveedorActual.cuil}
@@ -261,40 +234,28 @@ function Proveedores() {
                                     <i className="bi bi-building me-2"></i>
                                     <b>Razón Social:</b> {proveedorActual.razonSocial}
                                   </div>
-                                </fieldset>
-                              </div>
-                              <div className="col-12 col-md-6">
-                                <fieldset style={{ border: "none" }}>
-                                  <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                                    <i className="bi bi-telephone me-2"></i>Datos de contacto
-                                  </legend>
+                                </div>
+                                <div className="col-12 col-md-6">
                                   <div className="mb-3">
                                     <i className="bi bi-telephone me-2"></i>
                                     <b>Teléfono:</b> {proveedorActual.telefono}
                                   </div>
                                   <div className="mb-3">
-                                    <i className="bi bi-envelope me-2"></i>
-                                    <b>Email:</b> {proveedorActual.mail}
-                                  </div>
-                                  <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                                    <i className="bi bi-check2-circle me-2"></i>Estado
-                                  </legend>
-                                  <div className="mb-3">
                                     <i className="bi bi-check2-circle me-2"></i>
                                     <b>Estado:</b> {Number(proveedorActual.activo) === 1 ? "Activo" : "Inactivo"}
                                   </div>
-                                </fieldset>
+                                </div>
                               </div>
-                            </div>
+                            </fieldset>
                           </div>
                         ) : (
                           <form onSubmit={handleModalSave} className="form-container" style={{ boxShadow: "none", padding: "1rem", background: colores.beige }}>
-                            <div className="row g-4">
-                              <div className="col-12 col-md-6">
-                                <fieldset style={{ border: "none" }}>
-                                  <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                                    <i className="bi bi-person-badge me-2"></i>Datos personales
-                                  </legend>
+                            <fieldset style={{ border: "none" }}>
+                              <legend>
+                                <i className="bi bi-person-badge me-2"></i>Datos del proveedor
+                              </legend>
+                              <div className="row g-4">
+                                <div className="col-12 col-md-6">
                                   <div className="mb-3">
                                     <label className="fw-semibold"><i className="bi bi-credit-card-2-front me-2"></i>CUIL/CUIT</label>
                                     <input
@@ -315,13 +276,8 @@ function Proveedores() {
                                       required
                                     />
                                   </div>
-                                </fieldset>
-                              </div>
-                              <div className="col-12 col-md-6">
-                                <fieldset style={{ border: "none" }}>
-                                  <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                                    <i className="bi bi-telephone me-2"></i>Datos de contacto
-                                  </legend>
+                                </div>
+                                <div className="col-12 col-md-6">
                                   <div className="mb-3">
                                     <label className="fw-semibold"><i className="bi bi-telephone me-2"></i>Teléfono</label>
                                     <input
@@ -332,18 +288,6 @@ function Proveedores() {
                                       required
                                     />
                                   </div>
-                                  <div className="mb-3">
-                                    <label className="fw-semibold"><i className="bi bi-envelope me-2"></i>Email</label>
-                                    <input
-                                      type="email"
-                                      className="form-control"
-                                      value={proveedorActual.mail || ""}
-                                      onChange={e => setProveedorActual({ ...proveedorActual, mail: e.target.value })}
-                                    />
-                                  </div>
-                                  <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                                    <i className="bi bi-check2-circle me-2"></i>Estado
-                                  </legend>
                                   <div className="mb-3">
                                     <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
                                     <select
@@ -358,23 +302,19 @@ function Proveedores() {
                                       <option value={0}>Inactivo</option>
                                     </select>
                                   </div>
-                                </fieldset>
+                                </div>
                               </div>
-                            </div>
-                            <div className="row mt-3">
-                              <div className="col-12 d-flex flex-column flex-md-row justify-content-end gap-2">
-                                <button type="submit" className="btn" style={{ background: colores.azul, color: colores.beige, fontWeight: 600, borderRadius: "8px" }}>
-                                  <i className="bi bi-save me-1"></i>Guardar
-                                </button>
-                                <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }} onClick={handleModalClose}>
-                                  <i className="bi bi-x-circle me-1"></i>Cancelar
-                                </button>
-                              </div>
+                            </fieldset>
+                            <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
+                              <button type="submit" className="btn btn-azul fw-bold">
+                                <i className="bi bi-save me-1"></i>Guardar
+                              </button>
+                              <button type="button" className="btn btn-dorado fw-bold" onClick={handleModalClose}>
+                                <i className="bi bi-x-circle me-1"></i>Cancelar
+                              </button>
                             </div>
                             {mensaje && (
-                              <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
-                                {mensaje}
-                              </div>
+                              <div className="alert alert-danger">{mensaje}</div>
                             )}
                           </form>
                         )}
@@ -390,7 +330,6 @@ function Proveedores() {
                       <th>CUIL/CUIT</th>
                       <th>Razón Social</th>
                       <th>Teléfono</th>
-                      <th>Email</th>
                       <th>Activo</th>
                       <th>Acciones</th>
                     </tr>
@@ -401,30 +340,26 @@ function Proveedores() {
                         <td>{prov.cuil}</td>
                         <td>{prov.razonSocial}</td>
                         <td>{prov.telefono}</td>
-                        <td>{prov.mail}</td>
                         <td>{prov.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
                           <button
-                            className="btn btn-sm me-1"
-                            style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
+                            className="btn btn-sm btn-verdeAgua fw-bold me-1"
                             onClick={() => handleConsultar(prov.cuil)}
                           >
-                            <span title="Consultar"><i className="bi bi-eye"></i></span> Consultar
+                            <i className="bi bi-search me-1"></i>Consultar
                           </button>
                           <button
-                            className="btn btn-sm me-1"
-                            style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
+                            className="btn btn-sm btn-dorado fw-bold me-1"
                             onClick={() => handleModificar(prov.cuil)}
                           >
-                            <span title="Modificar"><i className="bi bi-pencil-square"></i></span> Modificar
+                            <i className="bi bi-pencil-square me-1"></i>Modificar
                           </button>
                           {prov.activo === 1 && (
                             <button
-                              className="btn btn-sm"
-                              style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}
+                              className="btn btn-sm btn-rojo fw-bold"
                               onClick={() => handleDelete(prov.cuil)}
                             >
-                              <span title="Eliminar"><i className="bi bi-x-circle"></i></span> Eliminar
+                              <i className="bi bi-trash me-1"></i>Eliminar
                             </button>
                           )}
                         </td>
@@ -432,6 +367,9 @@ function Proveedores() {
                     ))}
                   </tbody>
                 </table>
+                {proveedores.length === 0 && (
+                  <div className="text-center text-muted py-4">No hay proveedores registrados.</div>
+                )}
               </div>
             </div>
           </div>

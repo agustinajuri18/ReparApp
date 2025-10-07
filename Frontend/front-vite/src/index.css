@@ -1,3 +1,14 @@
+/* Paleta base */
+:root {
+  --color-azul: #1f3345;
+  --color-dorado: #c78f57;
+  --color-rojo: #b54745;
+  --color-verdeAgua: #85abab;
+  --color-beige: #f0ede5;
+  --color-mentaSuave: #c6e8e8;
+}
+
+/* Fondo con logo translúcido */
 .logo-background {
   position: fixed;
   top: 0;
@@ -15,7 +26,7 @@
   position: relative;
   min-height: 100vh;
   z-index: 0;
-  background: none; /* Quitamos el fondo directo */
+  background: none;
 }
 
 .main-background::before {
@@ -24,132 +35,390 @@
   inset: 0;
   background: url('./assets/logo.png') center center no-repeat;
   background-size: 40vw;
-  opacity: 0.07; /* Solo el logo es translúcido */
+  opacity: 0.07;
   pointer-events: none;
   z-index: 0;
 }
 
+/* --- FORMULARIOS Y MODALES BONITOS --- */
+/* Formularios de ancho completo */
 .form-container {
-  background: #f0ede5 !important; /* beige */
-  border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-  padding: 2rem;
-  max-width: 420px;
-  margin: 2rem auto;
-}
-.form-group {
-  margin-bottom: 1rem;
-}
-.form-container input,
-.form-container select {
-  width: 100%;
-  padding: 0.5rem;
-  border-radius: 8px;
-  border: 1px solid #cfd8dc;
-}
-.form-container button {
-  background: #2e3a59;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.75rem 1.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  margin-top: 1rem;
-}
-
-.prov-modal-content {
-  background: #f0ede5 !important; /* beige */
-  border-radius: 20px;
-  border: 2px solid #85abab;
-  box-shadow: 0 4px 24px 0 #1f334522;
+  background: #fff;
+  border-radius: 12px;
+  border: 1.5px solid #cfd8dc;
+  box-shadow: 0 2px 8px rgba(31,51,69,0.06);
   padding: 2rem 1.5rem;
-  max-width: 480px;
-  margin: 2rem auto;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto 2rem auto;
+  min-width: 0;
+  position: relative;
 }
 
-.prov-modal-header {
-  background: #1f3345;
-  color: #f0ede5;
-  border-top-left-radius: 20px;
-  border-top-right-radius: 20px;
-  padding: 1rem 1.5rem;
-  font-weight: 700;
-  letter-spacing: 1px;
+.form-group {
+  margin-bottom: 1.2rem;
 }
 
-.prov-modal-title {
-  margin: 0;
-  font-size: 1.3rem;
-  letter-spacing: 1px;
-}
-
-.prov-form-section {
-  border: none;
-  margin-bottom: 1.5rem;
-  padding: 0;
-}
-
-.prov-form-legend {
-  font-weight: 700;
-  color: #1f3345;
-  margin-bottom: 0.5rem;
-  font-size: 1.1rem;
-  letter-spacing: 0.5px;
-}
-
-.prov-form-group {
-  margin-bottom: 1rem;
-}
-
-.prov-form-label {
-  color: #1f3345;
+.form-container label {
+  color: var(--color-azul);
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.4rem;
+  font-size: 1.05rem;
   display: block;
 }
 
-.prov-form-input,
-.prov-form-select {
-  width: 100%;
-  padding: 0.5rem;
-  border-radius: 8px;
-  border: 1px solid #cfd8dc;
-  margin-bottom: 0.25rem;
+.form-container legend {
+  color: var(--color-azul);
+  font-weight: 700;
+  font-size: 1.15rem;
+  margin-bottom: 1.2rem;
+  border-bottom: 1.5px solid var(--color-verdeAgua);
+  padding-bottom: 0.3rem;
+  background: none;
 }
 
-.prov-form-actions {
+.form-container input,
+.form-container select,
+.form-container textarea {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border-radius: 7px;
+  border: 1.5px solid #cfd8dc;
+  background: #f8f9fa;
+  color: var(--color-azul);
+  margin-bottom: 1.1rem;
+  font-size: 1.05rem;
+  transition: border-color 0.2s;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: pre-line;
+  overflow-x: auto;
+}
+
+.form-container input:focus,
+.form-container select:focus,
+.form-container textarea:focus {
+  border-color: var(--color-verdeAgua);
+  outline: none;
+}
+
+button,
+.btn,
+.form-container button,
+.form-container .btn {
+  font-weight: 700 !important;
+}
+
+.form-container button,
+.form-container .btn {
+  border: none;
+  border-radius: 7px;
+  padding: 0.7rem 1.5rem;
+  margin-top: 1rem;
+  margin-right: 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700 !important;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.form-container button:hover,
+.form-container .btn:hover {
+  box-shadow: 0 6px 24px rgba(31,51,69,0.22);
+  transform: translateY(-2px) scale(1.03);
+}
+
+/* Botón azul (principal, guardar cambios, confirmar) */
+.btn-azul {
+  background: var(--color-azul) !important;
+  color: var(--color-beige) !important;
+}
+.btn-azul:hover {
+  background: var(--color-dorado) !important;
+  color: var(--color-azul) !important;
+}
+
+/* Botón dorado (secundario, cancelar, alternativo) */
+.btn-dorado {
+  background: var(--color-dorado) !important;
+  color: var(--color-azul) !important;
+}
+.btn-dorado:hover {
+  background: var(--color-azul) !important;
+  color: var(--color-dorado) !important;
+}
+
+/* Botón rojo (eliminar, peligro) */
+.btn-rojo {
+  background: var(--color-rojo) !important;
+  color: var(--color-beige) !important;
+}
+.btn-rojo:hover {
+  background: #922f2f !important;
+  color: var(--color-beige) !important;
+}
+
+/* Botón verde agua (agregar, acción positiva, consultar) */
+.btn-verdeAgua {
+  background: var(--color-verdeAgua) !important;
+  color: var(--color-azul) !important;
+}
+.btn-verdeAgua:hover {
+  background: var(--color-azul) !important;
+  color: var(--color-verdeAgua) !important;
+}
+
+/* Botón gris para cerrar o neutro */
+.btn-gris {
+  background: #e0e0e0 !important;
+  color: var(--color-azul) !important;
+}
+.btn-gris:hover {
+  background: var(--color-azul) !important;
+  color: #e0e0e0 !important;
+}
+
+/* Alertas bonitas y notorias */
+.form-container .alert,
+.prov-modal-content .alert,
+.modal-content .alert {
+  background: linear-gradient(90deg, var(--color-rojo) 80%, #fff0 100%);
+  color: var(--color-beige);
+  border-radius: 7px;
+  padding: 0.7rem 1.2rem;
+  margin-bottom: 1.2rem;
+  font-weight: 600;
+  border: none;
+  font-size: 1.01rem;
+}
+
+/* Tablas responsivas y uniformes */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  background: var(--color-beige);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.table th, .table td {
+  vertical-align: middle !important;
+  font-size: 1rem;
+  color: var(--color-azul);
+}
+
+/* Cabeceras de tabla blancas */
+.table th {
+  background: #fff !important;
+  font-weight: 700;
+  color: var(--color-azul);
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) {
+  background: #f8f9fa;
+}
+
+.table-hover > tbody > tr:hover {
+  background: var(--color-verdeAgua) !important;
+  color: var(--color-azul);
+}
+
+/* Botones de acción en tablas */
+.table .btn {
+  font-size: 0.95rem;
+  padding: 0.3rem 0.8rem;
+  margin-right: 0.2rem;
+  border-radius: 8px;
+}
+
+/* Modal general */
+.modal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0008;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  z-index: 9999;
+}
+
+.modal-dialog {
+  margin: 2rem auto;
+  max-width: 98vw;
+  width: 100%;
+}
+
+.modal-content {
+  background: var(--color-beige);
+  border-radius: 22px;
+  box-shadow: 0 6px 32px rgba(31,51,69,0.13);
+  padding: 2.2rem 2rem;
+  border: 2px solid var(--color-verdeAgua);
+}
+
+.modal-header {
+  background: var(--color-azul);
+  color: var(--color-beige);
+  border-top-left-radius: 22px;
+  border-top-right-radius: 22px;
+  padding: 1rem 1.5rem;
+}
+
+.modal-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: transparent;
+  border-bottom-left-radius: 22px;
+  border-bottom-right-radius: 22px;
 }
 
-.prov-btn {
-  background: #85abab;
-  color: #1f3345;
-  font-weight: 700;
-  border: none;
+/* Ajuste: las tablas no se salen del recuadro del formulario */
+.form-container .table-responsive {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  margin-bottom: 0;
   border-radius: 8px;
-  padding: 0.75rem 1.5rem;
-  min-width: 110px;
-  cursor: pointer;
-  transition: background 0.2s;
 }
 
-.prov-btn-cancel {
-  background: #c78f57;
-  color: #1f3345;
+.form-container .table {
+  margin-bottom: 0;
+  background: var(--color-beige);
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
+  table-layout: auto;
+  box-sizing: border-box;
 }
 
-.prov-btn-save {
-  background: #85abab;
-  color: #1f3345;
+/* Opcional: para que la tabla no desborde en pantallas pequeñas */
+@media (max-width: 900px) {
+  .form-container {
+    max-width: 99vw;
+    padding: 1.2rem 0.5rem;
+  }
+  .form-container .table-responsive {
+    max-width: 100vw;
+  }
+  .form-container .table {
+    font-size: 0.97rem;
+  }
 }
 
-.prov-btn-save:hover {
-  background: #6e9696;
+@media (max-width: 600px) {
+  .form-container {
+    padding: 1rem 0.3rem;
+    font-size: 0.99rem;
+    max-width: 99vw;
+  }
+  .form-container .table-responsive {
+    max-width: 100vw;
+  }
+  .form-container .table th,
+  .form-container .table td {
+    font-size: 0.93rem;
+    padding: 0.5rem 0.3rem;
+    word-break: break-word;
+  }
 }
 
-.prov-btn-cancel:hover {
-  background: #b57a3c;
+/* Responsive aún más amigable */
+@media (max-width: 900px) {
+  .form-container,
+  .modal-content {
+    width: 100vw;
+    max-width: 100vw;
+    padding: 1.2rem 0.5rem;
+  }
+  .modal-dialog {
+    max-width: 99vw;
+  }
+}
+
+@media (max-width: 600px) {
+  .form-container {
+    width: 100vw;
+    max-width: 100vw;
+    padding: 1rem 0.3rem;
+    font-size: 0.99rem;
+  }
+  .form-container legend {
+    font-size: 1.03rem;
+  }
+  .modal-header, .modal-footer {
+    padding: 0.7rem 0.2rem;
+  }
+  .table th, .table td {
+    font-size: 0.95rem;
+    padding: 0.5rem 0.3rem;
+  }
+}
+
+/* FORMULARIO DENTRO DEL MODAL: OCUPA TODO EL ANCHO */
+.modal-content .form-container {
+  max-width: 100%;
+  width: 100%;
+  margin: 0;
+  border-radius: 0 0 12px 12px;
+  border-top: none;
+  box-shadow: none;
+  padding: 2rem 2vw 2rem 2vw;
+}
+
+/* BOTÓN DE CERRAR ROJO, CUADRADO, MODERNO */
+.btn-cerrar-rojo {
+  position: absolute;
+  top: 18px;
+  right: 24px;
+  background: #fff !important;
+  color: var(--color-rojo) !important;
+  border: 2px solid var(--color-rojo) !important;
+  border-radius: 8px !important;
+  font-weight: 900 !important;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0 !important;
+  font-size: 1.3rem !important;
+  line-height: 2.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  box-shadow: 0 2px 8px rgba(181,71,69,0.10);
+  z-index: 10;
+}
+.btn-cerrar-rojo::after {
+  content: "✖";
+  font-size: 1.3em;
+  color: var(--color-rojo);
+  font-weight: 900;
+  display: block;
+  line-height: 1;
+}
+.btn-cerrar-rojo:hover {
+  background: var(--color-rojo) !important;
+  color: var(--color-beige) !important;
+  border-color: var(--color-rojo) !important;
+  box-shadow: 0 4px 16px rgba(181,71,69,0.18);
+}
+.btn-cerrar-rojo:hover::after {
+  color: var(--color-beige);
+}
+
+/* MODAL HEADER PARA POSICIONAR EL BOTÓN */
+.modal-header {
+  position: relative;
+  padding-right: 3.5rem;
 }

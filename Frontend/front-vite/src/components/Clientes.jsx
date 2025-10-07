@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 
-const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5' };
 const API_URL = "http://localhost:5000/clientes/";
 
 export default function Clientes() {
@@ -9,6 +8,7 @@ export default function Clientes() {
   const [tiposDocumento, setTiposDocumento] = useState([]);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [formMode, setFormMode] = useState("alta"); // "alta" | "modificar"
   const [mensaje, setMensaje] = useState("");
   const [form, setForm] = useState({
     tipoDocumento: "",
@@ -48,9 +48,48 @@ export default function Clientes() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  // Mostrar modal para alta o modificación
   const handleAgregarClick = () => {
-    setMostrarFormulario(!mostrarFormulario);
+    setFormMode("alta");
+    setClienteActual(null);
+    setModalModo("alta");
+    setModalVisible(true);
     setMensaje("");
+    setForm({
+      tipoDocumento: "",
+      numeroDoc: "",
+      nombre: "",
+      apellido: "",
+      telefono: "",
+      email: "",
+      activo: 1,
+    });
+  };
+
+  const handleModificar = (cliente) => {
+    setFormMode("modificar");
+    setClienteActual({
+      ...cliente,
+      tipoDocumento: cliente.tipoDocumento || "",
+      numeroDoc: cliente.numeroDoc || "",
+      nombre: cliente.nombre || "",
+      apellido: cliente.apellido || "",
+      telefono: cliente.telefono || "",
+      email: cliente.email || "",
+      activo: cliente.activo ?? 1,
+    });
+    setModalModo("modificar");
+    setModalVisible(true);
+    setMensaje("");
+    setForm({
+      tipoDocumento: cliente.tipoDocumento || "",
+      numeroDoc: cliente.numeroDoc || "",
+      nombre: cliente.nombre || "",
+      apellido: cliente.apellido || "",
+      telefono: cliente.telefono || "",
+      email: cliente.email || "",
+      activo: cliente.activo ?? 1,
+    });
   };
 
   function validarDocumento(tipo, numero) {
@@ -84,8 +123,36 @@ export default function Clientes() {
       body: JSON.stringify(form),
     });
     const resultado = await res.json();
-    setMensaje(resultado.mensaje || resultado.detail);
-    setMostrarFormulario(false);
+    setMensaje(resultado.mensaje || resultado.detail || resultado.error || "");
+    setModalVisible(false); // Cierra el modal al crear
+    setForm({
+      tipoDocumento: "",
+      numeroDoc: "",
+      nombre: "",
+      apellido: "",
+      telefono: "",
+      email: "",
+      activo: 1,
+    });
+    fetchClientes();
+  };
+
+  // Guardar modificación
+  const handleUpdate = async e => {
+    e.preventDefault();
+    const error = validarCliente(form);
+    if (error) {
+      setMensaje(error);
+      return;
+    }
+    const { tipoDocumento, numeroDoc } = form;
+    await fetch(`${API_URL}${tipoDocumento}/${numeroDoc}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    setModalVisible(false); // Cierra el modal al modificar
+    setMensaje("");
     setForm({
       tipoDocumento: "",
       numeroDoc: "",
@@ -112,32 +179,10 @@ export default function Clientes() {
     });
     setModalModo('consultar');
     setModalVisible(true);
+    setMensaje("");
   };
 
-  // Modificar cliente
-  const handleModificar = (cliente) => {
-    setClienteActual({
-      ...cliente,
-      tipoDocumento: cliente.tipoDocumento || "",
-      numeroDoc: cliente.numeroDoc || "",
-      nombre: cliente.nombre || "",
-      apellido: cliente.apellido || "",
-      telefono: cliente.telefono || "",
-      email: cliente.email || "",
-      activo: cliente.activo ?? 1,
-    });
-    setModalModo('modificar');
-    setModalVisible(true);
-  };
-
-  // Eliminar cliente
-  const handleEliminar = async (idCliente) => {
-    const [tipoDocumento, numeroDoc] = idCliente.split("-");
-    await fetch(`${API_URL}${tipoDocumento}/${numeroDoc}`, { method: "DELETE" });
-    fetchClientes();
-  };
-
-  // Guardar modificación
+  // Modal: guardar modificación
   const handleGuardarModificacion = async () => {
     const error = validarCliente(clienteActual);
     if (error) {
@@ -155,33 +200,48 @@ export default function Clientes() {
       body: JSON.stringify(clienteActual),
     });
     setModalVisible(false);
+    setMensaje("");
     fetchClientes();
   };
 
-  // Actualiza campos del cliente en edición
+  // Modal: actualizar campos
   const handleModalChange = e => {
     setClienteActual({ ...clienteActual, [e.target.name]: e.target.value });
   };
 
+  // Cancelar formulario
+  const handleCancelar = () => {
+    setMostrarFormulario(false);
+    setMensaje("");
+    setForm({
+      tipoDocumento: "",
+      numeroDoc: "",
+      nombre: "",
+      apellido: "",
+      telefono: "",
+      email: "",
+      activo: 1,
+    });
+    setFormMode("alta");
+  };
+
   return (
-    <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
+    <div className="container-fluid main-background" style={{ minHeight: '100vh' }}>
       <div className="row flex-nowrap">
         <MenuLateral />
-        <main className="col-12 col-md-10 pt-4 px-2 px-md-4 d-flex flex-column" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
-          <div className="card shadow-sm mb-4" style={{ border: `1.5px solid ${colores.azul}`, borderRadius: 16, background: colores.beige }}>
-            <div className="card-header d-flex justify-content-between align-items-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+        <main className="col-12 col-md-10 pt-4 px-2 px-md-4 d-flex flex-column" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 #1f334522`, minHeight: '90vh' }}>
+          <div className="card shadow-sm mb-4" style={{ border: `1.5px solid #1f3345`, borderRadius: 16, background: "var(--color-beige)" }}>
+            <div className="card-header d-flex justify-content-between align-items-center" style={{ background: "#1f3345", color: "#f0ede5", borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
               <h4 className="mb-0"><i className="bi bi-person-badge me-2"></i>Gestión de Clientes</h4>
               <div className="d-flex gap-2">
                 <button
-                  className="btn"
-                  style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
+                  className="btn btn-dorado"
                   onClick={() => setMostrarInactivos(!mostrarInactivos)}
                 >
                   {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                 </button>
                 <button
-                  className="btn"
-                  style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
+                  className="btn btn-verdeAgua"
                   onClick={handleAgregarClick}
                 >
                   <i className="bi bi-plus-lg"></i> Agregar cliente
@@ -189,127 +249,11 @@ export default function Clientes() {
               </div>
             </div>
             <div className="card-body">
-              {mostrarFormulario && (
-                <form onSubmit={handleSubmit} className="form-container mb-3">
-                  <div className="row g-4">
-                    <div className="col-12 col-md-6">
-                      <fieldset style={{ border: "none" }}>
-                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                          <i className="bi bi-person-vcard me-2"></i>Datos personales
-                        </legend>
-                        <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-card-list me-2"></i>Tipo de documento</label>
-                          <select
-                            name="tipoDocumento"
-                            value={form.tipoDocumento || ""}
-                            onChange={handleChange}
-                            className="form-control"
-                            required
-                          >
-                            <option value="">Seleccione tipo de documento</option>
-                            {tiposDocumento.map(td => (
-                              <option key={td.codigo || td.codTipoDoc} value={td.codigo || td.codTipoDoc}>{td.nombre}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-hash me-2"></i>Número de documento</label>
-                          <input
-                            type="text"
-                            name="numeroDoc"
-                            value={form.numeroDoc || ""}
-                            onChange={handleChange}
-                            required
-                            className="form-control"
-                          />
-                        </div>
-                        <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-person me-2"></i>Nombre</label>
-                          <input
-                            type="text"
-                            name="nombre"
-                            value={form.nombre || ""}
-                            onChange={handleChange}
-                            required
-                            className="form-control"
-                          />
-                        </div>
-                        <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-person me-2"></i>Apellido</label>
-                          <input
-                            type="text"
-                            name="apellido"
-                            value={form.apellido || ""}
-                            onChange={handleChange}
-                            required
-                            className="form-control"
-                          />
-                        </div>
-                      </fieldset>
-                    </div>
-                    <div className="col-12 col-md-6">
-                      <fieldset style={{ border: "none" }}>
-                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                          <i className="bi bi-telephone me-2"></i>Datos de contacto
-                        </legend>
-                        <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-telephone me-2"></i>Teléfono</label>
-                          <input
-                            type="text"
-                            name="telefono"
-                            value={form.telefono || ""}
-                            onChange={handleChange}
-                            required
-                            className="form-control"
-                          />
-                        </div>
-                        <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-envelope me-2"></i>Email</label>
-                          <input
-                            type="email"
-                            name="email"
-                            value={form.email || ""}
-                            onChange={handleChange}
-                            required
-                            className="form-control"
-                          />
-                        </div>
-                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                          <i className="bi bi-check2-circle me-2"></i>Estado
-                        </legend>
-                        <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
-                          <select name="activo" value={form.activo} onChange={handleChange} className="form-control">
-                            <option value={1}>Activo</option>
-                            <option value={0}>Inactivo</option>
-                          </select>
-                        </div>
-                      </fieldset>
-                    </div>
-                  </div>
-                  {/* Mensaje de error visible dentro del formulario */}
-                  {mensaje && (
-                    <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
-                      {mensaje}
-                    </div>
-                  )}
-                  <div className="row mt-3">
-                    <div className="col-12 d-flex flex-column flex-md-row justify-content-end gap-2">
-                      <button type="submit" className="btn" style={{ background: colores.azul, color: colores.beige, fontWeight: 600, borderRadius: "8px" }}>
-                        <i className="bi bi-save me-1"></i>Guardar
-                      </button>
-                      <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }} onClick={handleAgregarClick}>
-                        <i className="bi bi-x-circle me-1"></i>Cancelar
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              )}
+              {/* Ya no mostramos el formulario aquí */}
               <div className="table-responsive">
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
-                      {/* <th>ID</th> <-- QUITADO */}
                       <th>Tipo Doc</th>
                       <th>Número Doc</th>
                       <th>Nombre</th>
@@ -323,7 +267,6 @@ export default function Clientes() {
                   <tbody>
                     {clientes.map(c => (
                       <tr key={c.idCliente}>
-                        {/* <td>{c.idCliente}</td> <-- QUITADO */}
                         <td>{tiposDocumento.find(td => (td.codigo || td.codTipoDoc) === c.tipoDocumento)?.nombre || c.tipoDocumento}</td>
                         <td>{c.numeroDoc}</td>
                         <td>{c.nombre}</td>
@@ -333,22 +276,19 @@ export default function Clientes() {
                         <td>{c.activo ? "Sí" : "No"}</td>
                         <td>
                           <button
-                            className="btn btn-sm me-1"
-                            style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, borderRadius: "8px", border: 'none' }}
+                            className="btn btn-sm btn-verdeAgua fw-bold me-1"
                             onClick={() => handleConsultar(c)}
                           >
                             <i className="bi bi-search me-1"></i>Consultar
                           </button>
                           <button
-                            className="btn btn-sm me-1"
-                            style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px", border: 'none' }}
+                            className="btn btn-sm btn-dorado fw-bold me-1"
                             onClick={() => handleModificar(c)}
                           >
                             <i className="bi bi-pencil-square me-1"></i>Modificar
                           </button>
                           <button
-                            className="btn btn-sm"
-                            style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, borderRadius: "8px", border: 'none' }}
+                            className="btn btn-sm btn-rojo fw-bold"
                             onClick={() => c.idCliente && handleEliminar(c.idCliente)}
                           >
                             <i className="bi bi-trash me-1"></i>Eliminar
@@ -366,107 +306,267 @@ export default function Clientes() {
           </div>
         </main>
       </div>
-      {/* Modal para consultar/modificar */}
-      {modalVisible && clienteActual && (
-        <div className="modal" style={{
-          display: "block", background: "#0008", position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", zIndex: 9999
-        }}>
-          <div className="modal-dialog" style={{ margin: "5rem auto", maxWidth: 500 }}>
-            <div className="modal-content" style={{ background: colores.beige, borderRadius: 16 }}>
-              <div className="modal-header" style={{ background: colores.azul, color: colores.beige }}>
+      {/* Modal para consultar, modificar o alta */}
+      {modalVisible && (
+        <div className="modal" style={{ display: "block" }}>
+          <div className="modal-dialog" style={{ maxWidth: "100vw" }}>
+            <div className="modal-content" style={{ width: "100vw", maxWidth: "100vw" }}>
+              <div className="modal-header">
                 <h5 className="modal-title">
-                  {modalModo === 'consultar' ? "Consultar cliente" : "Modificar cliente"}
+                  {modalModo === 'consultar'
+                    ? "Consultar cliente"
+                    : modalModo === 'modificar'
+                    ? "Modificar cliente"
+                    : "Nuevo cliente"}
                 </h5>
-                <button type="button" className="btn-close" onClick={() => setModalVisible(false)}></button>
+                {/* Elimina el botón de cerrar personalizado */}
               </div>
-              <div className="modal-body">
-                <form>
-                  <div className="row g-4">
-                    <div className="col-12 col-md-6">
-                      <fieldset style={{ border: "none" }}>
-                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                          <i className="bi bi-person-vcard me-2"></i>Datos personales
-                        </legend>
+              <div className="modal-body" style={{ padding: 0 }}>
+                <form
+                  className="form-container"
+                  onSubmit={
+                    modalModo === "modificar"
+                      ? handleUpdate
+                      : modalModo === "alta"
+                      ? handleSubmit
+                      : undefined
+                  }
+                >
+                  <fieldset style={{ border: "none" }}>
+                    <legend>
+                      <i className="bi bi-person-vcard me-2"></i>Datos del cliente
+                    </legend>
+                    {/* División: Datos personales */}
+                    <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
+                      <i className="bi bi-person-lines-fill me-2"></i>Datos personales
+                    </h6>
+                    <div className="row g-4">
+                      <div className="col-12 col-md-6">
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-card-list me-2"></i>Tipo de documento</label>
+                          <label>
+                            <i className="bi bi-card-list me-2"></i>Tipo de documento
+                          </label>
                           <select
                             name="tipoDocumento"
+                            value={
+                              modalModo === "consultar"
+                                ? clienteActual?.tipoDocumento
+                                : modalModo === "modificar"
+                                ? form.tipoDocumento
+                                : form.tipoDocumento
+                            }
+                            onChange={
+                              modalModo === "consultar"
+                                ? handleModalChange
+                                : handleChange
+                            }
                             className="form-control"
-                            value={clienteActual.tipoDocumento || ""}
-                            onChange={handleModalChange}
-                            disabled={modalModo === 'consultar'}
+                            required
+                            disabled={modalModo === "modificar" || modalModo === "consultar"}
                           >
                             <option value="">Seleccione tipo de documento</option>
                             {tiposDocumento.map(td => (
-                              <option key={td.codigo || td.codTipoDoc} value={td.codigo || td.codTipoDoc}>{td.nombre}</option>
+                              <option key={td.codigo || td.codTipoDoc} value={td.codigo || td.codTipoDoc}>
+                                {td.nombre}
+                              </option>
                             ))}
                           </select>
                         </div>
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-hash me-2"></i>Número de documento</label>
-                          <input className="form-control" name="numeroDoc" value={clienteActual.numeroDoc || ""}
-                            onChange={handleModalChange} disabled={modalModo === 'consultar'} />
+                          <label>
+                            <i className="bi bi-hash me-2"></i>Número de documento
+                          </label>
+                          <input
+                            type="text"
+                            name="numeroDoc"
+                            value={
+                              modalModo === "consultar"
+                                ? clienteActual?.numeroDoc
+                                : modalModo === "modificar"
+                                ? form.numeroDoc
+                                : form.numeroDoc
+                            }
+                            onChange={
+                              modalModo === "consultar"
+                                ? handleModalChange
+                                : handleChange
+                            }
+                            required
+                            className="form-control"
+                            disabled={modalModo === "modificar" || modalModo === "consultar"}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-12 col-md-6">
+                        <div className="mb-3">
+                          <label>
+                            <i className="bi bi-person me-2"></i>Nombre
+                          </label>
+                          <input
+                            type="text"
+                            name="nombre"
+                            value={
+                              modalModo === "consultar"
+                                ? clienteActual?.nombre
+                                : modalModo === "modificar"
+                                ? form.nombre
+                                : form.nombre
+                            }
+                            onChange={
+                              modalModo === "consultar"
+                                ? handleModalChange
+                                : handleChange
+                            }
+                            required
+                            className="form-control"
+                            readOnly={modalModo === "consultar"}
+                          />
                         </div>
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-person me-2"></i>Nombre</label>
-                          <input className="form-control" name="nombre" value={clienteActual.nombre || ""}
-                            onChange={handleModalChange} disabled={modalModo === 'consultar'} />
+                          <label>
+                            <i className="bi bi-person me-2"></i>Apellido
+                          </label>
+                          <input
+                            type="text"
+                            name="apellido"
+                            value={
+                              modalModo === "consultar"
+                                ? clienteActual?.apellido
+                                : modalModo === "modificar"
+                                ? form.apellido
+                                : form.apellido
+                            }
+                            onChange={
+                              modalModo === "consultar"
+                                ? handleModalChange
+                                : handleChange
+                            }
+                            required
+                            className="form-control"
+                            readOnly={modalModo === "consultar"}
+                          />
                         </div>
-                        <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-person me-2"></i>Apellido</label>
-                          <input className="form-control" name="apellido" value={clienteActual.apellido || ""}
-                            onChange={handleModalChange} disabled={modalModo === 'consultar'} />
-                        </div>
-                      </fieldset>
+                      </div>
                     </div>
-                    <div className="col-12 col-md-6">
-                      <fieldset style={{ border: "none" }}>
-                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                          <i className="bi bi-telephone me-2"></i>Datos de contacto
-                        </legend>
+                    {/* División: Datos de contacto */}
+                    <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                      <i className="bi bi-telephone me-2"></i>Datos de contacto
+                    </h6>
+                    <div className="row g-4">
+                      <div className="col-12 col-md-6">
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-telephone me-2"></i>Teléfono</label>
-                          <input className="form-control" name="telefono" value={clienteActual.telefono || ""}
-                            onChange={handleModalChange} disabled={modalModo === 'consultar'} />
+                          <label>
+                            <i className="bi bi-telephone me-2"></i>Teléfono
+                          </label>
+                          <input
+                            type="text"
+                            name="telefono"
+                            value={
+                              modalModo === "consultar"
+                                ? clienteActual?.telefono
+                                : modalModo === "modificar"
+                                ? form.telefono
+                                : form.telefono
+                            }
+                            onChange={
+                              modalModo === "consultar"
+                                ? handleModalChange
+                                : handleChange
+                            }
+                            required
+                            className="form-control"
+                            readOnly={modalModo === "consultar"}
+                          />
                         </div>
+                      </div>
+                      <div className="col-12 col-md-6">
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-envelope me-2"></i>Email</label>
-                          <input className="form-control" name="email" value={clienteActual.email || ""}
-                            onChange={handleModalChange} disabled={modalModo === 'consultar'} />
+                          <label>
+                            <i className="bi bi-envelope me-2"></i>Email
+                          </label>
+                          <input
+                            type="email"
+                            name="email"
+                            value={
+                              modalModo === "consultar"
+                                ? clienteActual?.email
+                                : modalModo === "modificar"
+                                ? form.email
+                                : form.email
+                            }
+                            onChange={
+                              modalModo === "consultar"
+                                ? handleModalChange
+                                : handleChange
+                            }
+                            required
+                            className="form-control"
+                            readOnly={modalModo === "consultar"}
+                          />
                         </div>
-                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                          <i className="bi bi-check2-circle me-2"></i>Estado
-                        </legend>
+                      </div>
+                    </div>
+                    {/* División: Estado */}
+                    <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                      <i className="bi bi-check2-circle me-2"></i>Estado
+                    </h6>
+                    <div className="row g-4">
+                      <div className="col-12 col-md-6">
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
-                          <select className="form-control" name="activo"
-                            value={clienteActual.activo}
-                            onChange={handleModalChange}
-                            disabled={modalModo === 'consultar'}>
+                          <label>
+                            <i className="bi bi-check2-circle me-2"></i>Estado
+                          </label>
+                          <select
+                            name="activo"
+                            value={
+                              modalModo === "consultar"
+                                ? clienteActual?.activo
+                                : modalModo === "modificar"
+                                ? form.activo
+                                : form.activo
+                            }
+                            onChange={
+                              modalModo === "consultar"
+                                ? handleModalChange
+                                : handleChange
+                            }
+                            className="form-control"
+                            disabled={modalModo === "consultar"}
+                          >
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
                           </select>
                         </div>
-                      </fieldset>
+                      </div>
                     </div>
-                  </div>
+                  </fieldset>
                   {mensaje && (
-                    <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
-                      {mensaje}
+                    <div className="alert alert-danger">{mensaje}</div>
+                  )}
+                  {(modalModo === "modificar" || modalModo === "alta") && (
+                    <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
+                      <button type="submit" className="btn btn-azul fw-bold">
+                        <i className="bi bi-save me-1"></i>
+                        {modalModo === "modificar" ? "Guardar cambios" : "Guardar"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-dorado fw-bold"
+                        onClick={() => setModalVisible(false)}
+                      >
+                        <i className="bi bi-x-circle me-1"></i>Cancelar
+                      </button>
                     </div>
                   )}
                 </form>
               </div>
-              <div className="modal-footer">
-                <button className="btn" style={{ background: colores.azul, color: colores.beige }} onClick={() => setModalVisible(false)}>
-                  Cerrar
-                </button>
-                {modalModo === 'modificar' && (
-                  <button className="btn" style={{ background: colores.dorado, color: colores.azul }} onClick={handleGuardarModificacion}>
-                    Guardar cambios
+              {modalModo === "consultar" && (
+                <div className="modal-footer">
+                  <button className="btn btn-dorado fw-bold" onClick={() => setModalVisible(false)}>
+                    Cerrar
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,28 +1,32 @@
 from flask import Flask
 from flask_cors import CORS
 
-import Dispositivos
-import Repuestos
-import Clientes
-import Proveedores
-import Usuarios
-import Empleados
-import Servicios
-import Ordenes
-import DetallesOrden
+# Importa todos los blueprints
+from Usuarios import app as usuarios_blueprint
+from Empleados import app as empleados_blueprint
+from Clientes import app as clientes_blueprint
+from Proveedores import app as proveedores_blueprint
+from Repuestos import app as repuestos_blueprint
+from Dispositivos import app as dispositivos_blueprint
+from Servicios import app as servicios_blueprint
+from Ordenes import app as ordenes_blueprint
+from DetallesOrden import app as detallesorden_blueprint
 
-app = Flask(__name__)
-CORS(app, supports_credentials=True)
+app_server = Flask(__name__)
 
-app.register_blueprint(Clientes.app, url_prefix='/')
-app.register_blueprint(Proveedores.app, url_prefix='/')
-app.register_blueprint(Usuarios.app, url_prefix='/')
-app.register_blueprint(Repuestos.app, url_prefix='/')
-app.register_blueprint(Empleados.app, url_prefix='/')
-app.register_blueprint(Dispositivos.app, url_prefix='/')
-app.register_blueprint(Servicios.app, url_prefix='/')
-app.register_blueprint(Ordenes.app, url_prefix='/')
-app.register_blueprint(DetallesOrden.app, url_prefix='/')
+# Aplica CORS a toda la app y permite todos los métodos y orígenes
+CORS(app_server, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
+# Registra los blueprints
+app_server.register_blueprint(usuarios_blueprint, url_prefix='/')
+app_server.register_blueprint(empleados_blueprint, url_prefix='/')
+app_server.register_blueprint(clientes_blueprint, url_prefix='/')
+app_server.register_blueprint(proveedores_blueprint, url_prefix='/')
+app_server.register_blueprint(repuestos_blueprint, url_prefix='/')
+app_server.register_blueprint(dispositivos_blueprint, url_prefix='/')
+app_server.register_blueprint(servicios_blueprint, url_prefix='/')
+app_server.register_blueprint(ordenes_blueprint, url_prefix='/')
+app_server.register_blueprint(detallesorden_blueprint, url_prefix='/')
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app_server.run(debug=True)

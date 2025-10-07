@@ -14,9 +14,9 @@ from BDD.database import (
 )
 
 # ----------- ABMC para Usuario -----------
-def alta_usuario(nombreUsuario, contraseña):
+def alta_usuario(idUsuario, nombreUsuario, contraseña, activo=1):
     session = SessionLocal()
-    usuario = Usuario(nombreUsuario=nombreUsuario, contraseña=contraseña, activo=1)
+    usuario = Usuario(idUsuario=idUsuario, nombreUsuario=nombreUsuario, contraseña=contraseña, activo=activo)
     session.add(usuario)
     session.commit()
     session.close()
@@ -29,11 +29,16 @@ def baja_usuario(idUsuario):
         session.commit()
     session.close()
 
-def modificar_usuario(idUsuario, nueva_contraseña):
+def modificar_usuario(idUsuario, nueva_contraseña=None, nuevo_activo=None, nuevo_nombreUsuario=None):
     session = SessionLocal()
     usuario = session.query(Usuario).get(idUsuario)
     if usuario:
-        usuario.contraseña = nueva_contraseña
+        if nueva_contraseña is not None and nueva_contraseña != "":
+            usuario.contraseña = nueva_contraseña
+        if nuevo_activo is not None:
+            usuario.activo = nuevo_activo
+        if nuevo_nombreUsuario is not None and nuevo_nombreUsuario != "":
+            usuario.nombreUsuario = nuevo_nombreUsuario
         session.commit()
     session.close()
 
@@ -42,21 +47,6 @@ def mostrar_usuarios():
     usuarios = session.query(Usuario).all()
     session.close()
     return usuarios
-
-#Modifica el usuario y/o el estado (activo/inactivo)
-def modificar_usuario(idUsuario, nueva_contraseña=None, nuevo_activo=None):
-    session = SessionLocal()
-    usuario = session.query(Usuario).get(idUsuario)
-    if usuario:
-        # Actualiza contraseña solo si se pasó algo
-        if nueva_contraseña is not None:
-            usuario.contraseña = nueva_contraseña
-        # Actualiza activo solo si se pasó algo
-        if nuevo_activo is not None:
-            usuario.activo = nuevo_activo
-        session.commit()
-    session.close()
-
 
 # ----------- ABMC para Cliente -----------
 def alta_cliente(tipoDocumento, numeroDoc, nombre, apellido, telefono, mail):

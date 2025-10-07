@@ -16,11 +16,6 @@ def validar_telefono(telefono):
 def validar_razon_social(razon):
     return isinstance(razon, str) and 2 <= len(razon.strip()) <= 255
 
-def validar_email(email):
-    if not email:
-        return True
-    return bool(re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', str(email).strip()))
-
 # Helpers
 def parse_int_safe(v):
     try:
@@ -35,7 +30,6 @@ def registrar_proveedor():
     cuil = data.get("cuil")
     razonSocial = data.get("razonSocial")
     telefono = data.get("telefono")
-    mail = data.get("mail")
 
     if not validar_cuit_cuil(cuil):
         return jsonify({"error": "CUIT/CUIL inválido, debe tener 11 dígitos numéricos"}), 400
@@ -43,8 +37,7 @@ def registrar_proveedor():
         return jsonify({"error": "razonSocial inválida"}), 400
     if telefono is None or not validar_telefono(telefono):
         return jsonify({"error": "telefono inválido"}), 400
-    if not validar_email(mail):
-        return jsonify({"error": "mail inválido"}), 400
+
 
     cuil_int = parse_int_safe(cuil)
     if cuil_int is None:
@@ -54,7 +47,7 @@ def registrar_proveedor():
     try:
         if buscar_proveedor(cuil_int):
             return jsonify({"error": "Proveedor con ese CUIL ya existe"}), 409
-        alta_proveedor(cuil_int, razonSocial.strip(), telefono.strip(), mail.strip() if mail else None)
+        alta_proveedor(cuil_int, razonSocial.strip(), telefono.strip())
         return jsonify({"mensaje": "Proveedor registrado exitosamente"}), 201
     except Exception as e:
         return jsonify({"error": "Error al crear proveedor", "detail": str(e)}), 500
@@ -78,18 +71,15 @@ def modificar_datos_proveedor(cuil):
     data = request.get_json() or {}
     razonSocial = data.get("razonSocial")
     telefono = data.get("telefono")
-    mail = data.get("mail")
     activo = data.get("activo", getattr(proveedor, "activo", 1))
 
     if razonSocial is not None and not validar_razon_social(razonSocial):
         return jsonify({"error": "razonSocial inválida"}), 400
     if telefono is not None and not validar_telefono(telefono):
         return jsonify({"error": "telefono inválido"}), 400
-    if mail is not None and not validar_email(mail):
-        return jsonify({"error": "mail inválido"}), 400
 
     try:
-        modificar_proveedor(cuil, razonSocial.strip() if razonSocial else None, telefono.strip() if telefono else None, activo, mail.strip() if mail else None)
+        modificar_proveedor(cuil, razonSocial.strip() if razonSocial else None, telefono.strip() if telefono else None, activo)
         return jsonify({"mensaje": "Proveedor modificado exitosamente"}), 200
     except Exception as e:
         return jsonify({"error": "No se pudo modificar proveedor", "detail": str(e)}), 500
@@ -104,7 +94,6 @@ def mostrar_proveedor(cuil):
             "cuil": proveedor.cuil,
             "razonSocial": proveedor.razonSocial,
             "telefono": proveedor.telefono,
-            "mail": getattr(proveedor, "mail", None),
             "activo": getattr(proveedor, "activo", 1),
         }
         return jsonify(proveedor_dict), 200
@@ -125,7 +114,6 @@ def listar_proveedores():
                 "cuil": p.cuil,
                 "razonSocial": p.razonSocial,
                 "telefono": p.telefono,
-                "mail": getattr(p, "mail", None),
                 "activo": getattr(p, "activo", 1),
             } for p in result
         ]), 200
