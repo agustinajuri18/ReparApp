@@ -26,7 +26,7 @@ function Empleados() {
 
   // Cargar empleados
   useEffect(() => {
-    fetch(`http://localhost:5000/empleados${mostrarInactivos ? "?activos=false" : ""}`)
+    fetch(`http://localhost:5000/empleados/${mostrarInactivos ? "?activos=false" : ""}`)
       .then(res => res.json())
       .then(data => setEmpleados(data))
       .catch(() => setMensaje("Error al cargar empleados"));
@@ -34,7 +34,7 @@ function Empleados() {
 
   // Cargar cargos desde la base de datos
   useEffect(() => {
-    fetch("http://localhost:5000/cargos")
+    fetch("http://localhost:5000/cargos/")
       .then(res => res.json())
       .then(data => setCargos(data))
       .catch(() => setMensaje("Error al cargar cargos"));
@@ -43,18 +43,19 @@ function Empleados() {
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
-{
+
   function validarEmpleado(form) {
-    // if (!form.tipoDocumento) return "Debe seleccionar el tipo de documento.";
-    // if (!form.numeroDoc || !/^\d{7,8}$/.test(form.numeroDoc)) return "Número de documento inválido.";
-    if (!form.nombre || form.nombre.trim().length < 2) return "El nombre es obligatorio y debe tener al menos 2 caracteres.";
-    if (!form.apellido || form.apellido.trim().length < 2) return "El apellido es obligatorio y debe tener al menos 2 caracteres.";
-    // if (!form.telefono || form.telefono.trim().length < 6) return "El teléfono es obligatorio y debe tener al menos 6 caracteres.";
-    // if (!form.email || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.email)) return "El email no es válido.";
-    if (!form.cargo || form.cargo.trim().length < 2) return "El cargo es obligatorio.";
-    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
-    return null;}
+    if (!form.nombre || form.nombre.trim().length < 2)
+      return "El nombre es obligatorio y debe tener al menos 2 caracteres.";
+    if (!form.apellido || form.apellido.trim().length < 2)
+      return "El apellido es obligatorio y debe tener al menos 2 caracteres.";
+    if (!form.idCargo || form.idCargo.toString().trim() === "")
+      return "El cargo es obligatorio.";  
+    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1")
+      return "El estado es obligatorio.";
+    return null;
   }
+
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -63,7 +64,7 @@ function Empleados() {
       setMensaje(error);
       return;
     }
-    fetch("http://localhost:5000/empleados", {
+    fetch("http://localhost:5000/empleados/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form)
@@ -73,7 +74,7 @@ function Empleados() {
         setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
         setMostrarFormulario(false);
         setMensaje("Empleado agregado correctamente.");
-        fetch("http://localhost:5000/empleados")
+        fetch("http://localhost:5000/empleados/")
           .then(res => res.json())
           .then(data => setEmpleados(data))
           .catch(() => setMensaje("Error al cargar empleados"));
@@ -81,9 +82,9 @@ function Empleados() {
   }
 
   function handleDelete(idEmpleado) {
-    fetch(`http://localhost:5000/empleados/${idEmpleado}`, { method: "DELETE" })
+    fetch(`http://localhost:5000/empleados/${idEmpleado}/`, { method: "DELETE" })
       .then(() => {
-        fetch("http://localhost:5000/empleados")
+        fetch("http://localhost:5000/empleados/")
           .then(res => res.json())
           .then(data => setEmpleados(data))
           .catch(() => setMensaje("Error al cargar empleados"));
@@ -97,7 +98,7 @@ function Empleados() {
 
   function handleUpdate(e) {
     e.preventDefault();
-    fetch(`http://localhost:5000/empleados/${form.idEmpleado}`, {
+    fetch(`http://localhost:5000/empleados/${form.idEmpleado}/`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form)
@@ -107,7 +108,7 @@ function Empleados() {
         setEditId(null);
         setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
         setMensaje("Empleado modificado correctamente.");
-        fetch("http://localhost:5000/empleados")
+        fetch("http://localhost:5000/empleados/")
           .then(res => res.json())
           .then(data => setEmpleados(data))
           .catch(() => setMensaje("Error al cargar empleados"));
@@ -302,10 +303,12 @@ function Empleados() {
                             onClick={() => handleEdit(e)}>
                             <span title="Modificar"><i className="bi bi-pencil-square"></i></span> Modificar
                           </button>
+                          {Number(e.activo) == 1 && (
                           <button className="btn btn-sm" style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}
                             onClick={() => handleDelete(e.idEmpleado)}>
                             <span title="Eliminar"><i className="bi bi-x-circle"></i></span> Eliminar
                           </button>
+                        )}
                         </td>
                       </tr>
                     ))}

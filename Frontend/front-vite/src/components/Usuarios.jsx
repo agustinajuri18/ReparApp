@@ -244,10 +244,12 @@ function handleUpdate(e) {
                             onClick={() => handleEdit(u)}>
                             <span title="Editar"><i className="bi bi-pencil-square"></i></span> Editar
                           </button>
+                          {Number(u.activo) == 1 && (
                           <button className="btn btn-sm" style={{ background: colores.rojo, color: colores.beige, fontWeight: 600, border: 'none' }}
                             onClick={() => handleDelete(u.idUsuario)}>
                             <span title="Eliminar"><i className="bi bi-x-circle"></i></span> Eliminar
                           </button>
+                          )}
                         </td>
                       </tr>
                     ))}
