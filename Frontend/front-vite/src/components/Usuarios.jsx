@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 
+const API_URL = "http://localhost:5000";
+
 const colores = {
   azul: '#1f3345',
   dorado: '#c78f57',
@@ -22,22 +24,32 @@ export default function Usuarios() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
   useEffect(() => {
-    fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
+    fetch(`${API_URL}/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
       .then(res => res.json())
       .then(data => setUsuarios(data))
       .catch(() => setMensaje("Error al cargar usuarios"));
   }, [mostrarInactivos]);
 
   function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  }
+  const { name, value } = e.target;
+  setForm({
+    ...form,
+    [name]: name === "activo" ? Number(value) : value
+  });
+}
+
 
   function validarUsuario(form) {
-    if (!form.idUsuario || form.idUsuario.trim().length < 4) return "El usuario es obligatorio y debe tener al menos 4 caracteres.";
-    if (!form.password || form.password.trim().length < 6) return "La contraseña es obligatoria y debe tener al menos 6 caracteres.";
-    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
-    return null;
-  }
+  if (!form.idUsuario || form.idUsuario.trim().length < 4) 
+    return "El usuario es obligatorio y debe tener al menos 4 caracteres.";
+  if (!form.password && !editId) // solo obligatorio al crear
+    return "La contraseña es obligatoria y debe tener al menos 6 caracteres.";
+  if (form.password && form.password.trim().length < 6)
+    return "La contraseña debe tener al menos 6 caracteres.";
+  if (form.activo !== 0 && form.activo !== 1)
+    return "El estado es obligatorio.";
+  return null;
+}
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -46,53 +58,92 @@ export default function Usuarios() {
       setMensaje(error);
       return;
     }
-    fetch("/usuarios/", {
+    fetch(`${API_URL}/usuarios/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form)
     })
-      .then(res => res.json())
+      .then(async res => {
+        const text = await res.text();
+        let data;
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch (err) {
+          throw new Error("Respuesta del servidor no es JSON válido");
+        }
+
+        if (!res.ok) {
+          throw new Error(data.error || "Error al crear usuario");
+        }
+
+        return data;
+      })
       .then(() => {
         setForm({ idUsuario: "", password: "", activo: 1 });
         fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
           .then(res => res.json())
           .then(data => setUsuarios(data));
         setMensaje("Usuario agregado correctamente.");
+      })
+      .catch(err => {
+        setMensaje(err.message);
       });
+
   }
 
   function handleDelete(idUsuario) {
-    fetch(`/usuarios/${idUsuario}`, { method: "DELETE" })
-      .then(() => {
-        fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
-          .then(res => res.json())
-          .then(data => setUsuarios(data));
-        setMensaje("Usuario eliminado correctamente.");
-      });
-  }
+  // Pregunta de confirmación antes de eliminar
+  const confirmar = window.confirm(
+    "Se realizará una baja lógica del usuario. ¿Desea continuar?"
+  );
+
+  if (!confirmar) return; // Sale si el usuario cancela
+
+  fetch(`${API_URL}/usuarios/${idUsuario}`, { method: "DELETE" })
+    .then(() => {
+      fetch(`${API_URL}/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
+        .then(res => res.json())
+        .then(data => setUsuarios(data));
+      setMensaje("Usuario dado de baja correctamente.");
+      setTipoMensaje("exito");
+    })
+    .catch(err => {
+      setMensaje("Error al dar de baja usuario: " + err.message);
+      setTipoMensaje("error");
+    });
+}
+
 
   function handleEdit(usuario) {
     setEditId(usuario.idUsuario);
-    setForm({ idUsuario: usuario.idUsuario, password: "", activo: usuario.activo });
+    setMostrarFormulario(true);
+    setForm({ idUsuario: usuario.idUsuario, password: "", activo: Number(usuario.activo)});
   }
 
-  function handleUpdate(e) {
-    e.preventDefault();
-    fetch(`/usuarios/${form.idUsuario}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
-    })
-      .then(res => res.json())
-      .then(() => {
-        setEditId(null);
-        setForm({ idUsuario: "", password: "", activo: 1 });
-        fetch(`/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
-          .then(res => res.json())
-          .then(data => setUsuarios(data));
-        setMensaje("Usuario modificado correctamente.");
-      });
+function handleUpdate(e) {
+  e.preventDefault();
+
+  const payload = { activo: form.activo }; // ya es número
+  if (form.password && form.password.trim() !== "") {
+    payload.password = form.password; // opcional
   }
+
+  fetch(`${API_URL}/usuarios/${form.idUsuario}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+    .then(res => res.json())
+    .then(() => {
+      setEditId(null);
+      setForm({ idUsuario: "", password: "", activo: 1 });
+      fetch(`${API_URL}/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
+        .then(res => res.json())
+        .then(data => setUsuarios(data));
+      setMensaje("Usuario modificado correctamente.");
+    })
+    .catch(err => setMensaje(err.message));
+}
 
   return (
     <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
@@ -139,7 +190,7 @@ export default function Usuarios() {
                         </div>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-key me-2"></i>Contraseña</label>
-                          <input name="password" type="password" placeholder="Contraseña" value={form.password} onChange={handleChange} className="form-control" required />
+                          <input name="password" type="password" placeholder="Contraseña" value={form.password} onChange={handleChange} className="form-control"/>
                         </div>
                       </fieldset>
                     </div>
@@ -150,7 +201,7 @@ export default function Usuarios() {
                         </legend>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
-                          <select name="activo" value={form.activo} onChange={handleChange} className="form-select">
+                          <select name="activo" value={Number(form.activo)} onChange={handleChange} className="form-select">
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
                           </select>
@@ -167,7 +218,8 @@ export default function Usuarios() {
                     <button type="submit" className="btn" style={{ background: colores.azul, color: colores.beige, fontWeight: 600, borderRadius: "8px" }}>
                       <i className="bi bi-save me-1"></i>{editId ? "Actualizar" : "Agregar"}
                     </button>
-                    <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }} onClick={() => { setMostrarFormulario(false); setEditId(null); setForm({ idUsuario: "", password: "", activo: 1 }); setMensaje(""); }}>
+                    <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, borderRadius: "8px" }}
+                      onClick={() => { setMostrarFormulario(false); setEditId(null); setForm({ idUsuario: "", password: "", activo: 1 }); setMensaje(""); }}>
                       <i className="bi bi-x-circle me-1"></i>Cancelar
                     </button>
                   </div>
