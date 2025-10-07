@@ -9,7 +9,10 @@ from BDD.database import SessionLocal, Repuesto, RepuestoxProveedor, Proveedor
 app = Blueprint('repuestos', __name__)
 
 def validar_codigo(codigo):
-    return isinstance(codigo, str) and codigo.strip() != "" and len(codigo.strip()) <= 50
+    if codigo is None:
+        return False
+    s = str(codigo)
+    return s.strip() != "" and len(s.strip()) <= 50
 
 def validar_text_field(v, min_len=1, max_len=255):
     return isinstance(v, str) and min_len <= len(v.strip()) <= max_len
@@ -98,13 +101,22 @@ def mostrar_repuesto(codigo):
         return jsonify({"detail": "Repuesto no encontrado"}), 404
 
     try:
-        repuestos_proveedores = session.query(RepuestoxProveedor).filter_by(codigoRepuesto=codigo).all()
+        # JOIN para traer todos los datos del proveedor
+        repuestos_proveedores = (
+            session.query(RepuestoxProveedor, Proveedor)
+            .join(Proveedor, RepuestoxProveedor.cuilProveedor == Proveedor.cuil)
+            .filter(RepuestoxProveedor.codigoRepuesto == codigo)
+            .all()
+        )
         repuestos_proveedores_list = [{
-            "codigoRepuesto": rp.codigoRepuesto,
-            "cuilProveedor": rp.cuilProveedor,
-            "costo": rp.costo,
-            "cantidad": rp.cantidad
-        } for rp in repuestos_proveedores]
+            "codigoRepuesto": rxp.codigoRepuesto,
+            "cuilProveedor": rxp.cuilProveedor,
+            "costo": rxp.costo,
+            "cantidad": rxp.cantidad,
+            "razonSocial": p.razonSocial,
+            "telefono": p.telefono,
+            "activo": p.activo
+        } for rxp, p in repuestos_proveedores]
 
         repuesto_dict = {
             "codigo": repuesto.codigo,

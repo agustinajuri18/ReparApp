@@ -12,12 +12,14 @@ function Proveedores() {
     telefono: "",
     activo: 1
   });
+  const [formErrors, setFormErrors] = useState({});
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState('consultar'); // 'consultar' | 'modificar'
   const [proveedorActual, setProveedorActual] = useState(null);
+  const [modalErrors, setModalErrors] = useState({});
 
   // Cargar proveedores
   useEffect(() => {
@@ -26,24 +28,30 @@ function Proveedores() {
       .then(data => setProveedores(data));
   }, [mostrarInactivos]);
 
-  function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  }
-
-  function validarProveedor(form) {
-    if (!form.cuil || !/^\d{11}$/.test(form.cuil)) return "El CUIL/CUIT debe tener 11 dígitos numéricos.";
-    if (!form.razonSocial || form.razonSocial.trim().length < 2) return "La razón social es obligatoria y debe tener al menos 2 caracteres.";
-    if (!form.telefono || String(form.telefono).trim().length < 10) return "El teléfono es obligatorio y debe tener al menos 10 caracteres.";
-    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
-    return null;
+  function validarProveedor(obj) {
+    const errors = {};
+    if (!obj.cuil || !/^\d{11}$/.test(obj.cuil)) errors.cuil = "El CUIL/CUIT debe tener 11 dígitos numéricos.";
+    if (!obj.razonSocial || obj.razonSocial.trim().length < 2) errors.razonSocial = "La razón social es obligatoria y debe tener al menos 2 caracteres.";
+    if (!obj.telefono || String(obj.telefono).trim().length < 10) errors.telefono = "El teléfono es obligatorio y debe tener al menos 10 caracteres.";
+    if (obj.activo !== 0 && obj.activo !== 1 && obj.activo !== "0" && obj.activo !== "1") errors.activo = "El estado es obligatorio.";
+    return errors;
   }
 
   // Alta
+  function handleChange(e) {
+    const { name, value } = e.target;
+    const newForm = { ...form, [name]: name === "activo" ? Number(value) : value };
+    setForm(newForm);
+    setFormErrors(validarProveedor(newForm));
+    setMensaje("");
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
-    const error = validarProveedor(form);
-    if (error) {
-      setMensaje(error);
+    const errors = validarProveedor(form);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
     }
     fetch(API_URL, {
@@ -51,14 +59,20 @@ function Proveedores() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form)
     })
-      .then(res => res.json())
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Error al crear proveedor");
+        return data;
+      })
       .then(() => {
         setForm({ cuil: "", razonSocial: "", telefono: "", activo: 1 });
         setMostrarFormulario(false);
+        setMensaje("");
         fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`)
           .then(res => res.json())
           .then(data => setProveedores(data));
-      });
+      })
+      .catch(err => setMensaje(err.message));
   }
 
   function handleDelete(cuil) {
@@ -75,6 +89,8 @@ function Proveedores() {
     setProveedorActual(proveedor);
     setModalModo('consultar');
     setModalVisible(true);
+    setModalErrors({});
+    setMensaje("");
   }
 
   function handleModificar(cuil) {
@@ -82,34 +98,58 @@ function Proveedores() {
     setProveedorActual(proveedor);
     setModalModo('modificar');
     setModalVisible(true);
+    setModalErrors({});
+    setMensaje("");
   }
 
   function handleModalClose() {
     setModalVisible(false);
     setProveedorActual(null);
+    setModalErrors({});
+    setMensaje("");
+  }
+
+  function handleModalFieldChange(e) {
+    const { name, value } = e.target;
+    const nuevo = { ...proveedorActual, [name]: name === "activo" ? Number(value) : value };
+    setProveedorActual(nuevo);
+    setModalErrors(validarProveedor({ ...nuevo, cuil: proveedorActual.cuil }));
     setMensaje("");
   }
 
   function handleModalSave(e) {
     e.preventDefault();
-    const error = validarProveedor(proveedorActual);
-    if (error) {
-      setMensaje(error);
+    // No enviar cuil en el body, solo los campos editables
+    const { cuil, ...rest } = proveedorActual;
+    const proveedorParaEnviar = {
+      ...rest,
+      activo: Number(proveedorActual.activo)
+    };
+    const errors = validarProveedor({ ...proveedorActual, cuil: proveedorActual.cuil });
+    setModalErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
     }
     fetch(`${API_URL}${proveedorActual.cuil}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(proveedorActual)
+      body: JSON.stringify(proveedorParaEnviar)
     })
-      .then(res => res.json())
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Error al modificar proveedor");
+        return data;
+      })
       .then(() => {
         setModalVisible(false);
         setProveedorActual(null);
+        setMensaje("");
         fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`)
           .then(res => res.json())
           .then(data => setProveedores(data));
-      });
+      })
+      .catch(err => setMensaje(err.message));
   }
 
   return (
@@ -129,7 +169,7 @@ function Proveedores() {
                 </button>
                 <button
                   className="btn btn-verdeAgua"
-                  onClick={() => setMostrarFormulario(true)}
+                  onClick={() => { setMostrarFormulario(true); setFormErrors({}); setMensaje(""); }}
                 >
                   <i className="bi bi-plus-lg"></i> Agregar proveedor
                 </button>
@@ -153,9 +193,10 @@ function Proveedores() {
                             value={form.cuil || ""}
                             onChange={handleChange}
                             required
-                            className="form-control"
+                            className={`form-control ${formErrors.cuil ? "is-invalid" : ""}`}
                             placeholder="CUIL/CUIT"
                           />
+                          {formErrors.cuil && <div className="invalid-feedback">{formErrors.cuil}</div>}
                         </div>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-building me-2"></i>Razón Social</label>
@@ -165,9 +206,10 @@ function Proveedores() {
                             value={form.razonSocial || ""}
                             onChange={handleChange}
                             required
-                            className="form-control"
+                            className={`form-control ${formErrors.razonSocial ? "is-invalid" : ""}`}
                             placeholder="Razón Social"
                           />
+                          {formErrors.razonSocial && <div className="invalid-feedback">{formErrors.razonSocial}</div>}
                         </div>
                       </div>
                       <div className="col-12 col-md-6">
@@ -179,16 +221,18 @@ function Proveedores() {
                             value={form.telefono || ""}
                             onChange={handleChange}
                             required
-                            className="form-control"
+                            className={`form-control ${formErrors.telefono ? "is-invalid" : ""}`}
                             placeholder="Teléfono"
                           />
+                          {formErrors.telefono && <div className="invalid-feedback">{formErrors.telefono}</div>}
                         </div>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
-                          <select name="activo" value={form.activo} onChange={handleChange} className="form-control">
+                          <select name="activo" value={form.activo} onChange={handleChange} className={`form-control ${formErrors.activo ? "is-invalid" : ""}`}>
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
                           </select>
+                          {formErrors.activo && <div className="invalid-feedback">{formErrors.activo}</div>}
                         </div>
                       </div>
                     </div>
@@ -262,19 +306,21 @@ function Proveedores() {
                                       type="text"
                                       className="form-control"
                                       value={proveedorActual.cuil || ""}
-                                      onChange={e => setProveedorActual({ ...proveedorActual, cuil: e.target.value })}
-                                      required
+                                      readOnly
+                                      disabled
                                     />
                                   </div>
                                   <div className="mb-3">
                                     <label className="fw-semibold"><i className="bi bi-building me-2"></i>Razón Social</label>
                                     <input
                                       type="text"
-                                      className="form-control"
+                                      className={`form-control ${modalErrors.razonSocial ? "is-invalid" : ""}`}
                                       value={proveedorActual.razonSocial || ""}
-                                      onChange={e => setProveedorActual({ ...proveedorActual, razonSocial: e.target.value })}
+                                      onChange={handleModalFieldChange}
+                                      name="razonSocial"
                                       required
                                     />
+                                    {modalErrors.razonSocial && <div className="invalid-feedback">{modalErrors.razonSocial}</div>}
                                   </div>
                                 </div>
                                 <div className="col-12 col-md-6">
@@ -282,29 +328,33 @@ function Proveedores() {
                                     <label className="fw-semibold"><i className="bi bi-telephone me-2"></i>Teléfono</label>
                                     <input
                                       type="text"
-                                      className="form-control"
+                                      className={`form-control ${modalErrors.telefono ? "is-invalid" : ""}`}
                                       value={proveedorActual.telefono || ""}
-                                      onChange={e => setProveedorActual({ ...proveedorActual, telefono: e.target.value })}
+                                      onChange={handleModalFieldChange}
+                                      name="telefono"
                                       required
                                     />
+                                    {modalErrors.telefono && <div className="invalid-feedback">{modalErrors.telefono}</div>}
                                   </div>
                                   <div className="mb-3">
                                     <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
                                     <select
-                                      className="form-control"
+                                      className={`form-control ${modalErrors.activo ? "is-invalid" : ""}`}
                                       value={proveedorActual.activo}
-                                      onChange={e => setProveedorActual({
-                                        ...proveedorActual,
-                                        activo: parseInt(e.target.value, 10)
-                                      })}
+                                      onChange={handleModalFieldChange}
+                                      name="activo"
                                     >
                                       <option value={1}>Activo</option>
                                       <option value={0}>Inactivo</option>
                                     </select>
+                                    {modalErrors.activo && <div className="invalid-feedback">{modalErrors.activo}</div>}
                                   </div>
                                 </div>
                               </div>
                             </fieldset>
+                            {mensaje && (
+                              <div className="alert alert-danger">{mensaje}</div>
+                            )}
                             <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
                               <button type="submit" className="btn btn-azul fw-bold">
                                 <i className="bi bi-save me-1"></i>Guardar
@@ -313,9 +363,6 @@ function Proveedores() {
                                 <i className="bi bi-x-circle me-1"></i>Cancelar
                               </button>
                             </div>
-                            {mensaje && (
-                              <div className="alert alert-danger">{mensaje}</div>
-                            )}
                           </form>
                         )}
                       </div>

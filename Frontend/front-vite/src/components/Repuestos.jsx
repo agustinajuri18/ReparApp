@@ -29,7 +29,8 @@ function Repuestos() {
   const [mensaje, setMensaje] = useState("");
   const [modalProveedores, setModalProveedores] = useState({ open: false, lista: [], repuesto: null });
   const [modalTodosRepuestos, setModalTodosRepuestos] = useState({ open: false, lista: [] });
-  const [formMode, setFormMode] = useState("editar"); // nuevo estado para el modo del formulario
+  const [formMode, setFormMode] = useState("editar");
+  const [originalProveedores, setOriginalProveedores] = useState([]);
 
   useEffect(() => {
     setError("");
@@ -66,7 +67,6 @@ function Repuestos() {
 
   function handleRemoveProveedor(idx) {
     const proveedor = form.proveedores[idx];
-    // Elimina en backend si existe el repuesto y proveedor
     if (form.codigo && proveedor.cuilProveedor) {
       fetch(`${API}/repuestoxproveedor/`, {
         method: "DELETE",
@@ -76,13 +76,11 @@ function Repuestos() {
           cuilProveedor: proveedor.cuilProveedor
         })
       }).then(() => {
-        // Elimina del estado local
         const nuevos = [...form.proveedores];
         nuevos.splice(idx, 1);
         setForm({ ...form, proveedores: nuevos });
       });
     } else {
-      // Solo elimina del estado local si aún no existe en backend
       const nuevos = [...form.proveedores];
       nuevos.splice(idx, 1);
       setForm({ ...form, proveedores: nuevos });
@@ -110,10 +108,13 @@ function Repuestos() {
   }
 
   function validarRepuesto(form) {
-    if (!form.codigo || form.codigo.trim().length < 2) return "El código es obligatorio.";
+    const codigo = (form.codigo ?? "").toString();
+    if (!codigo.trim() || codigo.trim().length < 2) return "El código es obligatorio.";
     if (!form.marca || form.marca.trim().length < 2) return "La marca es obligatoria.";
     if (!form.modelo || form.modelo.trim().length < 2) return "El modelo es obligatorio.";
     if (form.proveedores.length === 0) return "Debe agregar al menos un proveedor.";
+    const cuils = form.proveedores.map(p => p.cuilProveedor);
+    if (new Set(cuils).size !== cuils.length) return "No puede haber proveedores repetidos.";
     for (let p of form.proveedores) {
       if (!p.cuilProveedor) return "El proveedor es obligatorio.";
       if (p.costo === "" || isNaN(p.costo)) return "El costo debe ser un número.";
@@ -145,7 +146,6 @@ function Repuestos() {
         return res.json();
       })
       .then(() => {
-        // Usar Promise.all para esperar todas las inserciones de proveedores
         return Promise.all(
           form.proveedores.map(p =>
             fetch(`${API}/repuestoxproveedor/`, {
@@ -154,8 +154,8 @@ function Repuestos() {
               body: JSON.stringify({
                 codigoRepuesto: form.codigo,
                 cuilProveedor: p.cuilProveedor,
-                costo: Number(p.costo),      // <-- Asegura que sea número
-                cantidad: Number(p.cantidad) // <-- Asegura que sea número
+                costo: Number(p.costo),
+                cantidad: Number(p.cantidad)
               })
             })
           )
@@ -185,7 +185,7 @@ function Repuestos() {
   function handleEdit(repuesto) {
     setEditCodigo(repuesto.codigo);
     setMostrarFormulario(true);
-    setFormMode("editar"); // cambiar a modo editar
+    setFormMode("editar");
     fetch(`${API}/repuestos/${repuesto.codigo}`)
       .then(res => res.json())
       .then(data => {
@@ -202,11 +202,32 @@ function Repuestos() {
               }))
             : []
         });
+        setOriginalProveedores(data.proveedores
+          ? data.proveedores.map(p => ({
+              cuilProveedor: p.cuilProveedor,
+              costo: p.costo,
+              cantidad: p.cantidad
+            }))
+          : []
+        );
       });
+  }
+
+  function isProveedorIgual(a, b) {
+    return (
+      a.cuilProveedor === b.cuilProveedor &&
+      Number(a.costo) === Number(b.costo) &&
+      Number(a.cantidad) === Number(b.cantidad)
+    );
   }
 
   function handleUpdate(e) {
     e.preventDefault();
+    const error = validarRepuesto(form);
+    if (error) {
+      setMensaje(error);
+      return;
+    }
     fetch(`${API}/repuestos/${form.codigo}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -218,21 +239,49 @@ function Repuestos() {
     })
       .then(res => res.json())
       .then(() => {
-        form.proveedores.forEach(p => {
+        const proveedoresAEliminar = originalProveedores.filter(
+          orig => !form.proveedores.some(
+            p => p.cuilProveedor === orig.cuilProveedor
+          )
+        );
+        const proveedoresAAgregarOModificar = form.proveedores.filter(
+          p => {
+            const orig = originalProveedores.find(op => op.cuilProveedor === p.cuilProveedor);
+            return !orig || !isProveedorIgual(orig, p);
+          }
+        );
+
+        const promesasEliminar = proveedoresAEliminar.map(p =>
+          fetch(`${API}/repuestoxproveedor/`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              codigoRepuesto: form.codigo,
+              cuilProveedor: p.cuilProveedor
+            })
+          })
+        );
+
+        const promesasAgregar = proveedoresAAgregarOModificar.map(p =>
           fetch(`${API}/repuestoxproveedor/`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               codigoRepuesto: form.codigo,
               cuilProveedor: p.cuilProveedor,
-              costo: p.costo,
-              cantidad: p.cantidad
+              costo: Number(p.costo),
+              cantidad: Number(p.cantidad)
             })
-          });
-        });
+          })
+        );
+
+        return Promise.all([...promesasEliminar, ...promesasAgregar]);
+      })
+      .then(() => {
         setEditCodigo(null);
         setForm({ codigo: "", marca: "", modelo: "", activo: 1, proveedores: [] });
         setMostrarFormulario(false);
+        setOriginalProveedores([]);
         fetch(`${API}/repuestos/?activos=${mostrarInactivos ? "false" : "true"}`)
           .then(res => res.json())
           .then(data => setRepuestos(data));
@@ -243,6 +292,7 @@ function Repuestos() {
     setMostrarFormulario(false);
     setEditCodigo(null);
     setForm({ codigo: "", marca: "", modelo: "", activo: 1, proveedores: [] });
+    setMensaje("");
   }
 
   function handleVerTodosRepuestos() {
@@ -264,386 +314,450 @@ function Repuestos() {
     <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
       <div className="row flex-nowrap">
         <MenuLateral />
-        <main className="col-12 col-md-10 pt-4 px-2 px-md-4" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
-          <div className="card shadow-sm mb-4" style={{ border: `1.5px solid ${colores.azul}`, borderRadius: 16, background: colores.beige }}>
-            <div className="card-header d-flex justify-content-between align-items-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-              <h4 className="mb-0">Gestión de Repuestos</h4>
-              <div className="d-flex gap-2">
-                <button
-                  className="btn"
-                  style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
-                  onClick={() => setMostrarInactivos(!mostrarInactivos)}
-                >
-                  {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
-                </button>
-                <button
-                  className="btn"
-                  style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                  onClick={() => {
-                    setMostrarFormulario(true);
-                    setEditCodigo(null);
-                    setForm({ codigo: "", marca: "", modelo: "", activo: 1, proveedores: [] });
-                    setFormMode("editar"); // por defecto, el modo es editar al agregar un nuevo repuesto
-                  }}
-                >
-                  <i className="bi bi-plus-lg"></i> Agregar repuesto
-                </button>
-                <button
-                  className="btn"
-                  style={{ background: colores.mentaSuave, color: colores.azul, fontWeight: 600, border: 'none' }}
-                  onClick={handleVerTodosRepuestos}
-                >
-                  Listar Repuestos
-                </button>
+        <main className="col-12 col-md-10 pt-4 px-2 px-md-4" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh', position: "relative" }}>
+          {/* Modal de alta/modificación */}
+          {mostrarFormulario && (
+            <div
+              className="modal"
+              style={{
+                display: "block",
+                background: "rgba(0,0,0,0.5)",
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                zIndex: 2000,
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+            >
+              <div className="modal-dialog" style={{ maxWidth: "700px", margin: "2rem auto" }}>
+                <div className="modal-content" style={{ borderRadius: 16 }}>
+                  <div className="modal-header" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+                    <h5 className="modal-title">
+                      {formMode === "editar" && editCodigo ? (
+                        <>
+                          <i className="bi bi-pencil-square me-2"></i>Modificar repuesto
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-plus-lg me-2"></i>Agregar repuesto
+                        </>
+                      )}
+                    </h5>
+                  </div>
+                  <div className="modal-body" style={{ padding: 0 }}>
+                    <form onSubmit={editCodigo ? handleUpdate : handleSubmit} className="form-container mb-3">
+                      <fieldset style={{ border: "none" }}>
+                        <legend>
+                          <i className="bi bi-gear me-2"></i>Datos del repuesto
+                        </legend>
+                        <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
+                          <i className="bi bi-gear me-2"></i>Datos principales
+                        </h6>
+                        <div className="row g-4">
+                          <div className="col-12 col-md-6">
+                            <div className="mb-3">
+                              <label>
+                                <i className="bi bi-hash me-2"></i>Código
+                              </label>
+                              <input
+                                name="codigo"
+                                value={form.codigo ?? ""}
+                                onChange={handleChange}
+                                required
+                                readOnly={!!editCodigo}
+                                className="form-control"
+                              />
+                            </div>
+                            <div className="mb-3">
+                              <label>
+                                <i className="bi bi-pc me-2"></i>Marca
+                              </label>
+                              <input name="marca" value={form.marca} onChange={handleChange} required className="form-control" />
+                            </div>
+                          </div>
+                          <div className="col-12 col-md-6">
+                            <div className="mb-3">
+                              <label>
+                                <i className="bi bi-pc-display me-2"></i>Modelo
+                              </label>
+                              <input name="modelo" value={form.modelo} onChange={handleChange} required className="form-control" />
+                            </div>
+                            <div className="mb-3">
+                              <label>
+                                <i className="bi bi-check2-circle me-2"></i>Estado
+                              </label>
+                              <select name="activo" value={form.activo} onChange={handleChange} className="form-control">
+                                <option value={1}>Activo</option>
+                                <option value={0}>Inactivo</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                        <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                          <i className="bi bi-truck me-2"></i>Proveedores
+                        </h6>
+                        <div className="row g-4">
+                          <div className="col-12">
+                            {form.proveedores.map((p, idx) => (
+                              <div key={idx} className="mb-2 p-2" style={{ background: "#fff", borderRadius: 8, border: `1px solid ${colores.verdeAgua}` }}>
+                                <select
+                                  value={p.cuilProveedor}
+                                  onChange={e => handleProveedorChange(idx, "cuilProveedor", e.target.value)}
+                                  required
+                                  className="form-control mb-2"
+                                >
+                                  <option value="">Seleccione proveedor</option>
+                                  {proveedores.map(pr => (
+                                    <option key={pr.cuil} value={pr.cuil}>{pr.razonSocial} ({pr.cuil})</option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="number"
+                                  placeholder="Costo"
+                                  value={p.costo}
+                                  onChange={e => handleProveedorChange(idx, "costo", e.target.value)}
+                                  required
+                                  className="form-control mb-2"
+                                />
+                                <input
+                                  type="number"
+                                  placeholder="Cantidad"
+                                  value={p.cantidad}
+                                  onChange={e => handleProveedorChange(idx, "cantidad", e.target.value)}
+                                  required
+                                  className="form-control mb-2"
+                                />
+                                <button type="button" className="btn btn-danger btn-sm" style={{ background: colores.rojo, color: colores.beige }} onClick={() => handleRemoveProveedor(idx)}>Eliminar</button>
+                              </div>
+                            ))}
+                            <button type="button" className="btn btn-info btn-sm" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600 }} onClick={handleAddProveedor}>Agregar proveedor</button>
+                          </div>
+                        </div>
+                      </fieldset>
+                      <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
+                        <button type="submit" className="btn btn-azul fw-bold">
+                          <i className="bi bi-save me-1"></i>
+                          {formMode === "editar" && editCodigo ? "Guardar cambios" : "Guardar"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-dorado fw-bold"
+                          onClick={handleCancel}
+                        >
+                          <i className="bi bi-x-circle me-1"></i>Cancelar
+                        </button>
+                      </div>
+                      {mensaje && (
+                        <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
+                          {mensaje}
+                        </div>
+                      )}
+                    </form>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="card-body">
-              {error && <div style={{ background: colores.dorado, color: colores.azul, padding: "12px", borderRadius: "8px", margin: "12px 0" }}>{error}</div>}
-              {mensaje && (
-                <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
-                  {mensaje}
+          )}
+          {/* ...resto del código: lista, modals, etc... */}
+          {!mostrarFormulario && (
+            <>
+              <div className="card shadow-sm mb-4" style={{ border: `1.5px solid ${colores.azul}`, borderRadius: 16, background: colores.beige }}>
+                <div className="card-header d-flex justify-content-between align-items-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+                  <h4 className="mb-0">Gestión de Repuestos</h4>
+                  <div className="d-flex gap-2">
+                    <button
+                      className="btn"
+                      style={{ background: colores.dorado, color: colores.azul, fontWeight: 600, border: 'none' }}
+                      onClick={() => setMostrarInactivos(!mostrarInactivos)}
+                    >
+                      {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
+                    </button>
+                    <button
+                      className="btn"
+                      style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
+                      onClick={() => {
+                        setMostrarFormulario(true);
+                        setEditCodigo(null);
+                        setForm({ codigo: "", marca: "", modelo: "", activo: 1, proveedores: [] });
+                        setFormMode("alta");
+                        setMensaje("");
+                      }}
+                    >
+                      <i className="bi bi-plus-lg"></i> Agregar repuesto
+                    </button>
+                    <button
+                      className="btn"
+                      style={{ background: colores.mentaSuave, color: colores.azul, fontWeight: 600, border: 'none' }}
+                      onClick={handleVerTodosRepuestos}
+                    >
+                      Listar Repuestos
+                    </button>
+                  </div>
                 </div>
-              )}
-              {/* Formulario para agregar/editar repuesto */}
-              {mostrarFormulario && formMode === "editar" && (
-                <form onSubmit={editCodigo ? handleUpdate : handleSubmit} className="form-container mb-3">
-                  <div className="row">
-                    <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
-                      <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
-                        <i className="bi bi-gear me-2"></i>Datos del repuesto
-                      </legend>
-                      <div className="form-group mb-2">
-                        <label>
-                          <i className="bi bi-hash me-2"></i>Código
-                        </label>
-                        <input name="codigo" value={form.codigo} onChange={handleChange} required disabled={!!editCodigo} className="form-control" />
-                      </div>
-                      <div className="form-group mb-2">
-                        <label>
-                          <i className="bi bi-pc me-2"></i>Marca
-                        </label>
-                        <input name="marca" value={form.marca} onChange={handleChange} required className="form-control" />
-                      </div>
-                      <div className="form-group mb-2">
-                        <label>
-                          <i className="bi bi-pc-display me-2"></i>Modelo
-                        </label>
-                        <input name="modelo" value={form.modelo} onChange={handleChange} required className="form-control" />
-                      </div>
-                      <div className="form-group mb-2">
-                        <label>
-                          <i className="bi bi-check2-circle me-2"></i>Estado
-                        </label>
-                        <select name="activo" value={form.activo} onChange={handleChange} className="form-control">
-                          <option value={1}>Activo</option>
-                          <option value={0}>Inactivo</option>
-                        </select>
-                      </div>
-                    </fieldset>
-                    <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
-                      <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
-                        <i className="bi bi-truck me-2"></i>Proveedores
-                      </legend>
-                      {form.proveedores.map((p, idx) => (
-                        <div key={idx} className="mb-2 p-2" style={{ background: "#fff", borderRadius: 8, border: `1px solid ${colores.verdeAgua}` }}>
-                          <select
-                            value={p.cuilProveedor}
-                            onChange={e => handleProveedorChange(idx, "cuilProveedor", e.target.value)}
-                            required
-                            className="form-control mb-2"
-                          >
-                            <option value="">Seleccione proveedor</option>
-                            {proveedores.map(pr => (
-                              <option key={pr.cuil} value={pr.cuil}>{pr.razonSocial} ({pr.cuil})</option>
-                            ))}
-                          </select>
-                          <input
-                            type="number"
-                            placeholder="Costo"
-                            value={p.costo}
-                            onChange={e => handleProveedorChange(idx, "costo", e.target.value)}
-                            required
-                            className="form-control mb-2"
-                          />
-                          <input
-                            type="number"
-                            placeholder="Cantidad"
-                            value={p.cantidad}
-                            onChange={e => handleProveedorChange(idx, "cantidad", e.target.value)}
-                            required
-                            className="form-control mb-2"
-                          />
-                          <button type="button" className="btn btn-danger btn-sm" style={{ background: colores.rojo, color: colores.beige }} onClick={() => handleRemoveProveedor(idx)}>Eliminar</button>
-                        </div>
-                      ))}
-                      <button type="button" className="btn btn-info btn-sm" style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600 }} onClick={handleAddProveedor}>Agregar proveedor</button>
-                    </fieldset>
-                  </div>
-                  <div className="row">
-                    <div className="col-12 d-flex flex-column flex-md-row justify-content-end">
-                      <button type="submit" className="btn mb-2 mb-md-0" style={{ background: colores.azul, color: colores.beige }}>
-                        <i className="bi bi-save me-1"></i>{editCodigo ? "Actualizar" : "Agregar"}
-                      </button>
-                      <button type="button" className="btn ms-md-2" style={{ background: colores.dorado, color: colores.azul }} onClick={handleCancel}>
-                        <i className="bi bi-x-circle me-1"></i>Cancelar
-                      </button>
-                    </div>
-                  </div>
+                <div className="card-body">
+                  {error && <div style={{ background: colores.dorado, color: colores.azul, padding: "12px", borderRadius: "8px", margin: "12px 0" }}>{error}</div>}
                   {mensaje && (
                     <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
                       {mensaje}
                     </div>
                   )}
-                </form>
-              )}
-
-              {/* Formulario solo lectura para consultar repuesto */}
-              {mostrarFormulario && formMode === "consultar" && (
-                <form className="form-container mb-3">
-                  <div className="row">
-                    <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
-                      <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
-                        <i className="bi bi-gear me-2"></i>Datos del repuesto
-                      </legend>
-                      <div className="form-group mb-2">
-                        <label><i className="bi bi-hash me-2"></i>Código</label>
-                        <input value={form.codigo} className="form-control" disabled readOnly />
-                      </div>
-                      <div className="form-group mb-2">
-                        <label><i className="bi bi-pc me-2"></i>Marca</label>
-                        <input value={form.marca} className="form-control" disabled readOnly />
-                      </div>
-                      <div className="form-group mb-2">
-                        <label><i className="bi bi-pc-display me-2"></i>Modelo</label>
-                        <input value={form.modelo} className="form-control" disabled readOnly />
-                      </div>
-                      <div className="form-group mb-2">
-                        <label><i className="bi bi-check2-circle me-2"></i>Estado</label>
-                        <input value={form.activo ? "Activo" : "Inactivo"} className="form-control" disabled readOnly />
-                      </div>
-                    </fieldset>
-                    <fieldset className="col-12 col-md-6" style={{ border: "none", marginBottom: "1.5rem" }}>
-                      <legend style={{ fontWeight: 600, color: colores.azul, marginBottom: "0.5rem" }}>
-                        <i className="bi bi-truck me-2"></i>Proveedores asociados
-                      </legend>
-                      <div className="table-responsive mb-2">
-                        <table className="table table-bordered table-sm align-middle" style={{ background: colores.mentaSuave }}>
-                          <thead>
-                            <tr>
-                              <th>Proveedor</th>
-                              <th>Costo</th>
-                              <th>Cantidad</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {proveedoresMM.length === 0 && (
-                              <tr>
-                                <td colSpan={3} className="text-center text-muted">Sin proveedores</td>
-                              </tr>
-                            )}
-                            {proveedoresMM.map((p, idx) => (
-                              <tr key={idx}>
-                                <td>{p.razon_social}</td>
-                                <td>${p.costo}</td>
-                                <td>{p.cantidad}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </fieldset>
-                  </div>
-                  <div className="row">
-                    <div className="col-12 d-flex flex-column flex-md-row justify-content-end">
-                      <button type="button" className="btn ms-md-2" style={{ background: colores.dorado, color: colores.azul }} onClick={handleCancel}>
-                        <i className="bi bi-x-circle me-1"></i> Cerrar
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              )}
-
-              {/* Modal de proveedores */}
-              {modalProveedores.open && (
-                <div style={{
-                  position: "fixed",
-                  top: 0, left: 0, width: "100vw", height: "100vh",
-                  background: "#0008", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center"
-                }}>
-                  <div style={{
-                    background: colores.beige,
-                    borderRadius: 16,
-                    padding: 32,
-                    minWidth: 350,
-                    maxWidth: 500,
-                    boxShadow: "0 4px 24px #0004",
-                    position: "relative"
-                  }}>
-                    <button
-                      onClick={handleCloseModal}
-                      style={{
-                        position: "absolute", top: 12, right: 12,
-                        background: colores.rojo, color: colores.beige, border: "none", borderRadius: 8, padding: "4px 12px", fontWeight: 600
-                      }}
-                    >X</button>
-                    <h5 style={{ color: colores.azul, marginBottom: 16 }}>
-                      Proveedores de {modalProveedores.repuesto?.codigo}
-                    </h5>
-                    {modalProveedores.lista.length === 0 ? (
-                      <div>No hay proveedores asociados.</div>
-                    ) : (
-                      <ul style={{ listStyle: "none", padding: 0 }}>
-                        {modalProveedores.lista.map((p, idx) => (
-                          <li key={idx} style={{
-                            background: "#fff",
-                            borderRadius: 8,
-                            border: `1px solid ${colores.verdeAgua}`,
-                            marginBottom: 8,
-                            padding: 12
-                          }}>
-                            <strong>{p.razonSocial || ""} ({p.cuilProveedor})</strong><br />
-                            Costo: <span style={{ color: colores.dorado }}>{p.costo}</span> | Cantidad: <span style={{ color: colores.azul }}>{p.cantidad}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="table-responsive mt-4">
-                <table className="table table-striped table-hover align-middle">
-                  <thead>
-                    <tr>
-                      <th>Código</th>
-                      <th>Marca</th>
-                      <th>Modelo</th>
-                      <th>Activo</th>
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {repuestos.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} style={{ textAlign: "center", padding: "16px" }}>
-                          No hay repuestos {mostrarInactivos ? "inactivos" : "activos"}.
-                        </td>
-                      </tr>
-                    ) : (
-                      repuestos.map(r => (
-                        <tr key={r.codigo} style={r.activo === 0 ? { opacity: 0.5 } : {}}>
-                          <td>{r.codigo}</td>
-                          <td>{r.marca}</td>
-                          <td>{r.modelo}</td>
-                          <td>{r.activo ? "Sí" : "No"}</td>
-                          <td>
-                            <button
-                              onClick={() => handleConsultar(r)}
-                              className="btn btn-sm me-1"
-                              style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600 }}
-                              title="Consultar"
-                            >
-                              <i className="bi bi-eye me-1"></i> Consultar
-                            </button>
-                            <button
-                              onClick={() => handleEdit(r)}
-                              className="btn btn-sm me-1"
-                              style={{ background: colores.dorado, color: colores.azul, fontWeight: 600 }}
-                              title="Modificar"
-                            >
-                              <i className="bi bi-pencil-square me-1"></i> Modificar
-                            </button>
-                            <button
-                              onClick={() => handleDelete(r.codigo)}
-                              className="btn btn-sm"
-                              style={{ background: colores.rojo, color: colores.beige, fontWeight: 600 }}
-                              title="Eliminar"
-                            >
-                              <i className="bi bi-x-circle me-1"></i> Eliminar
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-          {modalTodosRepuestos.open && (
-            <div style={{
-              position: "fixed",
-              top: 0, left: 0, width: "100vw", height: "100vh",
-              background: "#0008",
-              zIndex: 9999,
-              display: "flex", alignItems: "center", justifyContent: "center"
-            }}>
-              <div style={{
-                background: colores.beige,
-                borderRadius: 16,
-                padding: 32,
-                width: "95%",
-                maxHeight: "90vh",
-                overflowY: "auto",
-                boxShadow: "0 4px 24px #0004",
-                position: "relative"
-              }}>
-                {/* BOTÓN CERRAR */}
-                <button
-                  onClick={handleCloseModalTodosRepuestos}
-                  style={{
-                    position: "absolute", top: 12, right: 12,
-                    background: colores.rojo, color: colores.beige,
-                    border: "none", borderRadius: 8, padding: "4px 12px",
-                    fontWeight: 600, cursor: "pointer"
-                  }}
-                >
-                  X
-                </button>
-                <h4 style={{color: colores.azul, marginBottom: 20, fontWeight: 700}}> Listado de repuestos y proveedores</h4>
-                {/* VALIDO QUE HAYA LISTADO, SINO MUESTRA UN MENSAJE */}
-                {modalTodosRepuestos.lista.length === 0 ? (
-                  <div style={{ textAlign: "center", color: colores.rojo }}>
-                    No se encontraron repuestos.
-                  </div>
-                ) : (
-                  <div className="table-responsive">
-                    <table className="table table-bordered table-striped align-middle">
-                      <thead className="table-primary">
+                  <div className="table-responsive mt-4">
+                    <table className="table table-striped table-hover align-middle">
+                      <thead>
                         <tr>
                           <th>Código</th>
                           <th>Marca</th>
                           <th>Modelo</th>
                           <th>Activo</th>
-                          <th>CUIL</th>
-                          <th>Teléfono</th>
-                          <th>Razón Social</th>
-                          <th>Costo</th>
-                          <th>Cantidad</th>
+                          <th>Acciones</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {modalTodosRepuestos.lista.flatMap((r, idx) =>
-                          r.proveedores.map((p, i) => (
-                            <tr key={`${idx}-${i}`}>
+                        {repuestos.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} style={{ textAlign: "center", padding: "16px" }}>
+                              No hay repuestos {mostrarInactivos ? "inactivos" : "activos"}.
+                            </td>
+                          </tr>
+                        ) : (
+                          repuestos.map(r => (
+                            <tr key={r.codigo} style={r.activo === 0 ? { opacity: 0.5 } : {}}>
                               <td>{r.codigo}</td>
                               <td>{r.marca}</td>
                               <td>{r.modelo}</td>
                               <td>{r.activo ? "Sí" : "No"}</td>
-                              <td>{p.cuilProveedor}</td>
-                              <td>{p.telefono}</td>
-                              <td>{p.razonSocial}</td>
-                              <td>${p.costo}</td>
-                              <td>{p.cantidad}</td>
+                              <td>
+                                <button
+                                  onClick={() => handleConsultar(r.codigo)}
+                                  className="btn btn-sm me-1"
+                                  style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600 }}
+                                  title="Consultar"
+                                >
+                                  <i className="bi bi-eye me-1"></i> Consultar
+                                </button>
+                                <button
+                                  onClick={() => handleEdit(r)}
+                                  className="btn btn-sm me-1"
+                                  style={{ background: colores.dorado, color: colores.azul, fontWeight: 600 }}
+                                  title="Modificar"
+                                >
+                                  <i className="bi bi-pencil-square me-1"></i> Modificar
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(r.codigo)}
+                                  className="btn btn-sm"
+                                  style={{ background: colores.rojo, color: colores.beige, fontWeight: 600 }}
+                                  title="Eliminar"
+                                >
+                                  <i className="bi bi-x-circle me-1"></i> Eliminar
+                                </button>
+                              </td>
                             </tr>
                           ))
                         )}
                       </tbody>
                     </table>
                   </div>
-                )}
+                </div>
               </div>
-            </div>
+              {/* Modal de proveedores */}
+              {modalProveedores.open && (
+                <div className="modal" style={{ display: "block" }}>
+                  <div className="modal-dialog" style={{ maxWidth: "100vw" }}>
+                    <div className="modal-content" style={{ width: "100vw", maxWidth: "100vw", borderRadius: 16 }}>
+                      <div className="modal-header" style={{ background: "#1f3345", color: "#f0ede5", borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+                        <h5 className="modal-title">
+                          <i className="bi bi-gear me-2"></i>Consultar repuesto
+                        </h5>
+                      </div>
+                      <div className="modal-body" style={{ padding: 0 }}>
+                        <form className="form-container">
+                          <fieldset style={{ border: "none" }}>
+                            <legend>
+                              <i className="bi bi-gear me-2"></i>Datos del repuesto
+                            </legend>
+                            {/* División: Datos principales */}
+                            <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
+                              <i className="bi bi-gear me-2"></i>Datos principales
+                            </h6>
+                            <div className="row g-4">
+                              <div className="col-12 col-md-6">
+                                <div className="mb-3">
+                                  <label>
+                                    <i className="bi bi-hash me-2"></i>Código
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    value={modalProveedores.repuesto?.codigo ?? ""}
+                                    readOnly
+                                  />
+                                </div>
+                                <div className="mb-3">
+                                  <label>
+                                    <i className="bi bi-pc me-2"></i>Marca
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    value={modalProveedores.repuesto?.marca ?? ""}
+                                    readOnly
+                                  />
+                                </div>
+                              </div>
+                              <div className="col-12 col-md-6">
+                                <div className="mb-3">
+                                  <label>
+                                    <i className="bi bi-pc-display me-2"></i>Modelo
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    value={modalProveedores.repuesto?.modelo ?? ""}
+                                    readOnly
+                                  />
+                                </div>
+                                <div className="mb-3">
+                                  <label>
+                                    <i className="bi bi-check2-circle me-2"></i>Activo
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    value={modalProveedores.repuesto?.activo ? "Sí" : "No"}
+                                    readOnly
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            {/* División: Proveedores asociados */}
+                            <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                              <i className="bi bi-truck me-2"></i>Proveedores asociados
+                            </h6>
+                            <div className="row g-4">
+                              <div className="col-12">
+                                {modalProveedores.lista.length === 0 ? (
+                                  <div className="text-muted py-2">No hay proveedores asociados.</div>
+                                ) : (
+                                  <div className="table-responsive">
+                                    <table className="table table-bordered table-striped align-middle">
+                                      <thead>
+                                        <tr>
+                                          <th>CUIL</th>
+                                          <th>Razón Social</th>
+                                          <th>Teléfono</th>
+                                          <th>Costo</th>
+                                          <th>Cantidad</th>
+                                          <th>Activo</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {modalProveedores.lista.map((p, idx) => (
+                                          <tr key={idx}>
+                                            <td>{p.cuilProveedor}</td>
+                                            <td>{p.razonSocial}</td>
+                                            <td>{p.telefono}</td>
+                                            <td>${p.costo}</td>
+                                            <td>{p.cantidad}</td>
+                                            <td>{p.activo ? "Sí" : "No"}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </fieldset>
+                        </form>
+                      </div>
+                      <div className="modal-footer">
+                        <button className="btn btn-dorado fw-bold" onClick={handleCloseModal}>
+                          <i className="bi bi-x-circle me-1"></i>Cerrar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {modalTodosRepuestos.open && (
+                <div style={{
+                  position: "fixed",
+                  top: 0, left: 0, width: "100vw", height: "100vh",
+                  background: "#0008",
+                  zIndex: 9999,
+                  display: "flex", alignItems: "center", justifyContent: "center"
+                }}>
+                  <div style={{
+                    background: colores.beige,
+                    borderRadius: 16,
+                    padding: 32,
+                    width: "95%",
+                    maxHeight: "90vh",
+                    overflowY: "auto",
+                    boxShadow: "0 4px 24px #0004",
+                    position: "relative"
+                  }}>
+                    <button
+                      onClick={handleCloseModalTodosRepuestos}
+                      style={{
+                        position: "absolute", top: 12, right: 12,
+                        background: colores.rojo, color: colores.beige,
+                        border: "none", borderRadius: 8, padding: "4px 12px",
+                        fontWeight: 600, cursor: "pointer"
+                      }}
+                    >
+                      X
+                    </button>
+                    <h4 style={{color: colores.azul, marginBottom: 20, fontWeight: 700}}> Listado de repuestos y proveedores</h4>
+                    {modalTodosRepuestos.lista.length === 0 ? (
+                      <div style={{ textAlign: "center", color: colores.rojo }}>
+                        No se encontraron repuestos.
+                      </div>
+                    ) : (
+                      <div className="table-responsive">
+                        <table className="table table-bordered table-striped align-middle">
+                          <thead className="table-primary">
+                            <tr>
+                              <th>Código</th>
+                              <th>Marca</th>
+                              <th>Modelo</th>
+                              <th>Activo</th>
+                              <th>CUIL</th>
+                              <th>Teléfono</th>
+                              <th>Razón Social</th>
+                              <th>Costo</th>
+                              <th>Cantidad</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {modalTodosRepuestos.lista.flatMap((r, idx) =>
+                              r.proveedores.map((p, i) => (
+                                <tr key={`${idx}-${i}`}>
+                                  <td>{r.codigo}</td>
+                                  <td>{r.marca}</td>
+                                  <td>{r.modelo}</td>
+                                  <td>{r.activo ? "Sí" : "No"}</td>
+                                  <td>{p.cuilProveedor}</td>
+                                  <td>{p.telefono}</td>
+                                  <td>{p.razonSocial}</td>
+                                  <td>${p.costo}</td>
+                                  <td>{p.cantidad}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>

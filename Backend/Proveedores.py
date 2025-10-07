@@ -69,19 +69,28 @@ def modificar_datos_proveedor(cuil):
         return jsonify({"detail": "Proveedor no encontrado"}), 404
 
     data = request.get_json() or {}
-    razonSocial = data.get("razonSocial")
-    telefono = data.get("telefono")
-    activo = data.get("activo", getattr(proveedor, "activo", 1))
+    razonSocial = data.get("razonSocial", proveedor.razonSocial)
+    telefono = data.get("telefono", proveedor.telefono)
+    activo = data.get("activo", proveedor.activo)
 
-    if razonSocial is not None and not validar_razon_social(razonSocial):
+    # Validaciones
+    if not validar_razon_social(razonSocial):
         return jsonify({"error": "razonSocial inválida"}), 400
-    if telefono is not None and not validar_telefono(telefono):
+    if not validar_telefono(telefono):
         return jsonify({"error": "telefono inválido"}), 400
+    if str(activo) not in ("0", "1"):
+        return jsonify({"error": "Activo debe ser 0 o 1"}), 400
 
     try:
-        modificar_proveedor(cuil, razonSocial.strip() if razonSocial else None, telefono.strip() if telefono else None, activo)
+        modificar_proveedor(
+            cuil,
+            str(razonSocial).strip(),
+            str(telefono).strip(),
+            int(activo)
+        )
         return jsonify({"mensaje": "Proveedor modificado exitosamente"}), 200
     except Exception as e:
+        print("Error al modificar proveedor:", e)
         return jsonify({"error": "No se pudo modificar proveedor", "detail": str(e)}), 500
 
 @app.route("/proveedores/<int:cuil>", methods=["GET"])

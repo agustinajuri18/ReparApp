@@ -19,9 +19,11 @@ export default function Clientes() {
     email: "",
     activo: 1,
   });
+  const [formErrors, setFormErrors] = useState({});
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState('consultar'); // 'consultar' | 'modificar'
   const [clienteActual, setClienteActual] = useState(null);
+  const [modalErrors, setModalErrors] = useState({});
 
   // Cargar clientes
   const fetchClientes = async () => {
@@ -46,6 +48,7 @@ export default function Clientes() {
 
   const handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
+    setFormErrors(validarCliente({ ...form, [e.target.name]: e.target.value }));
   };
 
   // Mostrar modal para alta o modificación
@@ -55,6 +58,7 @@ export default function Clientes() {
     setModalModo("alta");
     setModalVisible(true);
     setMensaje("");
+    setFormErrors({});
     setForm({
       tipoDocumento: "",
       numeroDoc: "",
@@ -81,6 +85,7 @@ export default function Clientes() {
     setModalModo("modificar");
     setModalVisible(true);
     setMensaje("");
+    setModalErrors({});
     setForm({
       tipoDocumento: cliente.tipoDocumento || "",
       numeroDoc: cliente.numeroDoc || "",
@@ -100,21 +105,23 @@ export default function Clientes() {
   }
 
   function validarCliente(form) {
-    if (!form.tipoDocumento) return "Debe seleccionar el tipo de documento.";
-    if (!form.numeroDoc || !validarDocumento(form.tipoDocumento, form.numeroDoc)) return "Número de documento inválido para el tipo seleccionado.";
-    if (!form.nombre || form.nombre.trim().length < 2) return "El nombre es obligatorio y debe tener al menos 2 caracteres.";
-    if (!form.apellido || form.apellido.trim().length < 2) return "El apellido es obligatorio y debe tener al menos 2 caracteres.";
-    if (!form.telefono || form.telefono.trim().length < 6) return "El teléfono es obligatorio y debe tener al menos 6 caracteres.";
-    if (!form.email || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.email)) return "El email no es válido.";
-    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
-    return null;
+    const errors = {};
+    if (!form.tipoDocumento) errors.tipoDocumento = "Debe seleccionar el tipo de documento.";
+    if (!form.numeroDoc || !validarDocumento(form.tipoDocumento, form.numeroDoc)) errors.numeroDoc = "Número de documento inválido para el tipo seleccionado.";
+    if (!form.nombre || form.nombre.trim().length < 2) errors.nombre = "El nombre es obligatorio y debe tener al menos 2 caracteres.";
+    if (!form.apellido || form.apellido.trim().length < 2) errors.apellido = "El apellido es obligatorio y debe tener al menos 2 caracteres.";
+    if (!form.telefono || form.telefono.trim().length < 6) errors.telefono = "El teléfono es obligatorio y debe tener al menos 6 caracteres.";
+    if (!form.email || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.email)) errors.email = "El email no es válido.";
+    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") errors.activo = "El estado es obligatorio.";
+    return errors;
   }
 
   const handleSubmit = async e => {
     e.preventDefault();
-    const error = validarCliente(form);
-    if (error) {
-      setMensaje(error);
+    const errors = validarCliente(form);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
     }
     const res = await fetch(API_URL, {
@@ -140,9 +147,10 @@ export default function Clientes() {
   // Guardar modificación
   const handleUpdate = async e => {
     e.preventDefault();
-    const error = validarCliente(form);
-    if (error) {
-      setMensaje(error);
+    const errors = validarCliente(form);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
     }
     const { tipoDocumento, numeroDoc } = form;
@@ -184,9 +192,10 @@ export default function Clientes() {
 
   // Modal: guardar modificación
   const handleGuardarModificacion = async () => {
-    const error = validarCliente(clienteActual);
-    if (error) {
-      setMensaje(error);
+    const errors = validarCliente(clienteActual);
+    setModalErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
     }
     if (!clienteActual || !clienteActual.idCliente) {
@@ -207,6 +216,7 @@ export default function Clientes() {
   // Modal: actualizar campos
   const handleModalChange = e => {
     setClienteActual({ ...clienteActual, [e.target.name]: e.target.value });
+    setModalErrors(validarCliente({ ...clienteActual, [e.target.name]: e.target.value }));
   };
 
   // Cancelar formulario
@@ -223,6 +233,7 @@ export default function Clientes() {
       activo: 1,
     });
     setFormMode("alta");
+    setFormErrors({});
   };
 
   return (
@@ -249,7 +260,6 @@ export default function Clientes() {
               </div>
             </div>
             <div className="card-body">
-              {/* Ya no mostramos el formulario aquí */}
               <div className="table-responsive">
                 <table className="table table-striped table-hover align-middle">
                   <thead>
@@ -319,7 +329,6 @@ export default function Clientes() {
                     ? "Modificar cliente"
                     : "Nuevo cliente"}
                 </h5>
-                {/* Elimina el botón de cerrar personalizado */}
               </div>
               <div className="modal-body" style={{ padding: 0 }}>
                 <form
@@ -350,16 +359,10 @@ export default function Clientes() {
                             name="tipoDocumento"
                             value={
                               modalModo === "consultar"
-                                ? clienteActual?.tipoDocumento
-                                : modalModo === "modificar"
-                                ? form.tipoDocumento
+                                ? clienteActual?.tipoDocumento ?? ""
                                 : form.tipoDocumento
                             }
-                            onChange={
-                              modalModo === "consultar"
-                                ? handleModalChange
-                                : handleChange
-                            }
+                            onChange={handleChange}
                             className="form-control"
                             required
                             disabled={modalModo === "modificar" || modalModo === "consultar"}
@@ -371,6 +374,7 @@ export default function Clientes() {
                               </option>
                             ))}
                           </select>
+                          {formErrors.tipoDocumento && <div className="input-error-message">{formErrors.tipoDocumento}</div>}
                         </div>
                         <div className="mb-3">
                           <label>
@@ -381,20 +385,15 @@ export default function Clientes() {
                             name="numeroDoc"
                             value={
                               modalModo === "consultar"
-                                ? clienteActual?.numeroDoc
-                                : modalModo === "modificar"
-                                ? form.numeroDoc
+                                ? clienteActual?.numeroDoc ?? ""
                                 : form.numeroDoc
                             }
-                            onChange={
-                              modalModo === "consultar"
-                                ? handleModalChange
-                                : handleChange
-                            }
+                            onChange={handleChange}
                             required
                             className="form-control"
                             disabled={modalModo === "modificar" || modalModo === "consultar"}
                           />
+                          {formErrors.numeroDoc && <div className="input-error-message">{formErrors.numeroDoc}</div>}
                         </div>
                       </div>
                       <div className="col-12 col-md-6">
@@ -407,20 +406,15 @@ export default function Clientes() {
                             name="nombre"
                             value={
                               modalModo === "consultar"
-                                ? clienteActual?.nombre
-                                : modalModo === "modificar"
-                                ? form.nombre
+                                ? clienteActual?.nombre ?? ""
                                 : form.nombre
                             }
-                            onChange={
-                              modalModo === "consultar"
-                                ? handleModalChange
-                                : handleChange
-                            }
+                            onChange={handleChange}
                             required
                             className="form-control"
                             readOnly={modalModo === "consultar"}
                           />
+                          {formErrors.nombre && <div className="input-error-message">{formErrors.nombre}</div>}
                         </div>
                         <div className="mb-3">
                           <label>
@@ -431,20 +425,15 @@ export default function Clientes() {
                             name="apellido"
                             value={
                               modalModo === "consultar"
-                                ? clienteActual?.apellido
-                                : modalModo === "modificar"
-                                ? form.apellido
+                                ? clienteActual?.apellido ?? ""
                                 : form.apellido
                             }
-                            onChange={
-                              modalModo === "consultar"
-                                ? handleModalChange
-                                : handleChange
-                            }
+                            onChange={handleChange}
                             required
                             className="form-control"
                             readOnly={modalModo === "consultar"}
                           />
+                          {formErrors.apellido && <div className="input-error-message">{formErrors.apellido}</div>}
                         </div>
                       </div>
                     </div>
@@ -463,20 +452,15 @@ export default function Clientes() {
                             name="telefono"
                             value={
                               modalModo === "consultar"
-                                ? clienteActual?.telefono
-                                : modalModo === "modificar"
-                                ? form.telefono
+                                ? clienteActual?.telefono ?? ""
                                 : form.telefono
                             }
-                            onChange={
-                              modalModo === "consultar"
-                                ? handleModalChange
-                                : handleChange
-                            }
+                            onChange={handleChange}
                             required
                             className="form-control"
                             readOnly={modalModo === "consultar"}
                           />
+                          {formErrors.telefono && <div className="input-error-message">{formErrors.telefono}</div>}
                         </div>
                       </div>
                       <div className="col-12 col-md-6">
@@ -489,20 +473,15 @@ export default function Clientes() {
                             name="email"
                             value={
                               modalModo === "consultar"
-                                ? clienteActual?.email
-                                : modalModo === "modificar"
-                                ? form.email
+                                ? clienteActual?.email ?? ""
                                 : form.email
                             }
-                            onChange={
-                              modalModo === "consultar"
-                                ? handleModalChange
-                                : handleChange
-                            }
+                            onChange={handleChange}
                             required
                             className="form-control"
                             readOnly={modalModo === "consultar"}
                           />
+                          {formErrors.email && <div className="input-error-message">{formErrors.email}</div>}
                         </div>
                       </div>
                     </div>
@@ -520,22 +499,17 @@ export default function Clientes() {
                             name="activo"
                             value={
                               modalModo === "consultar"
-                                ? clienteActual?.activo
-                                : modalModo === "modificar"
-                                ? form.activo
+                                ? clienteActual?.activo ?? 1
                                 : form.activo
                             }
-                            onChange={
-                              modalModo === "consultar"
-                                ? handleModalChange
-                                : handleChange
-                            }
+                            onChange={handleChange}
                             className="form-control"
                             disabled={modalModo === "consultar"}
                           >
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
                           </select>
+                          {formErrors.activo && <div className="input-error-message">{formErrors.activo}</div>}
                         </div>
                       </div>
                     </div>
