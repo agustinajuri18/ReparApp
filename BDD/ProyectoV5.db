@@ -1,0 +1,168 @@
+BEGIN TRANSACTION;
+CREATE TABLE IF NOT EXISTS "Cargo" (
+  "idCargo" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "descripcion" TEXT UNIQUE
+);
+CREATE TABLE IF NOT EXISTS "CargoxPermiso" (
+  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "idCargo" INTEGER NOT NULL,
+  "idPermiso" INTEGER NOT NULL,
+  UNIQUE ("idCargo", "idPermiso"),
+  FOREIGN KEY("idCargo") REFERENCES "Cargo" ("idCargo"),
+  FOREIGN KEY("idPermiso") REFERENCES "Permiso" ("idPermiso")
+);
+CREATE TABLE IF NOT EXISTS "Cliente" (
+  "idCliente" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "idTipoDoc" INTEGER NOT NULL,
+  "numeroDoc" INTEGER NOT NULL,
+  "nombre" TEXT,
+  "apellido" TEXT,
+  "mail" TEXT UNIQUE,
+  "telefono" TEXT,
+  "activo" INTEGER NOT NULL DEFAULT 1,
+  UNIQUE ("idTipoDoc", "numeroDoc"),
+  FOREIGN KEY("idTipoDoc") REFERENCES "TipoDocumento" ("idTipoDoc")
+);
+CREATE TABLE IF NOT EXISTS "DetalleOrden" (
+  "idDetalle" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "idOrden" INTEGER NOT NULL,
+  "idServicio" INTEGER NOT NULL,
+  "repuesto_proveedor_id" INTEGER NOT NULL,
+  "costoServicio" REAL,
+  "costoRepuesto" REAL,
+  "subtotal" REAL,
+  FOREIGN KEY("idOrden") REFERENCES "OrdenDeReparacion" ("idOrden"),
+  FOREIGN KEY("idServicio") REFERENCES "Servicio" ("idServicio"),
+  FOREIGN KEY("repuesto_proveedor_id") REFERENCES "RepuestoxProveedor" ("id")
+);
+CREATE TABLE IF NOT EXISTS "Dispositivo" (
+  "idDispositivo" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "nroSerie" TEXT NOT NULL UNIQUE,
+  "marca" TEXT,
+  "modelo" TEXT,
+  "idCliente" INTEGER NOT NULL,
+  "activo" INTEGER NOT NULL DEFAULT 1,
+  FOREIGN KEY("idCliente") REFERENCES "Cliente" ("idCliente")
+);
+CREATE TABLE IF NOT EXISTS "Empleado" (
+  "idEmpleado" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "nombre" TEXT,
+  "apellido" TEXT,
+  "idCargo" INTEGER,
+  "idUsuario" INTEGER UNIQUE,
+  "activo" INTEGER NOT NULL DEFAULT 1,
+  FOREIGN KEY("idCargo") REFERENCES "Cargo" ("idCargo"),
+  FOREIGN KEY("idUsuario") REFERENCES "Usuario" ("idUsuario")
+);
+CREATE TABLE IF NOT EXISTS "Estado" (
+  "idEstado" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "nombre" TEXT UNIQUE
+);
+CREATE TABLE IF NOT EXISTS "HistorialArreglos" (
+  "idHistorialOr" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "idOrden" INTEGER NOT NULL,
+  "idDispositivo" INTEGER NOT NULL,
+  "fechaArreglo" DATETIME NOT NULL,
+  "descripcion" TEXT,
+  FOREIGN KEY("idOrden") REFERENCES "OrdenDeReparacion" ("idOrden"),
+  FOREIGN KEY("idDispositivo") REFERENCES "Dispositivo" ("idDispositivo")
+);
+CREATE TABLE IF NOT EXISTS "HistorialEstadoOrden" (
+  "idHistorialEs" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "idOrden" INTEGER NOT NULL,
+  "idEstado" INTEGER NOT NULL,
+  "fechaCambio" DATETIME NOT NULL,
+  "observaciones" TEXT,
+  FOREIGN KEY("idOrden") REFERENCES "OrdenDeReparacion" ("idOrden"),
+  FOREIGN KEY("idEstado") REFERENCES "Estado" ("idEstado")
+);
+CREATE TABLE IF NOT EXISTS "OrdenDeReparacion" (
+  "idOrden" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "idDispositivo" INTEGER,
+  "fecha" DATE,
+  "descripcionDanos" TEXT,
+  "diagnostico" TEXT,
+  "presupuesto" INTEGER,
+  "idEmpleado" INTEGER,
+  FOREIGN KEY("idDispositivo") REFERENCES "Dispositivo" ("idDispositivo"),
+  FOREIGN KEY("idEmpleado") REFERENCES "Empleado" ("idEmpleado")
+);
+CREATE TABLE IF NOT EXISTS "Permiso" (
+  "idPermiso" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "descripcion" TEXT UNIQUE
+);
+CREATE TABLE IF NOT EXISTS "Proveedor" (
+  "idProveedor" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "cuil" TEXT NOT NULL UNIQUE,
+  "telefono" TEXT,
+  "razonSocial" TEXT,
+  "activo" INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS "Repuesto" (
+  "idRepuesto" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "marca" TEXT,
+  "modelo" TEXT,
+  "activo" INTEGER NOT NULL DEFAULT 1,
+  UNIQUE ("marca", "modelo")
+);
+CREATE TABLE IF NOT EXISTS "RepuestoxProveedor" (
+  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "idRepuesto" INTEGER NOT NULL,
+  "idProveedor" INTEGER NOT NULL,
+  "costo" INTEGER,
+  "cantidad" INTEGER,
+  UNIQUE ("idRepuesto", "idProveedor"),
+  FOREIGN KEY("idRepuesto") REFERENCES "Repuesto" ("idRepuesto"),
+  FOREIGN KEY("idProveedor") REFERENCES "Proveedor" ("idProveedor")
+);
+CREATE TABLE IF NOT EXISTS "Servicio" (
+  "idServicio" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "descripcion" TEXT UNIQUE,
+  "precioBase" INTEGER,
+  "activo" INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS "ServicioxRepuesto" (
+	"id"	INTEGER,
+	"idServicio"	INTEGER,
+	"idRepuesto"	INTEGER,
+	"cantidad"	INTEGER,
+	PRIMARY KEY("id"),
+	FOREIGN KEY("idRepuesto") REFERENCES "Repuesto"("idRepuesto"),
+	FOREIGN KEY("idServicio") REFERENCES "Servicio"("idServicio")
+);
+CREATE TABLE IF NOT EXISTS "Sesion" (
+  "idSesion" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "idUsuario" INTEGER NOT NULL,
+  "horaInicio" DATETIME NOT NULL,
+  "horaFin" DATETIME,
+  "fecha" DATE NOT NULL,
+  FOREIGN KEY("idUsuario") REFERENCES "Usuario" ("idUsuario")
+);
+CREATE TABLE IF NOT EXISTS "TipoDocumento" (
+  "idTipoDoc" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "nombre" TEXT NOT NULL UNIQUE
+);
+CREATE TABLE IF NOT EXISTS "Usuario" (
+  "idUsuario" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "nombreUsuario" TEXT NOT NULL UNIQUE,
+  "contraseña" TEXT NOT NULL,
+  "activo" INTEGER NOT NULL DEFAULT 1
+);
+INSERT INTO "Cargo" VALUES (1,'Supervisor');
+INSERT INTO "Cargo" VALUES (2,'Tecnico');
+INSERT INTO "Cargo" VALUES (3,'Asistente de ventas');
+INSERT INTO "Cargo" VALUES (4,'Asistente de compras');
+INSERT INTO "Estado" VALUES (1,'En Diagnóstico');
+INSERT INTO "Estado" VALUES (2,'Pendiente de Presupuesto');
+INSERT INTO "Estado" VALUES (3,'Pendiente de Aprobación');
+INSERT INTO "Estado" VALUES (4,'En Reparación');
+INSERT INTO "Estado" VALUES (5,'Pendiente de Retiro');
+INSERT INTO "Estado" VALUES (6,'Desestimada');
+INSERT INTO "Estado" VALUES (7,'No Reparada');
+INSERT INTO "Estado" VALUES (8,'Retirada');
+INSERT INTO "Estado" VALUES (9,'Abandonada');
+INSERT INTO "TipoDocumento" VALUES (1,'DNI');
+INSERT INTO "TipoDocumento" VALUES (2,'Pasaporte');
+INSERT INTO "TipoDocumento" VALUES (3,'CUIT');
+INSERT INTO "TipoDocumento" VALUES (4,'CUIL');
+COMMIT;
