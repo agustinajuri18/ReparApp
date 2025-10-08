@@ -1,236 +1,229 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import MenuLateral from './MenuLateral';
 
-const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5' };
-
-const API_ORDENES = "http://localhost:5000/ordenes/";
-const API_DETALLES = "http://localhost:5000/detalles_orden/";
+const API_URL = "http://localhost:5000";
 
 function Ordenes() {
   const [ordenes, setOrdenes] = useState([]);
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [dispositivos, setDispositivos] = useState([]);
+  const [empleados, setEmpleados] = useState([]);
+  const [servicios, setServicios] = useState([]);
+  const [repuestosProveedores, setRepuestosProveedores] = useState([]);
+
   const [mensaje, setMensaje] = useState("");
+  const [formErrors, setFormErrors] = useState({});
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalModo, setModalModo] = useState('alta');
+
   const [form, setForm] = useState({
+    nroDeOrden: null,
     nroSerieDispositivo: "",
-    fecha: "",
+    fecha: new Date().toISOString().split('T')[0],
     descripcionDanos: "",
     diagnostico: "",
-    presupuesto: "",
+    presupuesto: 0,
     idEmpleado: ""
   });
-  const [ordenActual, setOrdenActual] = useState(null);
+
   const [detalles, setDetalles] = useState([]);
   const [nuevoDetalle, setNuevoDetalle] = useState({
-    idDetalle: "",
-    nroDeOrden: "",
     codigoServicio: "",
-    codRepuestos: "",
-    cuitProveedor: "",
+    repuestoProveedor: "", // "codRepuesto/cuitProveedor"
     costoServicio: "",
     costoRepuesto: "",
     subtotal: ""
   });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalModo, setModalModo] = useState('consultar'); // 'consultar' o 'modificar'
-
-  // --- Cargar todas las órdenes ---
-  useEffect(() => {
-    fetch(API_ORDENES)
+  // --- Carga de Datos ---
+  const fetchOrdenes = () => {
+    fetch(`${API_URL}/ordenes/`)
       .then(res => res.json())
-      .then(data => setOrdenes(data))
-      .catch(err => console.error("Error al cargar órdenes:", err));
+      .then(data => setOrdenes(Array.isArray(data) ? data : []))
+      .catch(() => setMensaje("Error al cargar órdenes"));
+  };
+
+  useEffect(() => {
+    fetchOrdenes();
+    fetch(`${API_URL}/dispositivos/?activos=true`).then(res => res.json()).then(setDispositivos);
+    fetch(`${API_URL}/empleados/`).then(res => res.json()).then(setEmpleados);
+    fetch(`${API_URL}/servicios/`).then(res => res.json()).then(data => setServicios(Array.isArray(data) ? data : []));
+    fetch(`${API_URL}/repuestos_con_proveedores`).then(res => res.json()).then(data => setRepuestosProveedores(Array.isArray(data) ? data : []));
   }, []);
 
-  // --- Helpers ---
-  function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  // --- Presupuesto autocalculado ---
+  const presupuestoTotal = useMemo(() => {
+    return detalles.reduce((total, det) => total + parseFloat(det.subtotal || 0), 0);
+  }, [detalles]);
+
+  useEffect(() => {
+    if (modalVisible) {
+      setForm(prev => ({ ...prev, presupuesto: presupuestoTotal }));
+    }
+  }, [presupuestoTotal, modalVisible]);
+
+
+  // --- Validaciones ---
+  function validarOrden(data) {
+    const errors = {};
+    if (!data.nroSerieDispositivo) errors.nroSerieDispositivo = "El dispositivo es obligatorio.";
+    if (!data.idEmpleado) errors.idEmpleado = "El empleado es obligatorio.";
+    if (!data.fecha) errors.fecha = "La fecha es obligatoria.";
+    return errors;
   }
 
-  function handleDetalleChange(e) {
-    setNuevoDetalle({ ...nuevoDetalle, [e.target.name]: e.target.value });
-  }
+  // --- Manejadores de Modal ---
+  const handleModalClose = () => setModalVisible(false);
 
-  function limpiarForm() {
+  const handleAgregarClick = () => {
+    setModalModo('alta');
     setForm({
+      nroDeOrden: null,
       nroSerieDispositivo: "",
-      fecha: "",
+      fecha: new Date().toISOString().split('T')[0],
       descripcionDanos: "",
       diagnostico: "",
-      presupuesto: "",
+      presupuesto: 0,
       idEmpleado: ""
     });
-  }
+    setDetalles([]);
+    setFormErrors({});
+    setMensaje("");
+    setModalVisible(true);
+  };
 
-  // --- Crear orden ---
-  function handleSubmit(e) {
+  const handleModificar = (orden) => {
+    setModalModo('modificar');
+    setForm(orden);
+    fetch(`${API_URL}/ordenes/${orden.nroDeOrden}/detalles/`)
+        .then(res => res.json())
+        .then(data => setDetalles(Array.isArray(data) ? data : []));
+    setFormErrors({});
+    setMensaje("");
+    setModalVisible(true);
+  };
+
+  const handleConsultar = (orden) => {
+    setModalModo('consultar');
+    setForm(orden);
+    fetch(`${API_URL}/ordenes/${orden.nroDeOrden}/detalles/`)
+        .then(res => res.json())
+        .then(data => setDetalles(Array.isArray(data) ? data : []));
+    setFormErrors({});
+    setMensaje("");
+    setModalVisible(true);
+  };
+  
+  // --- Manejadores de Formularios ---
+  const handleFormChange = (e) => {
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleNuevoDetalleChange = (e) => {
+    const { name, value } = e.target;
+    let updatedDetalle = { ...nuevoDetalle, [name]: value };
+
+    // --- Lógica de autocompletar costos ---
+    let costoServ = parseFloat(updatedDetalle.costoServicio || 0);
+    let costoRep = parseFloat(updatedDetalle.costoRepuesto || 0);
+
+    if (name === "codigoServicio") {
+        const servicioSeleccionado = servicios.find(s => s.codigo.toString() === value);
+        costoServ = servicioSeleccionado ? parseFloat(servicioSeleccionado.precioBase) : 0;
+        updatedDetalle.costoServicio = costoServ;
+    }
+
+    if (name === "repuestoProveedor") {
+        const [codRepuesto, cuilProv] = value.split('/');
+        let costoEncontrado = 0;
+        if(codRepuesto && cuilProv) {
+            const repuesto = repuestosProveedores.find(r => r.codigo.toString() === codRepuesto);
+            if(repuesto) {
+                const prov = repuesto.proveedores.find(p => p.cuilProveedor === cuilProv);
+                costoEncontrado = prov ? parseFloat(prov.costo) : 0;
+            }
+        }
+        costoRep = costoEncontrado;
+        updatedDetalle.costoRepuesto = costoRep;
+    }
+    
+    updatedDetalle.subtotal = costoServ + costoRep;
+    setNuevoDetalle(updatedDetalle);
+  };
+  
+  // --- Acciones CRUD ---
+  const handleSubmit = (e) => {
     e.preventDefault();
-    fetch(API_ORDENES, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
-    })
-      .then(res => res.json())
-      .then(() => {
-        limpiarForm();
-        setMostrarFormulario(false);
-        setMensaje("Orden creada correctamente");
-        fetch(API_ORDENES)
-          .then(res => res.json())
-          .then(data => setOrdenes(data));
-      })
-      .catch(err => setMensaje("Error al crear orden: " + err));
-  }
+    const errors = validarOrden(form);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMensaje("Por favor, corrige los errores.");
+      return;
+    }
+    
+    const payload = { ...form, detalles: modalModo === 'alta' ? detalles : undefined };
 
-  // --- Consultar orden y sus detalles ---
-  function handleConsultar(nroDeOrden) {
-    fetch(`${API_DETALLES}${nroDeOrden}`)
-      .then(res => res.json())
-      .then(det => {
-        const orden = ordenes.find(o => o.nroDeOrden === nroDeOrden);
-        setOrdenActual(orden);
-        setDetalles(det);
-        setModalModo('consultar');
-        setModalVisible(true);
-      });
-  }
-
-  // --- Modificar orden (abrir modal) ---
-  function handleModificar(nroDeOrden) {
-    fetch(`${API_DETALLES}${nroDeOrden}`)
-      .then(res => res.json())
-      .then(det => {
-        const orden = ordenes.find(o => o.nroDeOrden === nroDeOrden);
-        setOrdenActual(orden);
-        setDetalles(det);
-        setModalModo('modificar');
-        setModalVisible(true);
-      });
-  }
-
-  // --- Guardar modificación de orden ---
-  function handleModalSave(e) {
-    e.preventDefault();
-    fetch(`${API_ORDENES}${ordenActual.nroDeOrden}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(ordenActual)
-    })
-      .then(res => res.json())
-      .then(() => {
-        setModalVisible(false);
-        fetch(API_ORDENES)
-          .then(res => res.json())
-          .then(data => setOrdenes(data));
-        setMensaje("Orden modificada correctamente");
-      })
-      .catch(err => setMensaje("Error al modificar orden: " + err));
-  }
-
-  // --- Agregar detalle a la orden ---
-  function handleAgregarDetalle(e) {
-    e.preventDefault();
-    const payload = { ...nuevoDetalle, nroDeOrden: ordenActual.nroDeOrden };
-    fetch(API_DETALLES, {
-      method: "POST",
+    fetch(`${API_URL}/ordenes/`, {
+      method: 'POST',
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     })
-      .then(res => res.json())
-      .then(() => {
-        setNuevoDetalle({
-          idDetalle: "",
-          nroDeOrden: ordenActual.nroDeOrden,
-          codigoServicio: "",
-          codRepuestos: "",
-          cuitProveedor: "",
-          costoServicio: "",
-          costoRepuesto: "",
-          subtotal: ""
-        });
-        fetch(`${API_DETALLES}${ordenActual.nroDeOrden}`)
-          .then(res => res.json())
-          .then(det => setDetalles(det));
-      })
-      .catch(err => console.error("Error al agregar detalle:", err));
-  }
+    .then(res => {
+        if (!res.ok) throw new Error(`Error al crear la orden.`);
+        return res.json();
+    })
+    .then(() => {
+        handleModalClose();
+        fetchOrdenes();
+    })
+    .catch(err => setMensaje(err.message));
+  };
+  
+  const handleAgregarDetalleLocal = (e) => {
+    e.preventDefault();
+    const [codRepuestos, cuitProveedor] = (nuevoDetalle.repuestoProveedor || "").split('/');
+    
+    const detalleCompleto = {
+      idDetalle: Date.now(), // ID temporal para el key en React
+      codigoServicio: nuevoDetalle.codigoServicio,
+      costoServicio: nuevoDetalle.costoServicio,
+      codRepuestos,
+      cuitProveedor,
+      costoRepuesto: nuevoDetalle.costoRepuesto,
+      subtotal: nuevoDetalle.subtotal
+    };
+    
+    setDetalles(prev => [...prev, detalleCompleto]);
+    setNuevoDetalle({ codigoServicio: "", repuestoProveedor: "", costoServicio: "", costoRepuesto: "", subtotal: "" });
+  };
 
-  function handleModalClose() {
-    setModalVisible(false);
-    setOrdenActual(null);
-  }
+  const handleRemoveDetalleLocal = (idDetalle) => {
+    setDetalles(prev => prev.filter(d => d.idDetalle !== idDetalle));
+  };
 
   return (
-    <div className="container-fluid" style={{ backgroundColor: colores.beige, minHeight: '100vh' }}>
+    <div className="container-fluid main-background" style={{ minHeight: '100vh' }}>
       <div className="row flex-nowrap">
         <MenuLateral />
-        <main className="col-12 col-md-10 pt-4 px-2 px-md-4" style={{
-          background: 'white', borderRadius: 16,
-          boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh'
-        }}>
-          <div className="card shadow-sm mb-4" style={{
-            border: `1.5px solid ${colores.azul}`,
-            borderRadius: 16, background: colores.beige
-          }}>
-            <div className="card-header d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center"
-              style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-              <h4 className="mb-2 mb-md-0"><i className="bi bi-clipboard-data me-2"></i>Gestión de Órdenes</h4>
-              <button className="btn"
-                style={{ background: colores.verdeAgua, color: colores.azul, fontWeight: 600, border: 'none' }}
-                onClick={() => setMostrarFormulario(true)}>
-                <i className="bi bi-plus-lg"></i> Agregar orden
+        <main className="col-12 col-md-10 pt-4 px-2 px-md-4 d-flex flex-column">
+          <div className="card shadow-sm mb-4" style={{ border: `1.5px solid #1f3345`, borderRadius: 16, background: "var(--color-beige)" }}>
+            <div className="card-header d-flex justify-content-between align-items-center" style={{ background: '#1f3345', color: '#f0ede5', borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+              <h4 className="mb-0"><i className="bi bi-clipboard-data me-2"></i>Gestión de Órdenes</h4>
+              <button className="btn btn-verdeAgua" onClick={handleAgregarClick}>
+                <i className="bi bi-plus-lg"></i> Agregar Orden
               </button>
             </div>
             <div className="card-body">
-
-              {mostrarFormulario && (
-                <form onSubmit={handleSubmit} className="mb-3">
-                  <div className="row g-3">
-                    <div className="col-md-4">
-                      <label>Nro Serie Dispositivo</label>
-                      <input name="nroSerieDispositivo" className="form-control" value={form.nroSerieDispositivo} onChange={handleChange} required />
-                    </div>
-                    <div className="col-md-4">
-                      <label>Fecha</label>
-                      <input type="date" name="fecha" className="form-control" value={form.fecha} onChange={handleChange} required />
-                    </div>
-                    <div className="col-md-4">
-                      <label>Empleado</label>
-                      <input name="idEmpleado" className="form-control" value={form.idEmpleado} onChange={handleChange} required />
-                    </div>
-                    <div className="col-md-6">
-                      <label>Descripción Daños</label>
-                      <input name="descripcionDanos" className="form-control" value={form.descripcionDanos} onChange={handleChange} />
-                    </div>
-                    <div className="col-md-6">
-                      <label>Diagnóstico</label>
-                      <input name="diagnostico" className="form-control" value={form.diagnostico} onChange={handleChange} />
-                    </div>
-                    <div className="col-md-4">
-                      <label>Presupuesto</label>
-                      <input type="number" name="presupuesto" className="form-control" value={form.presupuesto} onChange={handleChange} />
-                    </div>
-                  </div>
-                  <div className="mt-3 d-flex justify-content-end gap-2">
-                    <button className="btn" style={{ background: colores.azul, color: colores.beige }}>Guardar</button>
-                    <button type="button" className="btn" style={{ background: colores.dorado, color: colores.azul }}
-                      onClick={() => setMostrarFormulario(false)}>Cancelar</button>
-                  </div>
-                </form>
-              )}
-
               {mensaje && <div className="alert alert-info">{mensaje}</div>}
-
               <div className="table-responsive">
-                <table className="table table-striped table-hover align-middle">
+                <table className="table table-hover align-middle">
                   <thead>
                     <tr>
                       <th>N° Orden</th>
                       <th>Dispositivo</th>
+                      <th>Empleado</th>
                       <th>Fecha</th>
                       <th>Diagnóstico</th>
-                      <th>Presupuesto</th>
-                      <th>Empleado</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
@@ -238,21 +231,16 @@ function Ordenes() {
                     {ordenes.map((o) => (
                       <tr key={o.nroDeOrden}>
                         <td>{o.nroDeOrden}</td>
-                        <td>{o.nroSerieDispositivo}</td>
+                        <td>{o.dispositivo_info}</td>
+                        <td>{o.empleado_info}</td>
                         <td>{o.fecha}</td>
                         <td>{o.diagnostico}</td>
-                        <td>{o.presupuesto}</td>
-                        <td>{o.idEmpleado}</td>
                         <td>
-                          <button className="btn btn-sm me-1"
-                            style={{ background: colores.verdeAgua, color: colores.azul }}
-                            onClick={() => handleConsultar(o.nroDeOrden)}>
-                            <i className="bi bi-eye"></i> Consultar
+                          <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
+                            <i className="bi bi-search me-1"></i>Consultar
                           </button>
-                          <button className="btn btn-sm me-1"
-                            style={{ background: colores.dorado, color: colores.azul }}
-                            onClick={() => handleModificar(o.nroDeOrden)}>
-                            <i className="bi bi-pencil-square"></i> Editar
+                          <button className="btn btn-sm btn-dorado fw-bold" onClick={() => handleModificar(o)}>
+                            <i className="bi bi-pencil-square me-1"></i>Modificar
                           </button>
                         </td>
                       </tr>
@@ -260,107 +248,118 @@ function Ordenes() {
                   </tbody>
                 </table>
               </div>
-
-              {/* --- Modal de detalles --- */}
-              {modalVisible && ordenActual && (
-                <div className="modal fade show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }} tabIndex="-1">
-                  <div className="modal-dialog modal-lg">
-                    <div className="modal-content" style={{ background: colores.beige, borderRadius: 16 }}>
-                      <div className="modal-header" style={{ background: colores.azul, color: colores.beige }}>
-                        <h5 className="modal-title">
-                          {modalModo === 'consultar' ? 'Detalles de la Orden' : 'Editar Orden'}
-                        </h5>
-                        <button type="button" className="btn-close" onClick={handleModalClose}></button>
-                      </div>
-                      <div className="modal-body">
-                        {/* Datos principales */}
-                        {modalModo === 'modificar' && (
-                          <form onSubmit={handleModalSave}>
-                            <div className="row g-3">
-                              <div className="col-md-6">
-                                <label>Diagnóstico</label>
-                                <input className="form-control"
-                                  value={ordenActual.diagnostico || ""}
-                                  onChange={e => setOrdenActual({ ...ordenActual, diagnostico: e.target.value })} />
-                              </div>
-                              <div className="col-md-6">
-                                <label>Presupuesto</label>
-                                <input className="form-control"
-                                  value={ordenActual.presupuesto || ""}
-                                  onChange={e => setOrdenActual({ ...ordenActual, presupuesto: e.target.value })} />
-                              </div>
-                            </div>
-                            <button className="btn mt-3" style={{ background: colores.verdeAgua, color: colores.azul }}>Guardar cambios</button>
-                          </form>
-                        )}
-
-                        {/* Tabla de detalles */}
-                        <hr />
-                        <h6 className="mt-3"><i className="bi bi-list-ul me-2"></i>Detalles de la Orden</h6>
-                        <table className="table table-bordered table-sm">
-                          <thead>
-                            <tr>
-                              <th>ID</th>
-                              <th>Servicio</th>
-                              <th>Repuesto</th>
-                              <th>Proveedor</th>
-                              <th>Costo Servicio</th>
-                              <th>Costo Repuesto</th>
-                              <th>Subtotal</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {detalles.map((d) => (
-                              <tr key={d.idDetalle}>
-                                <td>{d.idDetalle}</td>
-                                <td>{d.codigoServicio}</td>
-                                <td>{d.codRepuestos}</td>
-                                <td>{d.cuitProveedor}</td>
-                                <td>{d.costoServicio}</td>
-                                <td>{d.costoRepuesto}</td>
-                                <td>{d.subtotal}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-
-                        {modalModo === 'modificar' && (
-                          <form onSubmit={handleAgregarDetalle} className="row g-2 mt-3">
-                            <div className="col-md-2">
-                              <input placeholder="ID" name="idDetalle" className="form-control" value={nuevoDetalle.idDetalle} onChange={handleDetalleChange} required />
-                            </div>
-                            <div className="col-md-2">
-                              <input placeholder="Serv." name="codigoServicio" className="form-control" value={nuevoDetalle.codigoServicio} onChange={handleDetalleChange} required />
-                            </div>
-                            <div className="col-md-2">
-                              <input placeholder="Repuesto" name="codRepuestos" className="form-control" value={nuevoDetalle.codRepuestos} onChange={handleDetalleChange} required />
-                            </div>
-                            <div className="col-md-2">
-                              <input placeholder="Proveedor" name="cuitProveedor" className="form-control" value={nuevoDetalle.cuitProveedor} onChange={handleDetalleChange} required />
-                            </div>
-                            <div className="col-md-2">
-                              <input placeholder="C.Serv" name="costoServicio" className="form-control" value={nuevoDetalle.costoServicio} onChange={handleDetalleChange} />
-                            </div>
-                            <div className="col-md-2">
-                              <input placeholder="C.Rep" name="costoRepuesto" className="form-control" value={nuevoDetalle.costoRepuesto} onChange={handleDetalleChange} />
-                            </div>
-                            <div className="col-md-2 mt-2">
-                              <input placeholder="Subtotal" name="subtotal" className="form-control" value={nuevoDetalle.subtotal} onChange={handleDetalleChange} />
-                            </div>
-                            <div className="col-md-2 mt-2">
-                              <button className="btn btn-sm" style={{ background: colores.azul, color: colores.beige }}>Agregar Detalle</button>
-                            </div>
-                          </form>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </main>
       </div>
+
+      {modalVisible && (
+        <div className="modal">
+          <div className="modal-dialog modal-xl modal-dialog-scrollable">
+            <div className="modal-content">
+              <form onSubmit={handleSubmit}>
+                <div className="modal-header">
+                  <h5 className="modal-title">{modalModo === 'alta' ? 'Nueva Orden' : modalModo === 'modificar' ? 'Modificar Orden' : 'Consultar Orden'}</h5>
+                  <button type="button" className="btn-close" onClick={handleModalClose}></button>
+                </div>
+                <div className="modal-body">
+                  <fieldset>
+                    <legend>Datos de la Orden</legend>
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <label>Dispositivo</label>
+                        <select name="nroSerieDispositivo" value={form.nroSerieDispositivo} onChange={handleFormChange} className="form-select" disabled={modalModo !== 'alta'}>
+                          <option value="">Seleccione un dispositivo</option>
+                          {dispositivos.map(d => <option key={d.nroSerie} value={d.nroSerie}>{`${d.marca} ${d.modelo} (${d.nroSerie})`}</option>)}
+                        </select>
+                        {formErrors.nroSerieDispositivo && <div className="input-error-message">{formErrors.nroSerieDispositivo}</div>}
+                      </div>
+                      <div className="col-md-6">
+                        <label>Empleado Asignado</label>
+                        <select name="idEmpleado" value={form.idEmpleado} onChange={handleFormChange} className="form-select" disabled={modalModo === 'consultar'}>
+                          <option value="">Seleccione un empleado</option>
+                          {empleados.map(e => <option key={e.idEmpleado} value={e.idEmpleado}>{`${e.nombre} ${e.apellido}`}</option>)}
+                        </select>
+                        {formErrors.idEmpleado && <div className="input-error-message">{formErrors.idEmpleado}</div>}
+                      </div>
+                      <div className="col-md-4">
+                        <label>Fecha</label>
+                        <input type="date" name="fecha" value={form.fecha} onChange={handleFormChange} className="form-control" disabled={modalModo === 'consultar'} />
+                        {formErrors.fecha && <div className="input-error-message">{formErrors.fecha}</div>}
+                      </div>
+                      <div className="col-md-8">
+                        <label>Descripción de Daños</label>
+                        <input name="descripcionDanos" value={form.descripcionDanos} onChange={handleFormChange} className="form-control" readOnly={modalModo === 'consultar'} />
+                      </div>
+                      <div className="col-md-8">
+                        <label>Diagnóstico</label>
+                        <input name="diagnostico" value={form.diagnostico} onChange={handleFormChange} className="form-control" readOnly={modalModo === 'consultar'} />
+                      </div>
+                       <div className="col-md-4">
+                        <label>Presupuesto Total</label>
+                        <input type="number" name="presupuesto" value={form.presupuesto} className="form-control" readOnly />
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  <fieldset className="mt-4">
+                      <legend>Detalles de la Orden</legend>
+                      <table className="table table-sm">
+                          <thead><tr><th>Servicio</th><th>Repuesto</th><th>Costo Serv.</th><th>Costo Rep.</th><th>Subtotal</th><th>Acciones</th></tr></thead>
+                          <tbody>
+                              {detalles.map(d => <tr key={d.idDetalle}>
+                                <td>{d.codigoServicio}</td>
+                                <td>{d.codRepuestos}</td>
+                                <td>{d.costoServicio}</td>
+                                <td>{d.costoRepuesto}</td>
+                                <td>{d.subtotal}</td>
+                                <td>
+                                  {modalModo === 'alta' && 
+                                    <button type="button" className="btn btn-sm btn-danger" onClick={() => handleRemoveDetalleLocal(d.idDetalle)}>X</button>}
+                                </td>
+                              </tr>)}
+                          </tbody>
+                      </table>
+                      {detalles.length === 0 && <p className="text-muted">No hay detalles para esta orden.</p>}
+                      
+                      {modalModo !== 'consultar' && (
+                          <form onSubmit={handleAgregarDetalleLocal} className="row g-2 mt-2 align-items-end">
+                              <div className="col">
+                                <label>Servicio</label>
+                                <select name="codigoServicio" value={nuevoDetalle.codigoServicio} onChange={handleNuevoDetalleChange} className="form-select"><option value="">Seleccione</option>{servicios.map(s=><option key={s.codigo} value={s.codigo}>{s.descripcion}</option>)}</select>
+                              </div>
+                              <div className="col">
+                                <label>Repuesto</label>
+                                <select name="repuestoProveedor" value={nuevoDetalle.repuestoProveedor} onChange={handleNuevoDetalleChange} className="form-select"><option value="">Seleccione</option>{repuestosProveedores.flatMap(r => r.proveedores.map(p => <option key={`${r.codigo}-${p.cuilProveedor}`} value={`${r.codigo}/${p.cuilProveedor}`}>{`${r.marca} ${r.modelo} - ${p.razonSocial}`}</option>))}</select>
+                              </div>
+                              <div className="col">
+                                <label>Costo Serv.</label>
+                                <input name="costoServicio" value={nuevoDetalle.costoServicio} className="form-control" readOnly/>
+                              </div>
+                              <div className="col">
+                                <label>Costo Rep.</label>
+                                <input name="costoRepuesto" value={nuevoDetalle.costoRepuesto} className="form-control" readOnly/>
+                              </div>
+                              <div className="col">
+                                <label>Subtotal</label>
+                                <input name="subtotal" value={nuevoDetalle.subtotal} className="form-control" readOnly/>
+                              </div>
+                              <div className="col-auto">
+                                <button type="submit" className="btn btn-secondary">Añadir</button>
+                              </div>
+                          </form>
+                      )}
+                  </fieldset>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={handleModalClose}>Cerrar</button>
+                  {modalModo !== 'consultar' && <button type="submit" className="btn btn-primary">Guardar</button>}
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
