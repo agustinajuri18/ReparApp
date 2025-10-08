@@ -103,23 +103,32 @@ export default function Dispositivos() {
             setMensaje(error);
             return;
         }
-        const res = await fetch(API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(dispositivoActual),
-        });
-        const resultado = await res.json();
-        setMensaje(resultado.mensaje || resultado.detail);
-        setModalVisible(false);
-        setDispositivoActual({
-            nroSerie: "",
-            marca: "",
-            modelo: "",
-            clienteTipoDocumento: "",
-            clienteNumeroDoc: "",
-            activo: 1,
-        });
-        fetchDispositivos();
+        try {
+            const res = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(dispositivoActual),
+            });
+            const resultado = await res.json().catch(() => ({}));
+            if (res.ok) {
+                // success: close modal and refresh list
+                setModalVisible(false);
+                setDispositivoActual({
+                    nroSerie: "",
+                    marca: "",
+                    modelo: "",
+                    clienteTipoDocumento: "",
+                    clienteNumeroDoc: "",
+                    activo: 1,
+                });
+                fetchDispositivos();
+            } else {
+                // show backend error message and keep modal open
+                setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido del servidor");
+            }
+        } catch (err) {
+            setMensaje("Error de red: " + (err.message || String(err)));
+        }
     };
 
     // Guardar modificación
@@ -130,21 +139,30 @@ export default function Dispositivos() {
             setMensaje(error);
             return;
         }
-        await fetch(`${API_URL}${dispositivoActual.nroSerie}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(dispositivoActual),
-        });
-        setModalVisible(false);
-        setDispositivoActual({
-            nroSerie: "",
-            marca: "",
-            modelo: "",
-            clienteTipoDocumento: "",
-            clienteNumeroDoc: "",
-            activo: 1,
-        });
-        fetchDispositivos();
+        try {
+            const res = await fetch(`${API_URL}${dispositivoActual.nroSerie}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(dispositivoActual),
+            });
+            const resultado = await res.json().catch(() => ({}));
+            if (res.ok) {
+                setModalVisible(false);
+                setDispositivoActual({
+                    nroSerie: "",
+                    marca: "",
+                    modelo: "",
+                    clienteTipoDocumento: "",
+                    clienteNumeroDoc: "",
+                    activo: 1,
+                });
+                fetchDispositivos();
+            } else {
+                setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido del servidor");
+            }
+        } catch (err) {
+            setMensaje("Error de red: " + (err.message || String(err)));
+        }
     };
 
     // Actualiza campos del dispositivo en edición
@@ -345,10 +363,11 @@ export default function Dispositivos() {
                                                                 const [tipoDocumento, numeroDoc] = e.target.value.split("-");
                                                                 setDispositivoActual({
                                                                     ...dispositivoActual,
-                                                                    clienteTipoDocumento: tipoDocumento,
-                                                                    clienteNumeroDoc: numeroDoc
+                                                                    clienteTipoDocumento: tipoDocumento?.trim() || "",
+                                                                    clienteNumeroDoc: numeroDoc ? parseInt(numeroDoc.trim(), 10) : ""
                                                                 });
                                                             }}
+
                                                             disabled={modalModo === 'consultar'}
                                                         >
                                                             <option value="">Seleccione un cliente...</option>
