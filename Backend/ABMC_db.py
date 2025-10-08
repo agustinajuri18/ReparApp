@@ -368,6 +368,39 @@ def mostrar_repuestos(activos_only=True):
             q = q.filter_by(activo=1)
         return q.all()
 
+
+def buscar_repuesto(codigo):
+    """Busca un Repuesto por su identificador. Soporta tanto la clave primaria
+    (`idRepuesto`) como el campo legacy `codigo` si existe en el modelo.
+    Devuelve el objeto Repuesto o None.
+    """
+    with session_scope() as s:
+        # 1) intentar get por PK
+        try:
+            r = s.get(Repuesto, codigo)
+            if r:
+                return r
+        except Exception:
+            # paso a buscar por atributos
+            pass
+
+        # 2) intentar buscar por atributo 'codigo' si el modelo lo tiene
+        try:
+            if hasattr(Repuesto, 'codigo'):
+                r = s.query(Repuesto).filter_by(codigo=codigo).first()
+                if r:
+                    return r
+        except Exception:
+            pass
+
+        # 3) intentar buscar por idRepuesto convertido a int
+        try:
+            rid = int(codigo)
+            r = s.query(Repuesto).filter_by(idRepuesto=rid).first()
+            return r
+        except Exception:
+            return None
+
 def alta_repuestoxproveedor(idRepuesto, idProveedor, costo=None, cantidad=None):
     with session_scope() as s:
         rel = RepuestoxProveedor(idRepuesto=idRepuesto, idProveedor=idProveedor, costo=costo, cantidad=cantidad)
