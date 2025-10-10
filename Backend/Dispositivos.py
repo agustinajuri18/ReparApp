@@ -1,4 +1,5 @@
-from flask import Blueprint, request, jsonify
+import traceback
+from flask import Blueprint, request, jsonify    
 from ABMC_db import alta_dispositivo, modificar_dispositivo, mostrar_dispositivos, baja_dispositivo, dispositivos_por_cliente
 from BDD.database import SessionLocal, Dispositivo  # importa el modelo
 
@@ -35,10 +36,10 @@ def registrar_dispositivo():
     marca = data.get("marca")
     modelo = data.get("modelo")
     clienteTipoDocumento = data.get("clienteTipoDocumento")
-    clienteNumeroDoc = data.get("clienteNumeroDoc")  # CAMBIO: nombre según modelo
+    clienteNumeroDoc = data.get("clienteNumeroDoc")
     activo = parse_activo(data.get("activo"))
 
-    # validaciones
+    # --- validaciones previas ---
     if not validar_nroSerie(nroSerie):
         return jsonify({"error": "nroSerie inválido"}), 400
     if not validar_text_field(marca):
@@ -50,11 +51,24 @@ def registrar_dispositivo():
     if not validar_dni_like(clienteNumeroDoc):
         return jsonify({"error": "clienteNumeroDoc inválido"}), 400
 
+    # --- 🔍 Verificar si el nroSerie ya existe ---
+    session = SessionLocal()
+    if session.query(Dispositivo).filter_by(nroSerie=nroSerie).first():
+        session.close()
+        return jsonify({"error": f"El dispositivo con número de serie {nroSerie} ya existe."}), 400
+    session.close()
+
     try:
-        alta_dispositivo(nroSerie.strip(), marca.strip(), modelo.strip(), clienteTipoDocumento.strip(), int(clienteNumeroDoc), activo)
+        alta_dispositivo(nroSerie.strip(), marca.strip(), modelo.strip(),
+                         clienteTipoDocumento.strip(), int(clienteNumeroDoc), activo)
         return jsonify({"mensaje": "Dispositivo creado exitosamente"}), 201
     except Exception as e:
+        import traceback
+        print("❌ ERROR al crear dispositivo:")
+        traceback.print_exc()
         return jsonify({"error": "No se pudo crear dispositivo", "detail": str(e)}), 500
+
+
 
 @app.route("/dispositivos/<nroSerie>", methods=["PUT"])
 def modificar_datos_dispositivo(nroSerie):

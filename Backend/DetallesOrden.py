@@ -65,6 +65,7 @@ def modificar_detalle(nroDeOrden, idDetalle):
     except Exception as e:
         return jsonify({"error": "Error al modificar detalle", "detail": str(e)}), 500
 
+
 @app.route("/detalles_orden/<int:nroDeOrden>/<int:idDetalle>", methods=["DELETE"])
 def eliminar_detalle(nroDeOrden, idDetalle):
     try:
