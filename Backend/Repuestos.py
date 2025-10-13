@@ -54,16 +54,38 @@ def baja_logica_repuesto(idRepuesto):
         return jsonify({'success': True})
     return jsonify({'error': 'Repuesto no encontrado'}), 404
 
-@bp.route('/repuestos-proveedores/', methods=['POST'])
+@bp.route('/repuestos-proveedores', methods=['POST'])
 def agregar_repuestoxproveedor():
     data = request.get_json()
-    try:
-        alta_repuestoxproveedor(int(data['idRepuesto']), int(data['idProveedor']), float(data['costo']), int(data['cantidad']))
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    if not data:
+        return jsonify({"error": "No se recibieron datos"}), 400
 
-@bp.route('/repuestos-proveedores/', methods=['GET'])
+    id_repuesto = data.get('idRepuesto')
+    id_proveedor = data.get('idProveedor')
+    costo = data.get('costo')
+    cantidad = data.get('cantidad')
+
+    if id_repuesto is None or id_proveedor is None or costo is None or cantidad is None:
+        return jsonify({"error": "Faltan datos requeridos (idRepuesto, idProveedor, costo, cantidad)"}), 400
+
+    try:
+        # La función alta_repuestoxproveedor se encarga de la lógica de la base de datos
+        resultado = alta_repuestoxproveedor(
+            idRepuesto=int(id_repuesto),
+            idProveedor=int(id_proveedor),
+            costo=float(costo),
+            cantidad=int(cantidad)
+        )
+        if "error" in resultado:
+             return jsonify(resultado), 409 # 409 Conflict si ya existe
+        return jsonify(resultado), 201 # 201 Created
+    except (ValueError, TypeError) as e:
+        return jsonify({"error": f"Error en el tipo de dato: {str(e)}"}), 400
+    except Exception as e:
+        # Captura cualquier otro error de la base de datos
+        return jsonify({"error": f"Error interno del servidor: {str(e)}"}), 500
+
+@bp.route('/repuestos-proveedores', methods=['GET'])
 def listar_repuestoxproveedor():
     try:
         relaciones = mostrar_repuestoxproveedor()
@@ -76,7 +98,7 @@ def listar_repuestoxproveedor():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/repuestos-proveedores/', methods=['DELETE'])
+@bp.route('/repuestos-proveedores', methods=['DELETE'])
 def eliminar_repuestoxproveedor():
     data = request.get_json()
     try:

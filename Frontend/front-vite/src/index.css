@@ -377,28 +377,6 @@ button,
   padding: 2rem 2vw 2rem 2vw;
 }
 
-/* BOTÓN DE CERRAR ROJO, CUADRADO, MODERNO */
-.btn-cerrar-rojo {
-  position: absolute;
-  top: 18px;
-  right: 24px;
-  background: #fff !important;
-  color: var(--color-rojo) !important;
-  border: 2px solid var(--color-rojo) !important;
-  border-radius: 8px !important;
-  font-weight: 900 !important;
-  width: 2.2rem;
-  height: 2.2rem;
-  padding: 0 !important;
-  font-size: 1.3rem !important;
-  line-height: 2.1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
-  box-shadow: 0 2px 8px rgba(181,71,69,0.10);
-  z-index: 10;
-}
 .btn-cerrar-rojo::after {
   content: "✖";
   font-size: 1.3em;
@@ -431,4 +409,9 @@ button,
   margin-bottom: 0.25rem;
   font-weight: 500;
   letter-spacing: 0.01em;
+}
+
+.readonly-field {
+  opacity: 0.6;
+  background-color: #f8f9fa;
 }

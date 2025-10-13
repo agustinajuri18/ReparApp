@@ -1,7 +1,7 @@
 import os
 import sys
 from contextlib import contextmanager
-from sqlalchemy.orm import joinedload  # Agregar esta importación al inicio
+from sqlalchemy.orm import joinedload, aliased  # Agregar esta importación al inicio
 
 # agregar la raíz del proyecto al path para poder importar el paquete BDD (carpeta hermana)
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -439,13 +439,52 @@ def buscar_repuesto(idRepuesto):
     with session_scope() as s:
         return s.get(Repuesto, idRepuesto)
 
-def alta_repuestoxproveedor(idRepuesto, idProveedor, costo=None, cantidad=None):
-    with session_scope() as s:
-        rel = RepuestoxProveedor(idRepuesto=idRepuesto, idProveedor=idProveedor, costo=costo, cantidad=cantidad)
-        s.add(rel)
-        s.commit()
-        s.refresh(rel)
-        return rel
+def alta_repuestoxproveedor(idRepuesto, idProveedor, costo, cantidad):
+    with session_scope() as session:  # <--- CORRECCIÓN: Cambiar get_session por session_scope
+        try:
+            # Buscar si la relación ya existe
+            existente = session.query(RepuestoxProveedor).filter_by(
+                idRepuesto=idRepuesto,
+                idProveedor=idProveedor
+            ).first()
+
+            if existente:
+                # Si existe, actualizar costo y cantidad
+                existente.costo = costo
+                existente.cantidad = cantidad
+                session.commit()
+                return {
+                    "id": existente.id,
+                    "idRepuesto": existente.idRepuesto,
+                    "idProveedor": existente.idProveedor,
+                    "costo": existente.costo,
+                    "cantidad": existente.cantidad,
+                    "message": "Relación actualizada"
+                }
+            else:
+                # Si no existe, crear una nueva relación
+                nueva_relacion = RepuestoxProveedor(
+                    idRepuesto=idRepuesto,
+                    idProveedor=idProveedor,
+                    costo=costo,
+                    cantidad=cantidad
+                )
+                session.add(nueva_relacion)
+                session.commit()
+                # Refrescar para obtener el ID autogenerado
+                session.refresh(nueva_relacion)
+                return {
+                    "id": nueva_relacion.id,
+                    "idRepuesto": nueva_relacion.idRepuesto,
+                    "idProveedor": nueva_relacion.idProveedor,
+                    "costo": nueva_relacion.costo,
+                    "cantidad": nueva_relacion.cantidad,
+                    "message": "Relación creada"
+                }
+        except Exception as e:
+            session.rollback()
+            # Devuelve un diccionario de error en lugar de lanzar una excepción
+            return {"error": f"Error en la base de datos: {str(e)}"}
 
 def baja_repuestoxproveedor(idRepuesto, idProveedor):
     with session_scope() as s:
@@ -514,14 +553,22 @@ def mostrar_repuestos_por_servicio(idServicio):
 
 
 # ----------- DetalleOrden -----------
-def alta_detalle_orden(nroDeOrden, idServicio, repuesto_proveedor_id, costoServicio=None, costoRepuesto=None, subtotal=None):
-    with session_scope() as s:
-        d = DetalleOrden(nroDeOrden=nroDeOrden, idServicio=idServicio, repuesto_proveedor_id=repuesto_proveedor_id, 
-                         costoServicio=costoServicio, costoRepuesto=costoRepuesto, subtotal=subtotal)
-        s.add(d)
+def alta_detalle_orden(nroDeOrden, idServicio, repuesto_proveedor_id=None, costoServicio=0, costoRepuesto=0, subtotal=0):
+    """
+    Crea un nuevo detalle de orden
+    """
+    with session_scope() as s:  # Corregido: usar session_scope() en lugar de get_db_session()
+        detalle = DetalleOrden(  # Ya importado al inicio, no necesita from Models
+            nroDeOrden=nroDeOrden,
+            idServicio=idServicio,
+            repuesto_proveedor_id=repuesto_proveedor_id,
+            costoServicio=costoServicio,
+            costoRepuesto=costoRepuesto,
+            subtotal=subtotal
+        )
+        s.add(detalle)
         s.commit()
-        s.refresh(d)
-        return d
+        return detalle
 
 def modificar_detalle_orden(idDetalle, **kwargs):
     with session_scope() as s:
@@ -536,7 +583,11 @@ def modificar_detalle_orden(idDetalle, **kwargs):
 
 def mostrar_detalles_orden(nroDeOrden):
     with session_scope() as s:
-        return s.query(DetalleOrden).filter_by(nroDeOrden=nroDeOrden).all()
+        return s.query(DetalleOrden).options(
+            joinedload(DetalleOrden.servicio),
+            joinedload(DetalleOrden.repuesto_proveedor).joinedload(RepuestoxProveedor.repuesto),
+            joinedload(DetalleOrden.repuesto_proveedor).joinedload(RepuestoxProveedor.proveedor)
+        ).filter_by(nroDeOrden=nroDeOrden).all()
 
 def baja_detalle_orden(idDetalle):
     with session_scope() as s:
@@ -565,22 +616,70 @@ def alta_orden_por_nroSerie(nroSerie, fecha=None, descripcionDanos=None, diagnos
             return None
         return alta_orden_de_reparacion(dispositivo.idDispositivo, fecha, descripcionDanos, diagnostico, presupuesto, idEmpleado)
 
-def modificar_orden_de_reparacion(nroDeOrden, **kwargs):
-    with session_scope() as s:
-        o = s.get(OrdenDeReparacion, nroDeOrden)
-        if not o:
-            return None
-        # Manejar caso especial para nroSerie
-        if 'nroSerie' in kwargs and kwargs['nroSerie'] is not None:
-            dispositivo = s.query(Dispositivo).filter_by(nroSerie=kwargs.pop('nroSerie')).first()
-            if dispositivo:
-                o.idDispositivo = dispositivo.idDispositivo
-        
-        for k, v in kwargs.items():
-            if hasattr(o, k) and v is not None:
-                setattr(o, k, v)
-        s.commit()
-        return o
+def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, detalles=None):
+    with session_scope() as session:
+        try:
+            orden = session.query(OrdenDeReparacion).filter_by(nroDeOrden=nroDeOrden).first()
+            if not orden:
+                return {"error": "Orden no encontrada"}
+
+            # Actualizar campos principales de la orden
+            if idDispositivo is not None:
+                orden.idDispositivo = idDispositivo
+            if fecha is not None:
+                orden.fecha = fecha
+            if descripcionDanos is not None:
+                orden.descripcionDanos = descripcionDanos
+            if diagnostico is not None:
+                orden.diagnostico = diagnostico
+            if presupuesto is not None:
+                orden.presupuesto = presupuesto
+            if idEmpleado is not None:
+                orden.idEmpleado = idEmpleado
+
+            # --- Lógica para sincronizar detalles ---
+            if detalles is not None:
+                # Obtener los IDs de los detalles existentes en la BD para esta orden
+                detalles_actuales_ids = {d.idDetalle for d in orden.detalles}
+                # Obtener los IDs de los detalles que vienen del frontend
+                detalles_recibidos_ids = {d.get('idDetalle') for d in detalles if d.get('idDetalle') is not None}
+
+                # 1. Eliminar detalles que ya no están en la lista del frontend
+                ids_para_eliminar = detalles_actuales_ids - detalles_recibidos_ids
+                if ids_para_eliminar:
+                    session.query(DetalleOrden).filter(
+                        DetalleOrden.idDetalle.in_(ids_para_eliminar)
+                    ).delete(synchronize_session=False)
+
+                # 2. Actualizar detalles existentes y crear nuevos
+                for detalle_data in detalles:
+                    id_detalle = detalle_data.get('idDetalle')
+                    if id_detalle and id_detalle in detalles_actuales_ids:
+                        # Actualizar detalle existente
+                        detalle_obj = session.query(DetalleOrden).get(id_detalle)
+                        if detalle_obj:
+                            detalle_obj.idServicio = detalle_data.get('idServicio')
+                            detalle_obj.repuesto_proveedor_id = detalle_data.get('repuesto_proveedor_id')
+                            detalle_obj.costoServicio = detalle_data.get('costoServicio')
+                            detalle_obj.costoRepuesto = detalle_data.get('costoRepuesto')
+                            detalle_obj.subtotal = detalle_data.get('subtotal')
+                    elif id_detalle is None:
+                        # Crear nuevo detalle
+                        nuevo_detalle = DetalleOrden(
+                            nroDeOrden=nroDeOrden,
+                            idServicio=detalle_data.get('idServicio'),
+                            repuesto_proveedor_id=detalle_data.get('repuesto_proveedor_id'),
+                            costoServicio=detalle_data.get('costoServicio'),
+                            costoRepuesto=detalle_data.get('costoRepuesto'),
+                            subtotal=detalle_data.get('subtotal')
+                        )
+                        session.add(nuevo_detalle)
+
+            session.commit()
+            return {"message": "Orden actualizada correctamente"}
+        except Exception as e:
+            session.rollback()
+            return {"error": f"Error en la base deatos: {str(e)}"}
 
 def mostrar_ordenes_de_reparacion(activos_only=True):
     with session_scope() as s:
@@ -593,6 +692,45 @@ def mostrar_ordenes_de_reparacion(activos_only=True):
             joinedload(OrdenDeReparacion.detalles).joinedload(DetalleOrden.repuesto_proveedor)
         )
         return q.all()
+
+def mostrar_ordenes():
+    with session_scope() as s:
+        DispositivoAlias = aliased(Dispositivo)
+        EmpleadoAlias = aliased(Empleado)
+        
+        query = s.query(
+            OrdenDeReparacion,
+            DispositivoAlias,
+            EmpleadoAlias
+        ).outerjoin(
+            DispositivoAlias, OrdenDeReparacion.idDispositivo == DispositivoAlias.idDispositivo
+        ).outerjoin(
+            EmpleadoAlias, OrdenDeReparacion.idEmpleado == EmpleadoAlias.idEmpleado
+        )
+        
+        resultados = query.all()
+        resultado = []
+        
+        for o, d, e in resultados:
+            dispositivo_info = f"{d.marca} {d.modelo} ({d.nroSerie})" if d else "N/A"
+            empleado_info = f"{e.nombre} {e.apellido}" if e else "N/A"
+            
+            # Calcular presupuesto total de detalles
+            presupuesto_total = sum(float(det.subtotal or 0) for det in o.detalles) if o.detalles else 0
+            
+            resultado.append({
+                'nroDeOrden': o.nroDeOrden,
+                'idDispositivo': o.idDispositivo,
+                'fecha': o.fecha.isoformat() if o.fecha else None,
+                'descripcionDanos': o.descripcionDanos,
+                'diagnostico': o.diagnostico,
+                'presupuesto': presupuesto_total,  # Usar el calculado
+                'idEmpleado': o.idEmpleado,
+                'dispositivo_info': dispositivo_info,
+                'empleado_info': empleado_info
+            })
+        
+        return resultado
 
 
 # ----------- Permisos / Cargos -----------
@@ -631,4 +769,27 @@ def mostrar_cargos(activos_only=True):
 def buscar_por_id(model, pk):
     with session_scope() as s:
         return s.get(model, pk)
+
+def buscar_repuesto_proveedor_id(idRepuesto, cuilProveedor):
+    """
+    Busca el ID de la relación RepuestoxProveedor basado en idRepuesto y cuilProveedor
+    """
+    with session_scope() as s:
+        # Primero, buscar el proveedor por CUIL
+        proveedor = s.query(Proveedor).filter(Proveedor.cuil == cuilProveedor).first()
+        if not proveedor:
+            print(f"Proveedor con CUIL {cuilProveedor} no encontrado")
+            return None
+        
+        # Luego, buscar la relación RepuestoxProveedor
+        relacion = s.query(RepuestoxProveedor).filter(
+            RepuestoxProveedor.idRepuesto == idRepuesto,
+            RepuestoxProveedor.idProveedor == proveedor.idProveedor
+        ).first()
+        
+        if relacion:
+            return relacion.id
+        else:
+            print(f"Relación RepuestoxProveedor no encontrada para idRepuesto={idRepuesto}, idProveedor={proveedor.idProveedor}")
+            return None
 

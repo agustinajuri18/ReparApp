@@ -190,7 +190,7 @@ function Repuestos() {
     setMensaje("");
 
     if (modalModo === 'alta') {
-      fetch(`${API_URL}/`, {
+      fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ marca: form.marca, modelo: form.modelo })
@@ -199,10 +199,15 @@ function Repuestos() {
         .then(data => {
           const idRepuesto = data.idRepuesto;
           return Promise.all(form.proveedores.map(p =>
-            fetch(`${REPUESTOS_PROVEEDORES_URL}/`, {
+            fetch(REPUESTOS_PROVEEDORES_URL, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ idRepuesto: idRepuesto, idProveedor: p.cuilProveedor, costo: p.costo, cantidad: p.cantidad })
+              body: JSON.stringify({ 
+                idRepuesto: Number(idRepuesto), 
+                idProveedor: Number(p.cuilProveedor), 
+                costo: Number(p.costo || 0),      // Asegurar que sea número 
+                cantidad: Number(p.cantidad || 0)  // Asegurar que sea número
+              })
             })
           ));
         })
@@ -223,16 +228,21 @@ function Repuestos() {
           const proveedoresAEliminar = originalProveedores.filter(orig => !form.proveedores.some(p => p.cuilProveedor === orig.cuilProveedor));
           const proveedoresParaUpsert = form.proveedores;
 
-          const promesasEliminar = proveedoresAEliminar.map(p => fetch(`${REPUESTOS_PROVEEDORES_URL}/`, {
+          const promesasEliminar = proveedoresAEliminar.map(p => fetch(`${REPUESTOS_PROVEEDORES_URL}`, {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ idRepuesto: form.idRepuesto, idProveedor: p.cuilProveedor })
           }));
 
-          const promesasUpsert = proveedoresParaUpsert.map(p => fetch(`${REPUESTOS_PROVEEDORES_URL}/`, {
+          const promesasUpsert = proveedoresParaUpsert.map(p => fetch(REPUESTOS_PROVEEDORES_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ idRepuesto: form.idRepuesto, idProveedor: p.cuilProveedor, costo: p.costo, cantidad: p.cantidad })
+            body: JSON.stringify({ 
+              idRepuesto: Number(form.idRepuesto), 
+              idProveedor: Number(p.cuilProveedor), 
+              costo: Number(p.costo || 0),      // Asegurar que sea número
+              cantidad: Number(p.cantidad || 0)  // Asegurar que sea número
+            })
           }));
 
           return Promise.all([...promesasEliminar, ...promesasUpsert]);
@@ -522,7 +532,8 @@ function Repuestos() {
         </div>
       )}
     </div>
-  );
-}
+  )
+};
+
 
 export default Repuestos;

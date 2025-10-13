@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from flask_cors import cross_origin
 from ABMC_db import (
     alta_servicio, modificar_servicio, mostrar_servicios, baja_servicio,
     alta_servicioxrepuesto, modificar_servicioxrepuesto, baja_servicioxrepuesto,
@@ -109,12 +110,45 @@ def eliminar_servicioxrepuesto():
     return jsonify({'success': True})
 
 @bp.route('/servicios/<int:idServicio>/repuestos', methods=['GET'])
-def listar_repuestos_por_servicio(idServicio):
-    repuestos = mostrar_repuestos_por_servicio(idServicio)
-    return jsonify([{
-        'idRepuesto': r['idRepuesto'],
-        'cantidad': r['cantidad']
-    } for r in repuestos])
+@cross_origin()
+def repuestos_por_servicio(idServicio):
+    # Importar función desde ABMC_db
+    from ABMC_db import mostrar_repuestos_por_servicio, mostrar_repuestoxproveedor, mostrar_proveedores
+    
+    # Obtener repuestos por servicio
+    repuestos = mostrar_repuestos_por_servicio(idServicio) or []
+    
+    # Obtener información de proveedores para cada repuesto
+    relaciones = mostrar_repuestoxproveedor() or []
+    proveedores = mostrar_proveedores() or []
+    
+    resultado = []
+    for r in repuestos:
+        provs = []
+        for rel in relaciones:
+            try:
+                rel_id_repuesto = getattr(rel, 'idRepuesto', None)
+                rel_id_proveedor = getattr(rel, 'idProveedor', None)
+                if rel_id_repuesto == r.get('idRepuesto') or str(rel_id_repuesto) == str(r.get('idRepuesto')):
+                    prov_obj = next((p for p in proveedores if getattr(p, 'idProveedor', None) == rel_id_proveedor), None)
+                    if prov_obj:
+                        provs.append({
+                            'idProveedor': getattr(prov_obj, 'idProveedor', None),
+                            'cuilProveedor': getattr(prov_obj, 'cuil', None) or getattr(prov_obj, 'cuilProveedor', None),
+                            'razonSocial': getattr(prov_obj, 'razonSocial', None),
+                            'costo': getattr(rel, 'costo', None)
+                        })
+            except Exception as e:
+                print(f"Error al procesar relación repuesto-proveedor: {e}")
+                continue
+        resultado.append({
+            'idRepuesto': r.get('idRepuesto'),
+            'marca': r.get('marca'),
+            'modelo': r.get('modelo'),
+            'descripcion': f"{r.get('marca','')} {r.get('modelo','')}".strip(),
+            'proveedores': provs
+        })
+    return jsonify(resultado)
 
 @bp.route('/servicios/<int:idServicio>', methods=['GET'])
 def obtener_servicio(idServicio):
