@@ -1,133 +1,76 @@
-import re
 from flask import Blueprint, request, jsonify
-from ABMC_db import alta_proveedor, buscar_proveedor, modificar_proveedor, mostrar_proveedores, baja_proveedor
+from ABMC_db import (
+    alta_proveedor, modificar_proveedor, mostrar_proveedores, baja_proveedor,
+    buscar_proveedor_por_cuil
+)
 
-app = Blueprint('proveedores', __name__)
+bp = Blueprint('proveedores', __name__)
 
-# Validaciones
-def validar_cuit_cuil(value):
-    s = str(value).strip()
-    return s.isdigit() and len(s) == 11
-
-def validar_telefono(telefono):
-    s = str(telefono).strip()
-    return s.isdigit() and 10 <= len(s) <= 11
-
-def validar_razon_social(razon):
-    return isinstance(razon, str) and 2 <= len(razon.strip()) <= 255
-
-# Helpers
-def parse_int_safe(v):
-    try:
-        return int(v)
-    except Exception:
-        return None
-
-# Endpoints
-@app.route("/proveedores/", methods=["POST"])
+@bp.route('/proveedores', methods=['POST'])
 def registrar_proveedor():
-    data = request.get_json() or {}
-    cuil = data.get("cuil")
-    razonSocial = data.get("razonSocial")
-    telefono = data.get("telefono")
+    data = request.json
+    
+    # Validamos datos obligatorios
+    if 'cuil' not in data:
+        return jsonify({'error': 'Falta información obligatoria (cuil)'}), 400
+    
+    # Verificar si ya existe
+    proveedor_existente = buscar_proveedor_por_cuil(data['cuil'])
+    if proveedor_existente:
+        return jsonify({'error': 'Ya existe un proveedor con ese CUIL'}), 409
+        
+    proveedor = alta_proveedor(
+        cuil=data['cuil'],
+        razonSocial=data.get('razonSocial'),
+        telefono=data.get('telefono')
+    )
+    return jsonify({
+        'idProveedor': proveedor.idProveedor,
+        'cuil': proveedor.cuil,
+        'razonSocial': proveedor.razonSocial,
+        'telefono': proveedor.telefono
+    }), 201
 
-    if not validar_cuit_cuil(cuil):
-        return jsonify({"error": "CUIT/CUIL inválido, debe tener 11 dígitos numéricos"}), 400
-    if not validar_razon_social(razonSocial):
-        return jsonify({"error": "razonSocial inválida"}), 400
-    if telefono is None or not validar_telefono(telefono):
-        return jsonify({"error": "telefono inválido"}), 400
-
-
-    cuil_int = parse_int_safe(cuil)
-    if cuil_int is None:
-        return jsonify({"error": "CUIL no convertible a entero"}), 400
-
-    # evita duplicados
-    try:
-        if buscar_proveedor(cuil_int):
-            return jsonify({"error": "Proveedor con ese CUIL ya existe"}), 409
-        alta_proveedor(cuil_int, razonSocial.strip(), telefono.strip())
-        return jsonify({"mensaje": "Proveedor registrado exitosamente"}), 201
-    except Exception as e:
-        return jsonify({"error": "Error al crear proveedor", "detail": str(e)}), 500
-
-@app.route("/proveedores/<int:cuil>", methods=["DELETE"])
-def eliminar_proveedor(cuil):
-    try:
-        if not buscar_proveedor(cuil):
-            return jsonify({"detail": "Proveedor no encontrado"}), 404
-        baja_proveedor(cuil)
-        return jsonify({"mensaje": "Proveedor eliminado exitosamente"}), 200
-    except Exception as e:
-        return jsonify({"error": "Error al eliminar proveedor", "detail": str(e)}), 500
-
-@app.route("/proveedores/<int:cuil>", methods=["PUT"])
-def modificar_datos_proveedor(cuil):
-    proveedor = buscar_proveedor(cuil)
-    if not proveedor:
-        return jsonify({"detail": "Proveedor no encontrado"}), 404
-
-    data = request.get_json() or {}
-    razonSocial = data.get("razonSocial", proveedor.razonSocial)
-    telefono = data.get("telefono", proveedor.telefono)
-    activo = data.get("activo", proveedor.activo)
-
-    # Validaciones
-    if not validar_razon_social(razonSocial):
-        return jsonify({"error": "razonSocial inválida"}), 400
-    if not validar_telefono(telefono):
-        return jsonify({"error": "telefono inválido"}), 400
-    if str(activo) not in ("0", "1"):
-        return jsonify({"error": "Activo debe ser 0 o 1"}), 400
-
-    try:
-        modificar_proveedor(
-            cuil,
-            str(razonSocial).strip(),
-            str(telefono).strip(),
-            int(activo)
-        )
-        return jsonify({"mensaje": "Proveedor modificado exitosamente"}), 200
-    except Exception as e:
-        print("Error al modificar proveedor:", e)
-        return jsonify({"error": "No se pudo modificar proveedor", "detail": str(e)}), 500
-
-@app.route("/proveedores/<int:cuil>", methods=["GET"])
-def mostrar_proveedor(cuil):
-    try:
-        proveedor = buscar_proveedor(cuil)
-        if not proveedor:
-            return jsonify({"detail": "Proveedor no encontrado"}), 404
-        proveedor_dict = {
-            "cuil": proveedor.cuil,
-            "razonSocial": proveedor.razonSocial,
-            "telefono": proveedor.telefono,
-            "activo": getattr(proveedor, "activo", 1),
-        }
-        return jsonify(proveedor_dict), 200
-    except Exception as e:
-        return jsonify({"error": "Error al obtener proveedor", "detail": str(e)}), 500
-
-@app.route("/proveedores/", methods=["GET"])
+@bp.route('/proveedores', methods=['GET'])
 def listar_proveedores():
-    activos_param = request.args.get("activos", "true").lower()
-    try:
-        proveedores = mostrar_proveedores()
-        if activos_param == "false":
-            result = [p for p in proveedores]
-        else:
-            result = [p for p in proveedores if getattr(p, "activo", 1) == 1]
-        return jsonify([
-            {
-                "cuil": p.cuil,
-                "razonSocial": p.razonSocial,
-                "telefono": p.telefono,
-                "activo": getattr(p, "activo", 1),
-            } for p in result
-        ]), 200
-    except Exception as e:
-        return jsonify({"error": "Error al listar proveedores", "detail": str(e)}), 500
+    activos = request.args.get('activos', 'true')
+    if activos == 'true':
+        proveedores = mostrar_proveedores(activos_only=True)
+    else:
+        proveedores = mostrar_proveedores(activos_only=False)
+    return jsonify([
+        {
+            'idProveedor': p.idProveedor,
+            'cuil': p.cuil,
+            'razonSocial': p.razonSocial,
+            'telefono': p.telefono,
+            'activo': p.activo
+        } for p in proveedores
+    ])
 
-if __name__ == "__main__":
-    app.run(debug=True)
+@bp.route('/proveedores/<string:cuil>', methods=['PUT'])
+def modificar_datos_proveedor(cuil):
+    data = request.get_json()
+    # Find the proveedor by cuil
+    proveedor = buscar_proveedor_por_cuil(cuil)
+    if not proveedor:
+        return jsonify({'error': 'Proveedor no encontrado'}), 404
+    # Modify using idProveedor
+    proveedor_modificado = modificar_proveedor(
+        idProveedor=proveedor.idProveedor,
+        razonSocial=data.get('razonSocial'),
+        telefono=data.get('telefono'),
+        activo=data.get('activo'),
+        cuil=data.get('cuil')  # Allow updating cuil
+    )
+    if proveedor_modificado:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Error al modificar proveedor'}), 500
+
+@bp.route('/proveedores/<string:cuil>', methods=['DELETE'])
+def eliminar_proveedor(cuil):
+    proveedor = buscar_proveedor_por_cuil(cuil)
+    if not proveedor:
+        return jsonify({'error': 'Proveedor no encontrado'}), 404
+    baja_proveedor(proveedor.idProveedor)
+    return jsonify({'success': True})

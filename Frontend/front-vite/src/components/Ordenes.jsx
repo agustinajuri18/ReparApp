@@ -1,7 +1,12 @@
 import React, { useEffect, useState, useMemo } from "react";
 import MenuLateral from './MenuLateral';
 
-const API_URL = "http://localhost:5000";
+const API_URL = "http://localhost:5000/ordenes";
+const DISPOSITIVOS_URL = "http://localhost:5000/dispositivos";
+const EMPLEADOS_URL = "http://localhost:5000/empleados";
+const ESTADOS_URL = "http://localhost:5000/estados";
+const REPUESTOS_PROVEEDORES_URL = "http://localhost:5000/repuestos-proveedores";
+const SERVICIOS_URL = "http://localhost:5000/servicios";
 
 function Ordenes() {
   const [ordenes, setOrdenes] = useState([]);
@@ -41,7 +46,7 @@ function Ordenes() {
 
   // --- Carga de Datos ---
   const fetchOrdenes = () => {
-    fetch(`${API_URL}/ordenes/`)
+    fetch(API_URL)
       .then(res => res.json())
       .then(data => setOrdenes(Array.isArray(data) ? data : []))
       .catch(() => setMensaje("Error al cargar órdenes"));
@@ -49,10 +54,10 @@ function Ordenes() {
 
   useEffect(() => {
     fetchOrdenes();
-    fetch(`${API_URL}/dispositivos/?activos=true`).then(res => res.json()).then(setDispositivos);
-    fetch(`${API_URL}/empleados/`).then(res => res.json()).then(setEmpleados);
-    fetch(`${API_URL}/servicios/`).then(res => res.json()).then(data => setServicios(Array.isArray(data) ? data : []));
-    fetch(`${API_URL}/repuestos_con_proveedores`).then(res => res.json()).then(data => setRepuestosProveedores(Array.isArray(data) ? data : []));
+    fetch(DISPOSITIVOS_URL + "?activos=true").then(res => res.json()).then(setDispositivos);
+    fetch(EMPLEADOS_URL).then(res => res.json()).then(setEmpleados);
+    fetch(SERVICIOS_URL).then(res => res.json()).then(data => setServicios(Array.isArray(data) ? data : []));
+    fetch(REPUESTOS_PROVEEDORES_URL).then(res => res.json()).then(data => setRepuestosProveedores(Array.isArray(data) ? data : []));
   }, []);
 
   // --- Presupuesto autocalculado ---
@@ -68,11 +73,19 @@ function Ordenes() {
 
 
   // --- Validaciones ---
-  function validarOrden(data) {
+  const handleChange = e => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+    setFormErrors(validarOrden({ ...form, [e.target.name]: e.target.value }));
+  };
+
+  function validarOrden(form) {
     const errors = {};
-    if (!data.nroSerieDispositivo) errors.nroSerieDispositivo = "El dispositivo es obligatorio.";
-    if (!data.idEmpleado) errors.idEmpleado = "El empleado es obligatorio.";
-    if (!data.fecha) errors.fecha = "La fecha es obligatoria.";
+    if (!form.idCliente) errors.idCliente = "Debe seleccionar un cliente.";
+    if (!form.idDispositivo) errors.idDispositivo = "Debe seleccionar un dispositivo.";
+    if (!form.descripcionProblema || form.descripcionProblema.trim().length < 10) errors.descripcionProblema = "La descripción del problema es obligatoria y debe tener al menos 10 caracteres.";
+    if (!form.fechaIngreso || !/^\d{4}-\d{2}-\d{2}$/.test(form.fechaIngreso)) errors.fechaIngreso = "La fecha de ingreso es obligatoria y debe tener formato YYYY-MM-DD.";
+    if (!form.idEstado) errors.idEstado = "Debe seleccionar un estado.";
+    if (!form.costoEstimado || isNaN(form.costoEstimado) || form.costoEstimado <= 0) errors.costoEstimado = "El costo estimado es obligatorio y debe ser un número positivo.";
     return errors;
   }
 
@@ -99,7 +112,7 @@ function Ordenes() {
   const handleModificar = (orden) => {
     setModalModo('modificar');
     setForm(orden);
-    fetch(`${API_URL}/detalles_orden/${orden.nroDeOrden}`)
+    fetch(`${API_URL}/${orden.nroDeOrden}/detalles`)
       .then(res => {
         if (!res.ok) throw new Error(`Error ${res.status} al pedir ${res.url}`);
         return res.json();
@@ -114,7 +127,7 @@ function Ordenes() {
   const handleConsultar = (orden) => {
     setModalModo('consultar');
     setForm(orden);
-    fetch(`${API_URL}/detalles_orden/${orden.nroDeOrden}`)
+    fetch(`${API_URL}/${orden.nroDeOrden}/detalles`)
       .then(res => {
         if (!res.ok) throw new Error(`Error ${res.status} al pedir ${res.url}`);
         return res.json();
@@ -202,15 +215,13 @@ function Ordenes() {
       return;
     }
 
-    let url = `${API_URL}/ordenes/`;
+    let url = API_URL;
     let method = 'POST';
     let payload = { ...form, detalles: detalles };
 
     if (modalModo === 'modificar') {
-      url = `${API_URL}/ordenes/${form.nroDeOrden}`;
+      url = `${API_URL}/${form.nroDeOrden}`;
       method = 'PUT';
-    } else {
-      payload = { ...form, detalles };
     }
 
     fetch(url, {
@@ -297,7 +308,7 @@ function Ordenes() {
       } else if (modalModo === 'modificar') {
         // enviar PUT al servidor para actualizar detalle
         try {
-          const res = await fetch(`${API_URL}/detalles_orden/${form.nroDeOrden}/${editingDetalleId}`, {
+          const res = await fetch(`${API_URL}/detalles/${editingDetalleId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(detallePayload)
@@ -307,7 +318,7 @@ function Ordenes() {
             setMensaje(rj.error || rj.detail || 'Error al actualizar detalle');
           } else {
             // recargar detalles desde servidor
-            const resp = await fetch(`${API_URL}/detalles_orden/${form.nroDeOrden}`);
+            const resp = await fetch(`${API_URL}/${form.nroDeOrden}/detalles`);
             const data = await resp.json().catch(() => []);
             setDetalles(Array.isArray(data) ? data : []);
             setMensaje('Detalle actualizado.');
@@ -356,13 +367,13 @@ function Ordenes() {
     if (!window.confirm('¿Seguro que desea eliminar este detalle?')) return;
 
     try {
-      const res = await fetch(`${API_URL}/detalles_orden/${form.nroDeOrden}/${idDetalle}`, { method: 'DELETE' });
+      const res = await fetch(`${API_URL}/detalles/${idDetalle}`, { method: 'DELETE' });
       if (!res.ok) {
         const rj = await res.json().catch(() => ({}));
         setMensaje(rj.error || rj.detail || 'Error al eliminar detalle');
       } else {
         // recargar lista de detalles desde servidor
-        const resp = await fetch(`${API_URL}/detalles_orden/${form.nroDeOrden}`);
+        const resp = await fetch(`${API_URL}/${form.nroDeOrden}/detalles`);
         const data = await resp.json().catch(() => []);
         setDetalles(Array.isArray(data) ? data : []);
         setMensaje('Detalle eliminado.');

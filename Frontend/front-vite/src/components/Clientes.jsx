@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 
-const API_URL = "http://localhost:5000/clientes/";
+const API_URL = "http://localhost:5000/clientes";
+const TIPOS_DOC_URL = "http://localhost:5000/tipos-documento";
 
 export default function Clientes() {
   const [clientes, setClientes] = useState([]);
@@ -11,12 +12,12 @@ export default function Clientes() {
   const [formMode, setFormMode] = useState("alta"); // "alta" | "modificar"
   const [mensaje, setMensaje] = useState("");
   const [form, setForm] = useState({
-    tipoDocumento: "",
+    idTipoDoc: "",
     numeroDoc: "",
     nombre: "",
     apellido: "",
     telefono: "",
-    email: "",
+    mail: "",
     activo: 1,
   });
   const [formErrors, setFormErrors] = useState({});
@@ -24,20 +25,23 @@ export default function Clientes() {
   const [modalModo, setModalModo] = useState('consultar'); // 'consultar' | 'modificar'
   const [clienteActual, setClienteActual] = useState(null);
   const [modalErrors, setModalErrors] = useState({});
+  // Agregar estado para el ID en edición
+  const [editId, setEditId] = useState(null);
 
   // Cargar clientes
-  const fetchClientes = async () => {
-    let url = API_URL + (mostrarInactivos ? "?activos=false" : "?activos=true");
-    const res = await fetch(url);
-    const data = await res.json();
-    setClientes(Array.isArray(data) ? data : []);
+  const fetchClientes = () => {
+    fetch(`${API_URL}?activos=${!mostrarInactivos}`)
+      .then(res => res.json())
+      .then(data => setClientes(Array.isArray(data) ? data.filter(c => c && typeof c === 'object' && 'idCliente' in c && c.idCliente != null) : []))
+      .catch(() => setMensaje("Error al cargar clientes"));
   };
 
   // Cargar tipos de documento
-  const fetchTiposDocumento = async () => {
-    const res = await fetch("http://localhost:5000/tipos-documento/");
-    const data = await res.json();
-    setTiposDocumento(Array.isArray(data) ? data : []);
+  const fetchTiposDocumento = () => {
+    fetch(TIPOS_DOC_URL)
+      .then(res => res.json())
+      .then(data => setTiposDocumento(Array.isArray(data) ? data : []))
+      .catch(() => setMensaje("Error al cargar tipos de documento"));
   };
 
   useEffect(() => {
@@ -47,8 +51,9 @@ export default function Clientes() {
   }, [mostrarInactivos]);
 
   const handleChange = e => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-    setFormErrors(validarCliente({ ...form, [e.target.name]: e.target.value }));
+    const value = e.target.name === "activo" ? parseInt(e.target.value) : e.target.value;
+    setForm({ ...form, [e.target.name]: value });
+    setFormErrors(validarCliente({ ...form, [e.target.name]: value }));
   };
 
   // Mostrar modal para alta o modificación
@@ -60,26 +65,27 @@ export default function Clientes() {
     setMensaje("");
     setFormErrors({});
     setForm({
-      tipoDocumento: "",
+      idTipoDoc: "",
       numeroDoc: "",
       nombre: "",
       apellido: "",
       telefono: "",
-      email: "",
+      mail: "",
       activo: 1,
     });
   };
 
   const handleModificar = (cliente) => {
     setFormMode("modificar");
+    setEditId(cliente.idCliente);  // Agregar esta línea
     setClienteActual({
       ...cliente,
-      tipoDocumento: cliente.tipoDocumento || "",
+      idTipoDoc: cliente.idTipoDoc || "",
       numeroDoc: cliente.numeroDoc || "",
       nombre: cliente.nombre || "",
       apellido: cliente.apellido || "",
       telefono: cliente.telefono || "",
-      email: cliente.email || "",
+      mail: cliente.mail || "",
       activo: cliente.activo ?? 1,
     });
     setModalModo("modificar");
@@ -87,12 +93,12 @@ export default function Clientes() {
     setMensaje("");
     setModalErrors({});
     setForm({
-      tipoDocumento: cliente.tipoDocumento || "",
+      idTipoDoc: cliente.idTipoDoc || "",
       numeroDoc: cliente.numeroDoc || "",
       nombre: cliente.nombre || "",
       apellido: cliente.apellido || "",
       telefono: cliente.telefono || "",
-      email: cliente.email || "",
+      mail: cliente.mail || "",
       activo: cliente.activo ?? 1,
     });
   };
@@ -106,12 +112,12 @@ export default function Clientes() {
 
   function validarCliente(form) {
     const errors = {};
-    if (!form.tipoDocumento) errors.tipoDocumento = "Debe seleccionar el tipo de documento.";
-    if (!form.numeroDoc || !validarDocumento(form.tipoDocumento, form.numeroDoc)) errors.numeroDoc = "Número de documento inválido para el tipo seleccionado.";
-    if (!form.nombre || form.nombre.trim().length < 2) errors.nombre = "El nombre es obligatorio y debe tener al menos 2 caracteres.";
-    if (!form.apellido || form.apellido.trim().length < 2) errors.apellido = "El apellido es obligatorio y debe tener al menos 2 caracteres.";
-    if (!form.telefono || form.telefono.trim().length < 6) errors.telefono = "El teléfono es obligatorio y debe tener al menos 6 caracteres.";
-    if (!form.email || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.email)) errors.email = "El email no es válido.";
+    if (!form.idTipoDoc) errors.idTipoDoc = "Debe seleccionar el tipo de documento.";
+    if (!form.numeroDoc || !validarDocumento(form.idTipoDoc, form.numeroDoc)) errors.numeroDoc = "Número de documento inválido para el tipo seleccionado.";
+    if (!form.nombre || form.nombre.trim().length < 2 || !/^[a-zA-Z\s]+$/.test(form.nombre.trim())) errors.nombre = "El nombre es obligatorio, debe contener solo letras y espacios, y tener al menos 2 caracteres.";
+    if (!form.apellido || form.apellido.trim().length < 2 || !/^[a-zA-Z\s]+$/.test(form.apellido.trim())) errors.apellido = "El apellido es obligatorio, debe contener solo letras y espacios, y tener al menos 2 caracteres.";
+    if (!form.telefono || form.telefono.trim().length < 6 || !/^\d{6,}$/.test(form.telefono.trim())) errors.telefono = "El teléfono es obligatorio, debe contener solo números y tener al menos 6 dígitos.";
+    if (!form.mail || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.mail)) errors.mail = "El email no es válido.";
     if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") errors.activo = "El estado es obligatorio.";
     return errors;
   }
@@ -133,12 +139,12 @@ export default function Clientes() {
     setMensaje(resultado.mensaje || resultado.detail || resultado.error || "");
     setModalVisible(false); // Cierra el modal al crear
     setForm({
-      tipoDocumento: "",
+      idTipoDoc: "",
       numeroDoc: "",
       nombre: "",
       apellido: "",
       telefono: "",
-      email: "",
+      mail: "",
       activo: 1,
     });
     fetchClientes();
@@ -153,36 +159,47 @@ export default function Clientes() {
       setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
     }
-    const { tipoDocumento, numeroDoc } = form;
-    await fetch(`${API_URL}${tipoDocumento}/${numeroDoc}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setModalVisible(false); // Cierra el modal al modificar
-    setMensaje("");
-    setForm({
-      tipoDocumento: "",
-      numeroDoc: "",
-      nombre: "",
-      apellido: "",
-      telefono: "",
-      email: "",
-      activo: 1,
-    });
-    fetchClientes();
+    try {
+      const res = await fetch(`${API_URL}/${editId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const resultado = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setModalVisible(false);
+        setForm({
+          idTipoDoc: "",
+          numeroDoc: "",
+          nombre: "",
+          apellido: "",
+          telefono: "",
+          mail: "",
+          activo: 1,
+        });
+        setEditId(null);
+        if (form.activo === 1) {
+          setMostrarInactivos(false);
+        }
+        fetchClientes();
+      } else {
+        setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido del servidor");
+      }
+    } catch (err) {
+      setMensaje("Error de red: " + (err.message || String(err)));
+    }
   };
 
   // Consultar cliente
   const handleConsultar = (cliente) => {
     setClienteActual({
       ...cliente,
-      tipoDocumento: cliente.tipoDocumento || "",
+      idTipoDoc: cliente.idTipoDoc || "",
       numeroDoc: cliente.numeroDoc || "",
       nombre: cliente.nombre || "",
       apellido: cliente.apellido || "",
       telefono: cliente.telefono || "",
-      email: cliente.email || "",
+      mail: cliente.mail || "",
       activo: cliente.activo ?? 1,
     });
     setModalModo('consultar');
@@ -224,16 +241,32 @@ export default function Clientes() {
     setMostrarFormulario(false);
     setMensaje("");
     setForm({
-      tipoDocumento: "",
+      idTipoDoc: "",
       numeroDoc: "",
       nombre: "",
       apellido: "",
       telefono: "",
-      email: "",
+      mail: "",
       activo: 1,
     });
     setFormMode("alta");
     setFormErrors({});
+  };
+
+  // Agregar función handleEliminar
+  const handleEliminar = async (idCliente) => {
+    if (!window.confirm("¿Estás seguro de eliminar este cliente?")) return;
+    try {
+      const res = await fetch(`${API_URL}/${idCliente}`, { method: 'DELETE' });
+      if (res.ok) {
+        setMensaje("Cliente eliminado");
+        fetchClientes();
+      } else {
+        setMensaje("Error al eliminar cliente");
+      }
+    } catch (error) {
+      setMensaje("Error de conexión");
+    }
   };
 
   return (
@@ -277,13 +310,13 @@ export default function Clientes() {
                   <tbody>
                     {clientes.map(c => (
                       <tr key={c.idCliente}>
-                        <td>{tiposDocumento.find(td => (td.codigo || td.codTipoDoc) === c.tipoDocumento)?.nombre || c.tipoDocumento}</td>
+                        <td>{tiposDocumento.find(td => td.idTipoDoc === c.idTipoDoc)?.nombre || c.idTipoDoc}</td>
                         <td>{c.numeroDoc}</td>
                         <td>{c.nombre}</td>
                         <td>{c.apellido}</td>
                         <td>{c.telefono}</td>
-                        <td>{c.email}</td>
-                        <td>{c.activo ? "Sí" : "No"}</td>
+                        <td>{c.mail}</td>
+                        <td>{c.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
                           <button
                             className="btn btn-sm btn-verdeAgua fw-bold me-1"
@@ -297,12 +330,14 @@ export default function Clientes() {
                           >
                             <i className="bi bi-pencil-square me-1"></i>Modificar
                           </button>
-                          <button
-                            className="btn btn-sm btn-rojo fw-bold"
-                            onClick={() => c.idCliente && handleEliminar(c.idCliente)}
-                          >
-                            <i className="bi bi-trash me-1"></i>Eliminar
-                          </button>
+                          {c.activo === 1 && (
+                            <button
+                              className="btn btn-sm btn-rojo fw-bold"
+                              onClick={() => c.idCliente && handleEliminar(c.idCliente)}
+                            >
+                              <i className="bi bi-trash me-1"></i>Eliminar
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -356,25 +391,25 @@ export default function Clientes() {
                             <i className="bi bi-card-list me-2"></i>Tipo de documento
                           </label>
                           <select
-                            name="tipoDocumento"
+                            name="idTipoDoc"
                             value={
                               modalModo === "consultar"
-                                ? clienteActual?.tipoDocumento ?? ""
-                                : form.tipoDocumento
+                                ? clienteActual?.idTipoDoc ?? ""
+                                : form.idTipoDoc
                             }
                             onChange={handleChange}
                             className="form-control"
                             required
-                            disabled={modalModo === "modificar" || modalModo === "consultar"}
+                            disabled={modalModo === "consultar"}
                           >
-                            <option value="">Seleccione tipo de documento</option>
+                            <option key="default" value="">Seleccione tipo de documento</option>
                             {tiposDocumento.map(td => (
-                              <option key={td.codigo || td.codTipoDoc} value={td.codigo || td.codTipoDoc}>
+                              <option key={td.idTipoDoc} value={td.idTipoDoc}>
                                 {td.nombre}
                               </option>
                             ))}
                           </select>
-                          {formErrors.tipoDocumento && <div className="input-error-message">{formErrors.tipoDocumento}</div>}
+                          {formErrors.idTipoDoc && <div className="input-error-message">{formErrors.idTipoDoc}</div>}
                         </div>
                         <div className="mb-3">
                           <label>
@@ -391,7 +426,7 @@ export default function Clientes() {
                             onChange={handleChange}
                             required
                             className="form-control"
-                            disabled={modalModo === "modificar" || modalModo === "consultar"}
+                            disabled={modalModo === "consultar"}
                           />
                           {formErrors.numeroDoc && <div className="input-error-message">{formErrors.numeroDoc}</div>}
                         </div>
@@ -470,18 +505,18 @@ export default function Clientes() {
                           </label>
                           <input
                             type="email"
-                            name="email"
+                            name="mail"
                             value={
                               modalModo === "consultar"
-                                ? clienteActual?.email ?? ""
-                                : form.email
+                                ? clienteActual?.mail ?? ""
+                                : form.mail
                             }
                             onChange={handleChange}
                             required
                             className="form-control"
                             readOnly={modalModo === "consultar"}
                           />
-                          {formErrors.email && <div className="input-error-message">{formErrors.email}</div>}
+                          {formErrors.mail && <div className="input-error-message">{formErrors.mail}</div>}
                         </div>
                       </div>
                     </div>

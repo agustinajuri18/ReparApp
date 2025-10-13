@@ -1,9 +1,11 @@
 import re
 from flask import Blueprint, request, jsonify
-from ABMC_db import alta_cliente, mostrar_clientes, modificar_cliente, baja_cliente  # importa solo lo que uses
-from BDD.database import SessionLocal, Cliente, TipoDocumento  # Importa los modelos y sesión
+from ABMC_db import (
+    alta_cliente, modificar_cliente, mostrar_clientes, baja_cliente,
+    buscar_cliente_por_doc, mostrar_tipos_documento, alta_tipo_documento
+)
 
-app = Blueprint('clientes', __name__)
+bp = Blueprint('clientes', __name__)
 
 def validar_dni(dni):
     return str(dni).isdigit() and 7 <= len(str(dni)) <= 8
@@ -20,98 +22,98 @@ def validar_telefono(telefono):
 def validar_email(email):
     return bool(re.match(r'^[^@]+@[^@]+\.[^@]+$', str(email)))
 
-@app.route("/clientes/", methods=["POST"])
+@bp.route("/clientes", methods=["POST"])
 def registrar_cliente():
     data = request.get_json() or {}
-    tipoDocumento = data.get("tipoDocumento")
-    numeroDoc = data.get("numeroDoc")  # CAMBIO: nombre según modelo
+    idTipoDoc = data.get("idTipoDoc")
+    numeroDoc = data.get("numeroDoc")
     nombre = data.get("nombre")
     apellido = data.get("apellido")
     telefono = data.get("telefono")
-    email = data.get("email")  # CAMBIO: nombre según modelo
+    mail = data.get("mail")
+    activo = data.get("activo", 1)
 
     print("Datos recibidos:", data)
 
-    if not tipoDocumento or not numeroDoc or not nombre or not apellido:
+    if not idTipoDoc or not numeroDoc or not nombre or not apellido:
         return jsonify({"error": "Faltan campos obligatorios"}), 400
-    if tipoDocumento.lower() in ("dni", "dni_arg") and not validar_dni(numeroDoc):
-        return jsonify({"error": "DNI inválido"}), 400
+    # Validaciones adicionales si es necesario
     if telefono and not validar_telefono(telefono):
         return jsonify({"error": "Teléfono inválido"}), 400
-    if email and not validar_email(email):
+    if mail and not validar_email(mail):
         return jsonify({"error": "Email inválido"}), 400
 
     try:
-        alta_cliente(tipoDocumento, int(numeroDoc), nombre, apellido, telefono, email)
-        return jsonify({"ok": True}), 201
+        cliente = alta_cliente(
+            idTipoDoc=idTipoDoc,
+            numeroDoc=numeroDoc,
+            nombre=nombre,
+            apellido=apellido,
+            telefono=telefono,
+            mail=mail,
+            activo=activo
+        )
+        return jsonify({
+            'idCliente': cliente.idCliente,
+            'idTipoDoc': cliente.idTipoDoc,
+            'numeroDoc': cliente.numeroDoc,
+            'nombre': cliente.nombre,
+            'apellido': cliente.apellido,
+            'telefono': cliente.telefono,
+            'mail': cliente.mail,
+            'activo': cliente.activo
+        }), 201
     except Exception as e:
         return jsonify({"error": "No se pudo crear cliente", "detail": str(e)}), 500
 
-@app.route("/clientes/<tipoDocumento>/<int:numeroDoc>", methods=["PUT"])
-def modificar_datos_cliente(tipoDocumento, numeroDoc):
-    data = request.get_json()
-    nombre = data.get("nombre")
-    apellido = data.get("apellido")
-    telefono = data.get("telefono")
-    email = data.get("email")
-    activo = data.get("activo", 1)
-    modificar_cliente(tipoDocumento, numeroDoc, nombre, apellido, telefono, email, activo)
-    return jsonify({"mensaje": "Cliente modificado exitosamente"}), 200
-
-@app.route("/clientes/<tipoDocumento>/<int:numeroDoc>", methods=["GET"])
-def mostrar_cliente(tipoDocumento, numeroDoc):
-    session = SessionLocal()
-    cliente = session.query(Cliente).get((tipoDocumento, numeroDoc))
-    session.close()
-    if cliente:
-        cliente_dict = {
-            "tipoDocumento": cliente.tipoDocumento,
-            "numeroDoc": cliente.numeroDoc,
-            "nombre": cliente.nombre,
-            "apellido": cliente.apellido,
-            "telefono": cliente.telefono,
-            "email": cliente.email,
-            "activo": cliente.activo
-        }
-        return jsonify(cliente_dict), 200
-    return jsonify({"detail": "Cliente no encontrado"}), 404
-
-@app.route("/clientes/<tipoDocumento>/<int:numeroDoc>", methods=["DELETE"])
-def baja_logica_cliente(tipoDocumento, numeroDoc):
-    baja_cliente(tipoDocumento, numeroDoc)
-    return jsonify({"mensaje": "Cliente dado de baja"}), 200
-
-@app.route("/clientes/", methods=["GET"])
+@bp.route("/clientes", methods=["GET"])
 def listar_clientes():
-    activos = request.args.get("activos")
-    if activos == "false":
-        clientes = mostrar_clientes(activos_only=False)
-    else:
+    activos = request.args.get('activos', 'true')
+    if activos == 'true':
         clientes = mostrar_clientes(activos_only=True)
+    else:
+        clientes = [c for c in mostrar_clientes(activos_only=False) if not c.activo]
     return jsonify([
         {
-            "idCliente": f"{c.tipoDocumento}-{c.numeroDoc}",  # identificador compuesto
-            "tipoDocumento": c.tipoDocumento,
-            "numeroDoc": c.numeroDoc,
-            "nombre": c.nombre,
-            "apellido": c.apellido,
-            "telefono": c.telefono,
-            "email": c.mail,
-            "activo": c.activo
+            'idCliente': c.idCliente,
+            'idTipoDoc': c.idTipoDoc,
+            'numeroDoc': c.numeroDoc,
+            'nombre': c.nombre,
+            'apellido': c.apellido,
+            'telefono': c.telefono,
+            'mail': c.mail,
+            'activo': c.activo
         } for c in clientes
-    ]), 200
+    ])
 
-@app.route("/tipos-documento/", methods=["GET"])
+@bp.route("/clientes/<int:idCliente>", methods=["PUT"])
+def modificar_datos_cliente(idCliente):
+    data = request.get_json()
+    cliente = modificar_cliente(
+        idCliente=idCliente,
+        idTipoDoc=data.get('idTipoDoc'),
+        numeroDoc=data.get('numeroDoc'),
+        nombre=data.get('nombre'),
+        apellido=data.get('apellido'),
+        telefono=data.get('telefono'),
+        mail=data.get('mail'),
+        activo=data.get('activo')
+    )
+    if cliente:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Cliente no encontrado'}), 404
+
+@bp.route("/clientes/<int:idCliente>", methods=["DELETE"])
+def eliminar_cliente(idCliente):
+    cliente = baja_cliente(idCliente)
+    if cliente:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Cliente no encontrado'}), 404
+
+@bp.route("/tipos-documento", methods=["GET"])
 def listar_tipos_documento():
-    session = SessionLocal()
-    tipos = session.query(TipoDocumento).all()
-    resultado = [
-        {"codigo": t.codTipoDoc, "nombre": t.nombre}
+    tipos = mostrar_tipos_documento()
+    return jsonify([
+        {'idTipoDoc': t.idTipoDoc, 'nombre': t.nombre}
         for t in tipos
-    ]
-    session.close()
-    return jsonify(resultado)
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
+    ])

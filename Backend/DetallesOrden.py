@@ -1,75 +1,67 @@
 from flask import Blueprint, request, jsonify
 from ABMC_db import (
-    alta_detalle_orden,
-    modificar_detalle_orden,
-    mostrar_detalles_orden,
+    alta_detalle_orden, modificar_detalle_orden, mostrar_detalles_orden, 
     baja_detalle_orden
 )
 
-app = Blueprint("detalles_orden", __name__)
+bp = Blueprint('detalles', __name__)
 
-@app.route("/detalles_orden/", methods=["POST"])
-def crear_detalle():
-    data = request.get_json() or {}
-    try:
-        alta_detalle_orden(
-            data["idDetalle"],
-            data["nroDeOrden"],
-            data["codigoServicio"],
-            data["codRepuestos"],
-            data["cuitProveedor"],
-            data["costoServicio"],
-            data["costoRepuesto"],
-            data["subtotal"]
-        )
-        return jsonify({"mensaje": "Detalle de orden creado exitosamente"}), 201
-    except Exception as e:
-        return jsonify({"error": "Error al crear detalle", "detail": str(e)}), 500
+@bp.route('/ordenes/<int:nroDeOrden>/detalles', methods=['POST'])
+def crear_detalle(nroDeOrden):
+    data = request.json
+    
+    # Validamos datos obligatorios
+    if not all(k in data for k in ['idServicio', 'repuesto_proveedor_id']):
+        return jsonify({'error': 'Faltan campos requeridos (idServicio, repuesto_proveedor_id)'}), 400
+    
+    detalle = alta_detalle_orden(
+        nroDeOrden=nroDeOrden,
+        idServicio=data['idServicio'],
+        repuesto_proveedor_id=data['repuesto_proveedor_id'],
+        costoServicio=data.get('costoServicio'),
+        costoRepuesto=data.get('costoRepuesto'),
+        subtotal=data.get('subtotal')
+    )
+    return jsonify({
+        'idDetalle': detalle.idDetalle,
+        'nroDeOrden': detalle.nroDeOrden,
+        'idServicio': detalle.idServicio,
+        'repuesto_proveedor_id': detalle.repuesto_proveedor_id,
+        'costoServicio': detalle.costoServicio,
+        'costoRepuesto': detalle.costoRepuesto,
+        'subtotal': detalle.subtotal
+    }), 201
 
-@app.route("/detalles_orden/<int:nroDeOrden>", methods=["GET"])
-def listar_detalles(nroDeOrden):
-    try:
-        detalles = mostrar_detalles_orden(nroDeOrden)
-        result = [
-            {
-                "idDetalle": d.idDetalle,
-                "nroDeOrden": d.nroDeOrden,
-                "codigoServicio": d.codigoServicio,
-                "codRepuestos": d.codRepuestos,
-                "cuitProveedor": d.cuitProveedor,
-                "costoServicio": d.costoServicio,
-                "costoRepuesto": d.costoRepuesto,
-                "subtotal": d.subtotal,
-            }
-            for d in detalles
-        ]
-        return jsonify(result), 200
-    except Exception as e:
-        return jsonify({"error": "Error al listar detalles", "detail": str(e)}), 500
+@bp.route('/ordenes/<int:nroDeOrden>/detalles', methods=['GET'])
+def listar_detalles_orden(nroDeOrden):
+    detalles = mostrar_detalles_orden(nroDeOrden)
+    resultado = []
+    for d in detalles:
+        resultado.append({
+            'idDetalle': d.idDetalle,
+            'nroDeOrden': d.nroDeOrden,
+            'idServicio': d.idServicio,
+            'repuesto_proveedor_id': d.repuesto_proveedor_id,
+            'costoServicio': d.costoServicio,
+            'costoRepuesto': d.costoRepuesto,
+            'subtotal': d.subtotal
+        })
+    return jsonify(resultado)
 
-@app.route("/detalles_orden/<int:nroDeOrden>/<int:idDetalle>", methods=["PUT"])
-def modificar_detalle(nroDeOrden, idDetalle):
-    data = request.get_json() or {}
-    try:
-        modificar_detalle_orden(
-            idDetalle,
-            nroDeOrden,
-            data["codigoServicio"],
-            data["codRepuestos"],
-            data["cuitProveedor"],
-            data["costoServicio"],
-            data["costoRepuesto"],
-            data["subtotal"]
-        )
-        return jsonify({"mensaje": "Detalle modificado exitosamente"}), 200
-    except Exception as e:
-        return jsonify({"error": "Error al modificar detalle", "detail": str(e)}), 500
+@bp.route('/detalles/<int:idDetalle>', methods=['PUT'])
+def modificar_detalle(idDetalle):
+    data = request.json
+    detalle = modificar_detalle_orden(
+        idDetalle=idDetalle,
+        **data
+    )
+    if detalle:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Detalle no encontrado'}), 404
 
-
-@app.route("/detalles_orden/<int:nroDeOrden>/<int:idDetalle>", methods=["DELETE"])
-def eliminar_detalle(nroDeOrden, idDetalle):
-    try:
-        baja_detalle_orden(idDetalle, nroDeOrden)
-        return jsonify({"mensaje": "Detalle eliminado"}), 200
-    except Exception as e:
-        return jsonify({"error": "Error al eliminar detalle", "detail": str(e)}), 500
+@bp.route('/detalles/<int:idDetalle>', methods=['DELETE'])
+def eliminar_detalle(idDetalle):
+    detalle = baja_detalle_orden(idDetalle)
+    if detalle:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Detalle no encontrado'}), 404

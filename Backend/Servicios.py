@@ -1,144 +1,131 @@
 from flask import Blueprint, request, jsonify
-from ABMC_db import alta_servicio, modificar_servicio, mostrar_servicios, baja_servicio
-from BDD.database import SessionLocal, Servicio
+from ABMC_db import (
+    alta_servicio, modificar_servicio, mostrar_servicios, baja_servicio,
+    alta_servicioxrepuesto, modificar_servicioxrepuesto, baja_servicioxrepuesto,
+    mostrar_servicioxrepuesto, mostrar_repuestos_por_servicio
+)
 
-app = Blueprint('servicios', __name__)
+bp = Blueprint('servicios', __name__)
 
-def validar_codigo(codigo):
-    return isinstance(codigo, int) and codigo > 0
-
-def validar_text_field(v, min_len=1, max_len=255):
-    return isinstance(v, str) and min_len <= len(v.strip()) <= max_len
-
-def validar_precio(precio):
-    try:
-        p = float(precio)
-        return p >= 0
-    except Exception:
-        return False
-
-def parse_activo(value):
-    if value is None:
-        return 1
-    if isinstance(value, bool):
-        return 1 if value else 0
-    if isinstance(value, int):
-        return 1 if value != 0 else 0
-    vs = str(value).lower()
-    if vs in ("1", "true", "yes", "si"):
-        return 1
-    if vs in ("0", "false", "no"):
-        return 0
-    return 1
-
-@app.route("/servicios/", methods=["POST"])
+@bp.route('/servicios/', methods=['POST', 'OPTIONS'])
 def registrar_servicio():
-    data = request.get_json() or {}
-    codigo = data.get("codigo")
-    descripcion = data.get("descripcion")
-    precioBase = data.get("precioBase")
-    activo = parse_activo(data.get("activo"))
+    if request.method == 'OPTIONS':
+        return '', 200
+    data = request.json
+    
+    # Validamos datos obligatorios
+    if 'descripcion' not in data:
+        return jsonify({'error': 'Falta información obligatoria (descripcion)'}), 400
+    
+    servicio = alta_servicio(
+        descripcion=data['descripcion'],
+        precioBase=data.get('precioBase'),
+        activo=data.get('activo', 1)
+    )
+    return jsonify({
+        'idServicio': servicio.idServicio,
+        'descripcion': servicio.descripcion,
+        'precioBase': servicio.precioBase,
+        'activo': servicio.activo
+    }), 201
 
-    if not validar_codigo(codigo):
-        return jsonify({"error": "codigo inválido"}), 400
-    if not validar_text_field(descripcion):
-        return jsonify({"error": "descripcion inválida"}), 400
-    if not validar_precio(precioBase):
-        return jsonify({"error": "precioBase inválido"}), 400
-
-    session = SessionLocal()
-    try:
-        existing = session.query(Servicio).filter_by(codigo=codigo).first()
-        if existing:
-            return jsonify({"error": "Servicio con ese codigo ya existe"}), 409
-    finally:
-        session.close()
-
-    try:
-        alta_servicio(codigo, descripcion.strip(), float(precioBase), activo)
-        return jsonify({"mensaje": "Servicio creado exitosamente"}), 201
-    except Exception as e:
-        return jsonify({"error": "No se pudo crear servicio", "detail": str(e)}), 500
-
-@app.route("/servicios/<codigo>", methods=["PUT"])
-def modificar_datos_servicio(codigo):
-    session = SessionLocal()
-    servicio = session.query(Servicio).filter_by(codigo=codigo).first()
-    if not servicio:
-        session.close()
-        return jsonify({"detail": "Servicio no encontrado"}), 404
-
-    data = request.get_json() or {}
-    descripcion = data.get("descripcion", servicio.descripcion)
-    precioBase = data.get("precioBase", servicio.precioBase)
-    activo = parse_activo(data.get("activo", servicio.activo))
-
-    if not validar_text_field(descripcion):
-        session.close()
-        return jsonify({"error": "descripcion inválida"}), 400
-    if not validar_precio(precioBase):
-        session.close()
-        return jsonify({"error": "precioBase inválido"}), 400
-
-    try:
-        modificar_servicio(codigo, descripcion.strip(), float(precioBase), activo)
-        session.close()
-        return jsonify({"mensaje": "Servicio modificado exitosamente"}), 200
-    except Exception as e:
-        session.close()
-        return jsonify({"error": "No se pudo modificar servicio", "detail": str(e)}), 500
-
-@app.route("/servicios/<codigo>", methods=["GET"])
-def mostrar_servicio(codigo):
-    session = SessionLocal()
-    servicio = session.query(Servicio).filter_by(codigo=codigo).first()
-    session.close()
-    if servicio:
-        servicio_dict = {
-            "codigo": servicio.codigo,
-            "descripcion": servicio.descripcion,
-            "precioBase": servicio.precioBase,
-            "activo": getattr(servicio, "activo", 1)
-        }
-        return jsonify(servicio_dict), 200
-    return jsonify({"detail": "Servicio no encontrado"}), 404
-
-@app.route("/servicios/<codigo>", methods=["DELETE"])
-def baja_logica_servicio(codigo):
-    session = SessionLocal()
-    servicio = session.query(Servicio).filter_by(codigo=codigo).first()
-    if not servicio:
-        session.close()
-        return jsonify({"detail": "Servicio no encontrado"}), 404
-    try:
-        baja_servicio(codigo)
-        session.close()
-        return jsonify({"mensaje": "Servicio dado de baja"}), 200
-    except Exception as e:
-        session.close()
-        return jsonify({"error": "No se pudo dar de baja", "detail": str(e)}), 500
-
-@app.route("/servicios/", methods=["GET"])
+@bp.route('/servicios', methods=['GET'])
 def listar_servicios():
-    activos = request.args.get("activos", "true").lower() == "true"
-    try:
-        servicios = mostrar_servicios(activos_only=activos)
-        result = [
-            {
-                "codigo": s.codigo,
-                "descripcion": s.descripcion,
-                "precioBase": s.precioBase,
-                "activo": getattr(s, "activo", 1)
-            } for s in servicios
-        ]
-        return jsonify(result), 200
-    except Exception as e:
-        return jsonify({"error": "Error al listar servicios", "detail": str(e)}), 500
+    servicios = mostrar_servicios()
+    return jsonify([
+        {
+            'idServicio': s.idServicio,
+            'descripcion': s.descripcion,
+            'precioBase': s.precioBase,
+            'activo': s.activo
+        } for s in servicios
+    ])
 
-if __name__ == "__main__":
-    from flask import Flask
-    from flask_cors import CORS
-    app_server = Flask(__name__)
-    CORS(app_server)
-    app_server.register_blueprint(app, url_prefix='/')
-    app_server.run(debug=True)
+@bp.route('/servicios/<int:idServicio>', methods=['PUT'])
+def modificar_datos_servicio(idServicio):
+    data = request.json
+    servicio = modificar_servicio(
+        idServicio=idServicio,
+        descripcion=data.get('descripcion'),
+        precioBase=data.get('precioBase'),
+        activo=data.get('activo')
+    )
+    if servicio:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Servicio no encontrado'}), 404
+
+@bp.route('/servicios/<int:idServicio>', methods=['DELETE'])
+def baja_logica_servicio(idServicio):
+    servicio = baja_servicio(idServicio)
+    if servicio:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Servicio no encontrado'}), 404
+
+@bp.route('/servicios-repuestos/', methods=['POST', 'OPTIONS'])
+def agregar_servicioxrepuesto():
+    if request.method == 'OPTIONS':
+        return '', 200
+    data = request.get_json()
+    alta_servicioxrepuesto(int(data['idServicio']), int(data['idRepuesto']), int(data['cantidad']))
+    return jsonify({'success': True})
+
+@bp.route('/servicios-repuestos/', methods=['GET'])
+def listar_servicioxrepuesto():
+    relaciones = mostrar_servicioxrepuesto()
+    return jsonify([
+        {
+            'id': r.id,
+            'idServicio': r.idServicio,
+            'idRepuesto': r.idRepuesto,
+            'cantidad': r.cantidad
+        } for r in relaciones
+    ])
+
+
+@bp.route('/servicios-repuestos/<int:id>/', methods=['PUT'])
+def actualizar_servicioxrepuesto(id):
+    data = request.json
+    relacion = modificar_servicioxrepuesto(
+        id=id,
+        cantidad=data.get('cantidad')
+    )
+    if relacion:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Relación no encontrada'}), 404
+
+@bp.route('/servicios-repuestos/<int:id>/', methods=['DELETE'])
+def eliminar_relacion_servicioxrepuesto(id):
+    relacion = baja_servicioxrepuesto(id)
+    if relacion:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Relación no encontrada'}), 404
+
+@bp.route('/servicios-repuestos', methods=['DELETE', 'OPTIONS'])
+def eliminar_servicioxrepuesto():
+    if request.method == 'OPTIONS':
+        return '', 200
+    data = request.get_json()
+    baja_servicioxrepuesto(int(data['idServicio']), int(data['idRepuesto']))
+    return jsonify({'success': True})
+
+@bp.route('/servicios/<int:idServicio>/repuestos', methods=['GET'])
+def listar_repuestos_por_servicio(idServicio):
+    repuestos = mostrar_repuestos_por_servicio(idServicio)
+    return jsonify([{
+        'idRepuesto': r['idRepuesto'],
+        'cantidad': r['cantidad']
+    } for r in repuestos])
+
+@bp.route('/servicios/<int:idServicio>', methods=['GET'])
+def obtener_servicio(idServicio):
+    servicios = mostrar_servicios()
+    servicio = next((s for s in servicios if s.idServicio == idServicio), None)
+    if not servicio:
+        return jsonify({'error': 'Servicio no encontrado'}), 404
+    return jsonify({
+        'idServicio': servicio.idServicio,
+        'descripcion': servicio.descripcion,
+        'precioBase': servicio.precioBase,
+        'activo': servicio.activo
+    })
+

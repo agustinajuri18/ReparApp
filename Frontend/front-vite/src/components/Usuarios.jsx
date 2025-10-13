@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 
-const API_URL = "http://localhost:5000";
+const API_URL = "http://localhost:5000/usuarios";
 
 const colores = {
   azul: '#1f3345',
@@ -14,8 +14,9 @@ const colores = {
 export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [form, setForm] = useState({
+    idUsuario: "",
     nombreUsuario: "",
-    password: "",
+    contraseña: "",
     activo: 1
   });
   const [editId, setEditId] = useState(null);
@@ -23,36 +24,35 @@ export default function Usuarios() {
   const [mensaje, setMensaje] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState("alta"); // "alta" | "modificar" | "consultar"
+  const [formErrors, setFormErrors] = useState({});
 
-  useEffect(() => {
-    fetch(`${API_URL}/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
+  const fetchUsuarios = () => {
+    fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`)
       .then(res => res.json())
       .then(data => setUsuarios(data))
       .catch(() => setMensaje("Error al cargar usuarios"));
+  };
+
+  useEffect(() => {
+    fetchUsuarios();
   }, [mostrarInactivos]);
 
-  function handleChange(e) {
-    const { name, value } = e.target;
-    setForm({
-      ...form,
-      [name]: name === "activo" ? Number(value) : value
-    });
-  }
+  const handleChange = e => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+    setFormErrors(validarUsuario({ ...form, [e.target.name]: e.target.value }));
+  };
 
-  function validarUsuario(form, esEdicion = false) {
-    if (!form.nombreUsuario || !/^[A-Za-z0-9_]{3,30}$/.test(form.nombreUsuario.trim()))
-      return "El nombre de usuario es obligatorio (3-30 letras, números o guión bajo).";
-    if (!esEdicion && (!form.password || form.password.trim().length < 6 || !/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)))
-      return "La contraseña es obligatoria, mínimo 6 caracteres, debe contener letras y números.";
-    if (esEdicion && form.password && (form.password.trim().length < 6 || !/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)))
-      return "La contraseña debe tener mínimo 6 caracteres, letras y números.";
-    if (form.activo !== 0 && form.activo !== 1)
-      return "El estado es obligatorio.";
-    return null;
+  function validarUsuario(form) {
+    const errors = {};
+    if (!form.nombreUsuario || form.nombreUsuario.trim().length < 3) errors.nombreUsuario = "El nombre de usuario es obligatorio y debe tener al menos 3 caracteres.";
+    if (modalModo === "alta" && (!form.contraseña || form.contraseña.length < 6)) errors.contraseña = "La contraseña es obligatoria y debe tener al menos 6 caracteres.";
+    if (modalModo === "modificar" && form.contraseña && form.contraseña.length < 6) errors.contraseña = "La contraseña debe tener al menos 6 caracteres si se modifica.";
+    if (form.activo !== 0 && form.activo !== 1) errors.activo = "El estado es obligatorio.";
+    return errors;
   }
 
   function handleAgregar() {
-    setForm({ nombreUsuario: "", password: "", activo: 1 });
+    setForm({ idUsuario: "", nombreUsuario: "", contraseña: "", activo: 1 });
     setEditId(null);
     setModalModo("alta");
     setModalVisible(true);
@@ -61,7 +61,7 @@ export default function Usuarios() {
 
   function handleEdit(usuario) {
     setEditId(usuario.idUsuario);
-    setForm({ nombreUsuario: usuario.nombreUsuario, password: "", activo: Number(usuario.activo) });
+    setForm({ idUsuario: usuario.idUsuario, nombreUsuario: usuario.nombreUsuario, contraseña: "", activo: Number(usuario.activo) });
     setModalModo("modificar");
     setModalVisible(true);
     setMensaje("");
@@ -69,23 +69,28 @@ export default function Usuarios() {
 
   function handleConsultar(usuario) {
     setEditId(usuario.idUsuario);
-    setForm({ nombreUsuario: usuario.nombreUsuario, password: "", activo: Number(usuario.activo) });
+    setForm({ idUsuario: usuario.idUsuario, nombreUsuario: usuario.nombreUsuario, contraseña: "", activo: Number(usuario.activo) });
     setModalModo("consultar");
     setModalVisible(true);
     setMensaje("");
   }
 
-  function handleSubmit(e) {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const error = validarUsuario(form, false);
-    if (error) {
-      setMensaje(error);
+    const errors = validarUsuario(form);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMensaje("Por favor, corrige los errores antes de continuar: " + Object.values(errors).join(", "));
       return;
     }
-    fetch(`${API_URL}/usuarios/`, {
+    fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
+      body: JSON.stringify({
+        nombreUsuario: form.nombreUsuario,
+        contraseña: form.contraseña,
+        activo: form.activo
+      })
     })
       .then(async res => {
         const text = await res.text();
@@ -101,13 +106,11 @@ export default function Usuarios() {
         return data;
       })
       .then(() => {
-        setForm({ nombreUsuario: "", password: "", activo: 1 });
+        setForm({ idUsuario: "", nombreUsuario: "", contraseña: "", activo: 1 });
         setModalVisible(false);
         setEditId(null);
         setModalModo("alta");
-        fetch(`${API_URL}/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
-          .then(res => res.json())
-          .then(data => setUsuarios(data));
+        fetchUsuarios();
         setMensaje("Usuario agregado correctamente.");
       })
       .catch(err => {
@@ -115,37 +118,41 @@ export default function Usuarios() {
       });
   }
 
-  function handleUpdate(e) {
+  const handleUpdate = async (e) => {
     e.preventDefault();
-    const error = validarUsuario(form, true);
-    if (error) {
-      setMensaje(error);
+    const errors = validarUsuario(form);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMensaje("Por favor, corrige los errores antes de continuar: " + Object.values(errors).join(", "));
       return;
     }
-    const payload = {
-      nombreUsuario: form.nombreUsuario,
-      activo: form.activo
-    };
-    if (form.password && form.password.trim() !== "") {
-      payload.password = form.password;
-    }
-    fetch(`${API_URL}/usuarios/${editId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    })
-      .then(res => res.json())
-      .then(() => {
-        setEditId(null);
-        setForm({ nombreUsuario: "", password: "", activo: 1 });
+    try {
+      const body = {
+        nombreUsuario: form.nombreUsuario,
+        activo: form.activo,
+        ...(form.contraseña && { contraseña: form.contraseña })
+      };
+      const res = await fetch(`${API_URL}/${form.idUsuario}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
         setModalVisible(false);
-        setModalModo("alta");
-        fetch(`${API_URL}/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
-          .then(res => res.json())
-          .then(data => setUsuarios(data));
-        setMensaje("Usuario modificado correctamente.");
-      })
-      .catch(err => setMensaje(err.message));
+        setForm({
+          idUsuario: "",
+          nombreUsuario: "",
+          contraseña: "",
+          activo: 1
+        });
+        fetchUsuarios();
+      } else {
+        const resultado = await res.json();
+        setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido");
+      }
+    } catch (error) {
+      setMensaje("Error de conexión");
+    }
   }
 
   function handleDelete(idUsuario) {
@@ -153,11 +160,9 @@ export default function Usuarios() {
       "Se realizará una baja lógica del usuario. ¿Desea continuar?"
     );
     if (!confirmar) return;
-    fetch(`${API_URL}/usuarios/${idUsuario}`, { method: "DELETE" })
+    fetch(`${API_URL}/${idUsuario}`, { method: "DELETE" })
       .then(() => {
-        fetch(`${API_URL}/usuarios/?activos=${mostrarInactivos ? "false" : "true"}`)
-          .then(res => res.json())
-          .then(data => setUsuarios(data));
+        fetchUsuarios();
         setMensaje("Usuario dado de baja correctamente.");
       })
       .catch(err => {
@@ -169,7 +174,7 @@ export default function Usuarios() {
     setModalVisible(false);
     setEditId(null);
     setModalModo("alta");
-    setForm({ nombreUsuario: "", password: "", activo: 1 });
+    setForm({ idUsuario: "", nombreUsuario: "", contraseña: "", activo: 1 });
     setMensaje("");
   }
 
@@ -295,14 +300,17 @@ export default function Usuarios() {
                             required
                             readOnly={modalModo === "consultar"}
                           />
+                          {formErrors.nombreUsuario && (
+                            <div className="text-danger">{formErrors.nombreUsuario}</div>
+                          )}
                         </div>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-key me-2"></i>Contraseña</label>
                           <input
-                            name="password"
+                            name="contraseña"
                             type="password"
                             placeholder="Contraseña"
-                            value={form.password}
+                            value={form.contraseña}
                             onChange={modalModo === "consultar" ? undefined : handleChange}
                             className="form-control"
                             required={modalModo === "alta"}
@@ -310,6 +318,9 @@ export default function Usuarios() {
                           />
                           {editId && modalModo !== "consultar" && (
                             <small className="text-muted">Dejar vacío para no cambiar la contraseña</small>
+                          )}
+                          {formErrors.contraseña && (
+                            <div className="text-danger">{formErrors.contraseña}</div>
                           )}
                         </div>
                       </div>
@@ -326,6 +337,9 @@ export default function Usuarios() {
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
                           </select>
+                          {formErrors.activo && (
+                            <div className="text-danger">{formErrors.activo}</div>
+                          )}
                         </div>
                       </div>
                     </div>

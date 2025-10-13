@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 
-const API_URL = "http://localhost:5000";
+const API_URL = "http://localhost:5000/servicios";
+const REPUESTOS_URL = "http://localhost:5000/repuestos";
 const colores = {
   azul: '#1f3345',
   dorado: '#c78f57',
@@ -12,37 +13,51 @@ const colores = {
 
 export default function Servicios() {
   const [servicios, setServicios] = useState([]);
+  const [repuestos, setRepuestos] = useState([]);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState("alta"); // "alta" | "modificar" | "consultar"
   const [servicioActual, setServicioActual] = useState({
-    codigo: "",
+    idServicio: "",
     descripcion: "",
     precioBase: "",
-    activo: 1
+    activo: 1,
+    repuestos: []
   });
+  const [originalRepuestos, setOriginalRepuestos] = useState([]);
   const [mensaje, setMensaje] = useState("");
+  const [formErrors, setFormErrors] = useState({});
 
   // Cargar servicios
-  const fetchServicios = async () => {
-    let url = `${API_URL}/servicios/?activos=${!mostrarInactivos}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    setServicios(Array.isArray(data) ? data : []);
+  const fetchServicios = () => {
+    fetch(API_URL)
+      .then(res => res.json())
+      .then(data => setServicios(Array.isArray(data) ? data : []))
+      .catch(() => setMensaje("Error al cargar servicios"));
+  };
+
+  // Cargar repuestos
+  const fetchRepuestos = () => {
+    fetch(REPUESTOS_URL)
+      .then(res => res.json())
+      .then(data => setRepuestos(Array.isArray(data) ? data : []))
+      .catch(() => setMensaje("Error al cargar repuestos"));
   };
 
   useEffect(() => {
     fetchServicios();
+    fetchRepuestos();
     // eslint-disable-next-line
   }, [mostrarInactivos]);
 
   // Modal handlers
   const handleAgregarClick = () => {
     setServicioActual({
-      codigo: "",
+      idServicio: "",
       descripcion: "",
       precioBase: "",
-      activo: 1
+      activo: 1,
+      repuestos: []
     });
     setModalModo("alta");
     setModalVisible(true);
@@ -50,93 +65,190 @@ export default function Servicios() {
   };
 
   const handleModificar = (servicio) => {
-    setServicioActual({ ...servicio });
-    setModalModo('modificar');
-    setModalVisible(true);
-    setMensaje("");
+    fetch(`${API_URL}/${servicio.idServicio}`)
+      .then(res => res.json())
+      .then(data => {
+        setServicioActual({ ...data, repuestos: [] });
+        return fetch(`${API_URL}/${servicio.idServicio}/repuestos`);
+      })
+      .then(res => res.json())
+      .then(reps => {
+        setServicioActual(prev => ({ ...prev, repuestos: reps.map(r => ({ idRepuesto: r.idRepuesto, cantidad: r.cantidad })) }));
+        setOriginalRepuestos(reps.map(r => ({ idRepuesto: r.idRepuesto, cantidad: r.cantidad })));
+        setModalModo('modificar');
+        setModalVisible(true);
+        setMensaje("");
+      });
   };
 
   const handleConsultar = (servicio) => {
-    setServicioActual({ ...servicio });
-    setModalModo('consultar');
-    setModalVisible(true);
-    setMensaje("");
+    fetch(`${API_URL}/${servicio.idServicio}`)
+      .then(res => res.json())
+      .then(data => {
+        setServicioActual({ ...data, repuestos: [] });
+        return fetch(`${API_URL}/${servicio.idServicio}/repuestos`);
+      })
+      .then(res => res.json())
+      .then(reps => {
+        setServicioActual(prev => ({ ...prev, repuestos: reps.map(r => ({ idRepuesto: r.idRepuesto, cantidad: r.cantidad })) }));
+        setModalModo('consultar');
+        setModalVisible(true);
+        setMensaje("");
+      });
   };
 
-  const handleEliminar = async (codigo) => {
+  const handleEliminar = async (idServicio) => {
     if (window.confirm("¿Seguro que desea eliminar este servicio?")) {
-      await fetch(`${API_URL}/servicios/${codigo}`, { method: "DELETE" });
+      await fetch(`${API_URL}/${idServicio}`, { method: "DELETE" });
       fetchServicios();
     }
   };
 
+  const handleChange = e => {
+    setServicioActual({ ...servicioActual, [e.target.name]: e.target.value });
+    setFormErrors(validarServicio({ ...servicioActual, [e.target.name]: e.target.value }));
+  };
+
   function validarServicio(form) {
-    if (!form.codigo || isNaN(Number(form.codigo)) || Number(form.codigo) <= 0) return "El código debe ser un número mayor a 0.";
-    if (!form.descripcion || form.descripcion.trim().length < 2) return "La descripción es obligatoria y debe tener al menos 2 caracteres.";
-    if (!form.precioBase || isNaN(Number(form.precioBase)) || Number(form.precioBase) < 0) return "El precio base debe ser un número mayor o igual a 0.";
-    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") return "El estado es obligatorio.";
-    return null;
+    const errors = {};
+    if (!form.descripcion || form.descripcion.trim().length < 2) errors.descripcion = "La descripción es obligatoria y debe tener al menos 2 caracteres.";
+    if (!form.precioBase || isNaN(Number(form.precioBase)) || Number(form.precioBase) < 0) errors.precioBase = "El precio base debe ser un número mayor o igual a 0.";
+    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") errors.activo = "El estado es obligatorio.";
+    // Remove the mandatory repuestos check
+    // if (form.repuestos.length === 0) errors.repuestos = "Debe agregar al menos un repuesto.";
+    if (modalModo !== 'consultar') {
+      if (form.repuestos.length > 0) {
+        const ids = form.repuestos.map(r => r.idRepuesto);
+        if (new Set(ids).size !== ids.length) errors.repuestos = "No puede haber repuestos repetidos.";
+        for (const r of form.repuestos) {
+          if (!r.idRepuesto) errors.repuestoDetalle = "El repuesto es obligatorio.";
+          if (r.cantidad === "" || isNaN(r.cantidad) || !Number.isInteger(Number(r.cantidad)) || r.cantidad < 1) errors.repuestoDetalle = "La cantidad debe ser un número entero mayor a 0.";
+        }
+      }
+    }
+    return errors;
   }
 
   // Guardar alta
   const handleSubmit = async e => {
     e.preventDefault();
-    const error = validarServicio(servicioActual);
-    if (error) {
-      setMensaje(error);
+    const errors = validarServicio(servicioActual);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
     }
-    const res = await fetch(`${API_URL}/servicios/`, {
+    const servicioData = {
+      descripcion: servicioActual.descripcion,
+      precioBase: Number(servicioActual.precioBase),
+      activo: servicioActual.activo
+    };
+    const res = await fetch(`${API_URL}/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...servicioActual,
-        codigo: Number(servicioActual.codigo),
-        precioBase: Number(servicioActual.precioBase)
-      }),
+      body: JSON.stringify(servicioData),
     });
     const resultado = await res.json();
-    setMensaje(resultado.mensaje || resultado.detail || resultado.error || "");
-    setModalVisible(false);
-    setServicioActual({
-      codigo: "",
-      descripcion: "",
-      precioBase: "",
-      activo: 1
-    });
-    fetchServicios();
+    if (res.ok) {
+      const idServicio = resultado.idServicio;
+      await Promise.all(servicioActual.repuestos.map(r =>
+        fetch(`${API_URL}-repuestos`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idServicio: idServicio, idRepuesto: r.idRepuesto, cantidad: r.cantidad })
+        })
+      ));
+      setModalVisible(false);
+      setServicioActual({
+        idServicio: "",
+        descripcion: "",
+        precioBase: "",
+        activo: 1,
+        repuestos: []
+      });
+      fetchServicios();
+    } else {
+      setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido");
+    }
   };
 
   // Guardar modificación
   const handleGuardarModificacion = async e => {
     e.preventDefault();
-    const error = validarServicio(servicioActual);
-    if (error) {
-      setMensaje(error);
+    const errors = validarServicio(servicioActual);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
     }
-    await fetch(`${API_URL}/servicios/${servicioActual.codigo}`, {
+    const servicioData = {
+      descripcion: servicioActual.descripcion,
+      precioBase: Number(servicioActual.precioBase),
+      activo: servicioActual.activo
+    };
+    const res = await fetch(`${API_URL}/${servicioActual.idServicio}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...servicioActual,
-        codigo: Number(servicioActual.codigo),
-        precioBase: Number(servicioActual.precioBase)
-      }),
+      body: JSON.stringify(servicioData),
     });
-    setModalVisible(false);
-    setServicioActual({
-      codigo: "",
-      descripcion: "",
-      precioBase: "",
-      activo: 1
-    });
-    fetchServicios();
+    if (res.ok) {
+      const repuestosAEliminar = originalRepuestos.filter(orig => !servicioActual.repuestos.some(r => r.idRepuesto === orig.idRepuesto));
+      const repuestosParaUpsert = servicioActual.repuestos;
+
+      const promesasEliminar = repuestosAEliminar.map(r => fetch(`${API_URL}-repuestos`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idServicio: servicioActual.idServicio, idRepuesto: r.idRepuesto })
+      }));
+
+      const promesasUpsert = repuestosParaUpsert.map(r => fetch(`${API_URL}-repuestos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idServicio: servicioActual.idServicio, idRepuesto: r.idRepuesto, cantidad: r.cantidad })
+      }));
+
+      await Promise.all([...promesasEliminar, ...promesasUpsert]);
+      setModalVisible(false);
+      setServicioActual({
+        idServicio: "",
+        descripcion: "",
+        precioBase: "",
+        activo: 1,
+        repuestos: []
+      });
+      fetchServicios();
+    } else {
+      const resultado = await res.json();
+      setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido");
+    }
   };
 
-  // Actualiza campos del servicio en edición
-  const handleModalChange = e => {
-    setServicioActual({ ...servicioActual, [e.target.name]: e.target.value });
+  // Repuestos handlers
+  const handleAgregarRepuesto = () => {
+    setServicioActual(prev => ({ ...prev, repuestos: [...prev.repuestos, { idRepuesto: '', cantidad: null }] }));
+  };
+
+  const handleEliminarRepuesto = (idx) => {
+    setServicioActual(prev => ({ ...prev, repuestos: prev.repuestos.filter((_, i) => i !== idx) }));
+  };
+
+  const handleRepuestoChange = (idx, field, value) => {
+    const updated = [...servicioActual.repuestos];
+    if (field === 'idRepuesto') {
+      updated[idx][field] = Number(value);
+    } else if (field === 'cantidad') {
+      updated[idx][field] = value === '' ? null : Number(value);
+    } else {
+      updated[idx][field] = value;
+    }
+    setServicioActual(prev => ({ ...prev, repuestos: updated }));
+  };
+
+  const getAvailableRepuestosForRow = (rowIndex) => {
+    const selectedIds = servicioActual.repuestos
+      .filter((_, index) => index !== rowIndex)
+      .map(r => r.idRepuesto);
+    return repuestos.filter(r => !selectedIds.includes(r.idRepuesto));
   };
 
   return (
@@ -176,8 +288,8 @@ export default function Servicios() {
                   </thead>
                   <tbody>
                     {servicios.map(s => (
-                      <tr key={s.codigo} style={Number(s.activo) === 0 ? { opacity: 0.5 } : {}}>
-                        <td>{s.codigo}</td>
+                      <tr key={s.idServicio} style={Number(s.activo) === 0 ? { opacity: 0.5 } : {}}>
+                        <td>{s.idServicio}</td>
                         <td>{s.descripcion}</td>
                         <td>${Number(s.precioBase).toLocaleString("es-AR", { minimumFractionDigits: 2 })}</td>
                         <td>{s.activo === 1 ? "Activo" : "Inactivo"}</td>
@@ -197,7 +309,7 @@ export default function Servicios() {
                           {s.activo === 1 && (
                             <button
                               className="btn btn-sm btn-rojo fw-bold"
-                              onClick={() => handleEliminar(s.codigo)}
+                              onClick={() => handleEliminar(s.idServicio)}
                             >
                               <i className="bi bi-trash me-1"></i>Eliminar
                             </button>
@@ -253,17 +365,18 @@ export default function Servicios() {
                     <div className="row g-4">
                       <div className="col-12 col-md-6">
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-hash me-2"></i>Código</label>
+                          <label className="fw-semibold"><i className="bi bi-hash me-2"></i>ID Servicio</label>
                           <input
                             className="form-control"
-                            name="codigo"
+                            name="idServicio"
                             type="number"
-                            value={servicioActual?.codigo || ""}
-                            onChange={modalModo === "consultar" ? undefined : handleModalChange}
+                            value={servicioActual?.idServicio || ""}
+                            onChange={handleChange}
                             required
-                            disabled={modalModo === "consultar" || modalModo === "modificar"}
+                            disabled={modalModo === "consultar" || modalModo === "modificar" || modalModo === "alta"}
                             readOnly={modalModo === "consultar"}
                           />
+                          {formErrors.idServicio && <div className="text-danger">{formErrors.idServicio}</div>}
                         </div>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-gear me-2"></i>Descripción</label>
@@ -271,11 +384,12 @@ export default function Servicios() {
                             className="form-control"
                             name="descripcion"
                             value={servicioActual?.descripcion || ""}
-                            onChange={modalModo === "consultar" ? undefined : handleModalChange}
+                            onChange={handleChange}
                             required
                             disabled={modalModo === "consultar"}
                             readOnly={modalModo === "consultar"}
                           />
+                          {formErrors.descripcion && <div className="text-danger">{formErrors.descripcion}</div>}
                         </div>
                       </div>
                       <div className="col-12 col-md-6">
@@ -288,11 +402,12 @@ export default function Servicios() {
                             min="0"
                             step="0.01"
                             value={servicioActual?.precioBase || ""}
-                            onChange={modalModo === "consultar" ? undefined : handleModalChange}
+                            onChange={handleChange}
                             required
                             disabled={modalModo === "consultar"}
                             readOnly={modalModo === "consultar"}
                           />
+                          {formErrors.precioBase && <div className="text-danger">{formErrors.precioBase}</div>}
                         </div>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
@@ -300,15 +415,65 @@ export default function Servicios() {
                             className="form-control"
                             name="activo"
                             value={servicioActual?.activo ?? ""}
-                            onChange={modalModo === "consultar" ? undefined : handleModalChange}
+                            onChange={handleChange}
                             disabled={modalModo === "consultar"}
                           >
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
                           </select>
+                          {formErrors.activo && <div className="text-danger">{formErrors.activo}</div>}
                         </div>
                       </div>
                     </div>
+                    {/* Repuestos asociados */}
+                    <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                      <i className="bi bi-tools me-2"></i>Repuestos asociados
+                    </h6>
+                    {servicioActual.repuestos.map((r, idx) => (
+                      <div key={idx} className="row g-3 align-items-end mb-3">
+                        <div className="col-12 col-md-5">
+                          <label>Repuesto</label>
+                          <select 
+                            className="form-select" 
+                            value={r.idRepuesto} 
+                            onChange={e => handleRepuestoChange(idx, "idRepuesto", e.target.value)} 
+                            required 
+                            disabled={modalModo === "consultar"}
+                          >
+                            <option value="">Seleccione repuesto...</option>
+                            {getAvailableRepuestosForRow(idx).map(rep => <option key={rep.idRepuesto} value={rep.idRepuesto}>{rep.marca} {rep.modelo}</option>)}
+                          </select>
+                        </div>
+                        <div className="col-12 col-md-4">
+                          <label>Cantidad</label>
+                          <input 
+                            type="number" 
+                            className="form-control" 
+                            value={r.cantidad ?? ''} 
+                            onChange={e => handleRepuestoChange(idx, "cantidad", e.target.value)} 
+                            required 
+                            min="1" 
+                            disabled={modalModo === "consultar"}
+                          />
+                        </div>
+                        {(modalModo === "modificar" || modalModo === "alta") && (
+                          <div className="col-12 col-md-3">
+                            <button type="button" className="btn btn-rojo btn-sm" onClick={() => handleEliminarRepuesto(idx)}>
+                              <i className="bi bi-trash"></i> Eliminar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {(modalModo === "modificar" || modalModo === "alta") && (
+                      <div className="mb-3">
+                        <button type="button" className="btn btn-verdeAgua btn-sm" onClick={handleAgregarRepuesto}>
+                          <i className="bi bi-plus"></i> Agregar repuesto
+                        </button>
+                      </div>
+                    )}
+                    {formErrors.repuestos && <div className="text-danger">{formErrors.repuestos}</div>}
+                    {formErrors.repuestoDetalle && <div className="text-danger">{formErrors.repuestoDetalle}</div>}
                   </fieldset>
                   {mensaje && (
                     <div className="alert alert-danger">{mensaje}</div>

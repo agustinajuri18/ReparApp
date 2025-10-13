@@ -1,16 +1,16 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 
 # Importa todos los blueprints
-from Usuarios import app as usuarios_blueprint
-from Empleados import app as empleados_blueprint
-from Clientes import app as clientes_blueprint
-from Proveedores import app as proveedores_blueprint
-from Repuestos import app as repuestos_blueprint
-from Dispositivos import app as dispositivos_blueprint
-from Servicios import app as servicios_blueprint
-from Ordenes import app as ordenes_blueprint
-from DetallesOrden import app as detallesorden_blueprint
+from Usuarios import bp as usuarios_blueprint
+from Empleados import bp as empleados_blueprint
+from Clientes import bp as clientes_blueprint
+from Proveedores import bp as proveedores_blueprint
+from Repuestos import bp as repuestos_blueprint
+from Dispositivos import bp as dispositivos_blueprint
+from Servicios import bp as servicios_blueprint
+from Ordenes import bp as ordenes_blueprint
+from DetallesOrden import bp as detallesorden_blueprint
 
 app_server = Flask(__name__)
 
@@ -27,6 +27,11 @@ app_server.register_blueprint(dispositivos_blueprint, url_prefix='/')
 app_server.register_blueprint(servicios_blueprint, url_prefix='/')
 app_server.register_blueprint(ordenes_blueprint, url_prefix='/')
 app_server.register_blueprint(detallesorden_blueprint, url_prefix='/')
+
+# Ruta para verificación de estado/health check
+@app_server.route('/ping')
+def ping():
+    return jsonify({"message": "pong"})
 
 if __name__ == "__main__":
     app_server.run(debug=True)

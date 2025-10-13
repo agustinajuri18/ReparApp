@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 
-const API_URL = "http://localhost:5000";
+const API_URL = "http://localhost:5000/repuestos";
+const REPUESTOS_PROVEEDORES_URL = "http://localhost:5000/repuestos-proveedores";
+const PROVEEDORES_URL = "http://localhost:5000/proveedores";
 
 function Repuestos() {
   const [repuestos, setRepuestos] = useState([]);
@@ -23,53 +25,64 @@ function Repuestos() {
 
   const [modalTodosRepuestos, setModalTodosRepuestos] = useState({ open: false, lista: [] });
   const [originalProveedores, setOriginalProveedores] = useState([]);
+  const [repuestosProveedores, setRepuestosProveedores] = useState([]);
 
   const fetchRepuestos = () => {
-    fetch(`${API_URL}/repuestos/?activos=${mostrarInactivos ? "false" : "true"}`)
-      .then(res => res.ok ? res.json() : Promise.reject("Error al cargar repuestos"))
-      .then(data => setRepuestos(Array.isArray(data) ? data : []))
-      .catch(err => setMensaje(err.toString()));
+    fetch(`${API_URL}?activos=false`)
+      .then(res => res.json())
+      .then(data => setRepuestos(data))
+      .catch(() => setMensaje("Error al cargar repuestos"));
+  };
+
+  const fetchRepuestosProveedores = () => {
+    fetch(REPUESTOS_PROVEEDORES_URL)
+      .then(res => res.json())
+      .then(data => setRepuestosProveedores(Array.isArray(data) ? data : []))
+      .catch(() => setMensaje("Error al cargar repuestos-proveedores"));
   };
 
   const fetchProveedores = () => {
-    fetch(`${API_URL}/proveedores/?activos=true`)
-      .then(res => res.ok ? res.json() : Promise.reject("Error al cargar proveedores"))
+    fetch(PROVEEDORES_URL)
+      .then(res => res.json())
       .then(data => setProveedores(Array.isArray(data) ? data : []))
-      .catch(err => setMensaje(err.toString()));
+      .catch(() => setMensaje("Error al cargar proveedores"));
   };
 
   useEffect(() => {
     fetchRepuestos();
-  }, [mostrarInactivos]);
-
-  useEffect(() => {
     fetchProveedores();
+    fetchRepuestosProveedores();
   }, []);
 
   // --- Lógica de filtrado de proveedores ---
   const getAvailableProveedoresForRow = (rowIndex) => {
-    // Obtiene los CUILs ya seleccionados en OTRAS filas
-    const selectedCuils = form.proveedores
+    // Obtiene los IDs ya seleccionados en OTRAS filas
+    const selectedIds = form.proveedores
       .filter((_, index) => index !== rowIndex)
       .map(p => p.cuilProveedor);
 
     // Filtra la lista principal de proveedores
-    return proveedores.filter(p => !selectedCuils.includes(p.cuil));
+    return proveedores.filter(p => !selectedIds.includes(p.idProveedor));
   };
 
   const availableProveedoresCount = () => {
-    const selectedCuils = form.proveedores.map(p => p.cuilProveedor);
-    return proveedores.filter(p => !selectedCuils.includes(p.cuil)).length;
+    const selectedIds = form.proveedores.map(p => p.cuilProveedor);
+    return proveedores.filter(p => !selectedIds.includes(p.idProveedor)).length;
   };
   // --- Fin de la lógica de filtrado ---
 
+  const handleChange = e => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+    setFormErrors(validarRepuesto({ ...form, [e.target.name]: e.target.value }));
+  };
+
   function validarRepuesto(data) {
     const errors = {};
-    const codigoStr = String(data.codigo || "");
+    const idRepuestoStr = String(data.idRepuesto || "");
     const marcaStr = String(data.marca || "");
     const modeloStr = String(data.modelo || "");
 
-    if (codigoStr.trim().length < 1) errors.codigo = "El código es obligatorio.";
+    if (idRepuestoStr.trim().length < 1) errors.idRepuesto = "El código es obligatorio.";
     if (marcaStr.trim().length < 1) errors.marca = "La marca es obligatoria.";
     if (modeloStr.trim().length < 1) errors.modelo = "El modelo es obligatorio.";
 
@@ -97,13 +110,13 @@ function Repuestos() {
   };
 
   const handleModificar = (repuesto) => {
-    fetch(`${API_URL}/repuestos/${repuesto.codigo}`)
+    fetch(`${API_URL}/${repuesto.idRepuesto}`)
       .then(res => res.json())
       .then(data => {
         const proveedoresData = data.proveedores || [];
         setModalModo('modificar');
         setForm({
-          codigo: data.codigo,
+          idRepuesto: data.idRepuesto,
           marca: data.marca,
           modelo: data.modelo,
           activo: data.activo,
@@ -117,7 +130,7 @@ function Repuestos() {
   };
 
   const handleConsultar = (repuesto) => {
-    fetch(`${API_URL}/repuestos/${repuesto.codigo}`)
+    fetch(`${API_URL}/${repuesto.idRepuesto}`)
       .then(res => res.json())
       .then(data => {
         setModalModo('consultar');
@@ -135,15 +148,18 @@ function Repuestos() {
 
   const handleProveedorChange = (idx, field, value) => {
     const updatedProveedores = [...form.proveedores];
-    updatedProveedores[idx][field] = value;
+    if (field === 'cuilProveedor') {
+      updatedProveedores[idx][field] = Number(value);
+    } else if (field === 'costo' || field === 'cantidad') {
+      updatedProveedores[idx][field] = value === '' ? null : Number(value);
+    } else {
+      updatedProveedores[idx][field] = value;
+    }
     setForm(prev => ({ ...prev, proveedores: updatedProveedores }));
   };
 
   const handleAddProveedor = () => {
-    setForm(prev => ({
-      ...prev,
-      proveedores: [...prev.proveedores, { cuilProveedor: "", costo: "", cantidad: "" }]
-    }));
+    setForm(prev => ({ ...prev, proveedores: [...prev.proveedores, { cuilProveedor: '', costo: null, cantidad: null }] }));
   };
 
   const handleRemoveProveedor = (idx) => {
@@ -152,9 +168,9 @@ function Repuestos() {
     setForm(prev => ({ ...prev, proveedores: updatedProveedores }));
   };
 
-  const handleDelete = (codigo) => {
+  const handleDelete = (idRepuesto) => {
     if (window.confirm("¿Está seguro de que desea eliminar este repuesto? Se eliminarán también sus asociaciones con proveedores.")) {
-      fetch(`${API_URL}/repuestos/${codigo}`, { method: "DELETE" })
+      fetch(`${API_URL}/${idRepuesto}`, { method: "DELETE" })
         .then(res => {
           if (!res.ok) throw new Error("Error al eliminar el repuesto.");
           fetchRepuestos();
@@ -173,30 +189,31 @@ function Repuestos() {
     }
     setMensaje("");
 
-    const repuestoData = { codigo: form.codigo, marca: form.marca, modelo: form.modelo, activo: form.activo };
-
     if (modalModo === 'alta') {
-      fetch(`${API_URL}/repuestos/`, {
+      fetch(`${API_URL}/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(repuestoData)
+        body: JSON.stringify({ marca: form.marca, modelo: form.modelo })
       })
         .then(res => { if (!res.ok) throw new Error("Error al crear el repuesto. El código puede ya existir."); return res.json(); })
-        .then(() => Promise.all(form.proveedores.map(p =>
-          fetch(`${API_URL}/repuestoxproveedor/`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ codigoRepuesto: form.codigo, ...p })
-          })
-        )))
-        .then(() => { handleModalClose(); fetchRepuestos(); })
+        .then(data => {
+          const idRepuesto = data.idRepuesto;
+          return Promise.all(form.proveedores.map(p =>
+            fetch(`${REPUESTOS_PROVEEDORES_URL}/`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ idRepuesto: idRepuesto, idProveedor: p.cuilProveedor, costo: p.costo, cantidad: p.cantidad })
+            })
+          ));
+        })
+        .then(() => { handleModalClose(); fetchRepuestos(); fetchRepuestosProveedores(); })
         .catch(err => setMensaje(err.message));
       return;
     }
 
     if (modalModo === 'modificar') {
       const repuestoUpdateData = { marca: form.marca, modelo: form.modelo, activo: form.activo };
-      fetch(`${API_URL}/repuestos/${form.codigo}`, {
+      fetch(`${API_URL}/${form.idRepuesto}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(repuestoUpdateData)
@@ -206,29 +223,50 @@ function Repuestos() {
           const proveedoresAEliminar = originalProveedores.filter(orig => !form.proveedores.some(p => p.cuilProveedor === orig.cuilProveedor));
           const proveedoresParaUpsert = form.proveedores;
 
-          const promesasEliminar = proveedoresAEliminar.map(p => fetch(`${API_URL}/repuestoxproveedor/`, {
+          const promesasEliminar = proveedoresAEliminar.map(p => fetch(`${REPUESTOS_PROVEEDORES_URL}/`, {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ codigoRepuesto: form.codigo, cuilProveedor: p.cuilProveedor })
+            body: JSON.stringify({ idRepuesto: form.idRepuesto, idProveedor: p.cuilProveedor })
           }));
 
-          const promesasUpsert = proveedoresParaUpsert.map(p => fetch(`${API_URL}/repuestoxproveedor/`, {
+          const promesasUpsert = proveedoresParaUpsert.map(p => fetch(`${REPUESTOS_PROVEEDORES_URL}/`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ codigoRepuesto: form.codigo, ...p })
+            body: JSON.stringify({ idRepuesto: form.idRepuesto, idProveedor: p.cuilProveedor, costo: p.costo, cantidad: p.cantidad })
           }));
 
           return Promise.all([...promesasEliminar, ...promesasUpsert]);
         })
-        .then(() => { handleModalClose(); fetchRepuestos(); })
+        .then(() => { handleModalClose(); fetchRepuestos(); fetchRepuestosProveedores(); })
         .catch(err => setMensaje(err.message));
     }
   };
 
   const handleVerTodosRepuestos = () => {
-    fetch(`${API_URL}/repuestos_con_proveedores`)
-      .then(res => res.json())
-      .then(data => setModalTodosRepuestos({ open: true, lista: data }))
+    Promise.all([
+      fetch(REPUESTOS_PROVEEDORES_URL).then(res => res.json()),
+      fetch(API_URL).then(res => res.json()),
+      fetch(PROVEEDORES_URL).then(res => res.json())
+    ])
+      .then(([rels, reps, provs]) => {
+        const repMap = reps.reduce((acc, r) => { acc[r.idRepuesto] = r; return acc; }, {});
+        const provMap = provs.reduce((acc, p) => { acc[p.idProveedor] = p; return acc; }, {});
+        const grouped = rels.reduce((acc, rel) => {
+          const id = rel.idRepuesto;
+          if (!acc[id]) {
+            const rep = repMap[id];
+            acc[id] = { codigo: id, marca: rep?.marca || '', modelo: rep?.modelo || '', proveedores: [] };
+          }
+          acc[id].proveedores.push({
+            razonSocial: provMap[rel.idProveedor]?.razonSocial || '',
+            cuilProveedor: rel.idProveedor,
+            costo: rel.costo,
+            cantidad: rel.cantidad
+          });
+          return acc;
+        }, {});
+        setModalTodosRepuestos({ open: true, lista: Object.values(grouped) });
+      })
       .catch(() => setModalTodosRepuestos({ open: true, lista: [] }));
   };
 
@@ -241,8 +279,18 @@ function Repuestos() {
             <div className="card-header d-flex justify-content-between align-items-center" style={{ background: '#1f3345', color: '#f0ede5', borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
               <h4 className="mb-0"><i className="bi bi-gear-wide-connected me-2"></i>Gestión de Repuestos</h4>
               <div className="d-flex gap-2">
-                <button className="btn btn-dorado" onClick={() => setMostrarInactivos(!mostrarInactivos)}>
-                  {mostrarInactivos ? 'Ver activos' : 'Ver inactivos'}
+                <button
+                  className="btn btn-dorado"
+                  onClick={() => {
+                    const newMostrar = !mostrarInactivos;
+                    setMostrarInactivos(newMostrar);
+                    fetch(`${API_URL}?activos=${newMostrar ? 'true' : 'false'}`)
+                      .then(res => res.json())
+                      .then(data => setRepuestos(data))
+                      .catch(() => setMensaje("Error al cargar repuestos"));
+                  }}
+                >
+                  {mostrarInactivos ? "Ver todos" : "Ver activos"}
                 </button>
                 <button className="btn btn-verdeAgua" onClick={handleAgregarClick}>
                   <i className="bi bi-plus-lg"></i> Agregar repuesto
@@ -266,11 +314,11 @@ function Repuestos() {
                   </thead>
                   <tbody>
                     {repuestos.map((r) => (
-                      <tr key={r.codigo} style={Number(r.activo) === 0 ? { opacity: 0.6 } : {}}>
-                        <td>{r.codigo}</td>
+                      <tr key={r.idRepuesto} style={Number(r.activo) === 0 ? { opacity: 0.6 } : {}}>
+                        <td>{r.idRepuesto}</td>
                         <td>{r.marca}</td>
                         <td>{r.modelo}</td>
-                        <td>{r.activo ? "Sí" : "No"}</td>
+                        <td>{r.activo ? "Activo" : "Inactivo"}</td>
                         <td>
                           <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(r)}>
                             <i className="bi bi-search me-1"></i>Consultar
@@ -278,7 +326,7 @@ function Repuestos() {
                           <button className="btn btn-sm btn-dorado fw-bold me-1" onClick={() => handleModificar(r)}>
                             <i className="bi bi-pencil-square me-1"></i>Modificar
                           </button>
-                          <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleDelete(r.codigo)}>
+                          <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleDelete(r.idRepuesto)}>
                             <i className="bi bi-trash me-1"></i>Eliminar
                           </button>
                         </td>
@@ -312,9 +360,9 @@ function Repuestos() {
                       <legend><i className="bi bi-gear me-2"></i>Datos del Repuesto</legend>
                       <div className="row g-3">
                         <div className="col-12">
-                          <label htmlFor="codigo"><i className="bi bi-hash me-2"></i>Código</label>
-                          <input type="text" id="codigo" name="codigo" value={form.codigo} onChange={handleFormChange} required readOnly={modalModo !== 'alta'} />
-                          {formErrors.codigo && <div className="input-error-message">{formErrors.codigo}</div>}
+                          <label htmlFor="idRepuesto"><i className="bi bi-hash me-2"></i>Código</label>
+                          <input type="text" id="idRepuesto" name="idRepuesto" value={form.idRepuesto} onChange={handleFormChange} required readOnly={modalModo !== 'alta'} />
+                          {formErrors.idRepuesto && <div className="input-error-message">{formErrors.idRepuesto}</div>}
                         </div>
                         <div className="col-12 col-md-6">
                           <label htmlFor="marca"><i className="bi bi-pc me-2"></i>Marca</label>
@@ -354,16 +402,33 @@ function Repuestos() {
                                 disabled={modalModo === 'consultar'}
                               >
                                 <option value="">Seleccione proveedor...</option>
-                                {getAvailableProveedoresForRow(idx).map(pr => <option key={pr.cuil} value={pr.cuil}>{pr.razonSocial} ({pr.cuil})</option>)}
+                                {getAvailableProveedoresForRow(idx).map(pr => <option key={pr.idProveedor} value={pr.idProveedor}>{pr.razonSocial} ({pr.cuil})</option>)}
                               </select>
                             </div>
                             <div className="col-sm-6">
                               <label>Costo</label>
-                              <input className="form-control" type="number" step="0.01" placeholder="Costo" value={p.costo} onChange={e => handleProveedorChange(idx, "costo", e.target.value)} required readOnly={modalModo === 'consultar'} />
+                              <input 
+                                type="number" 
+                                className="form-control" 
+                                value={p.costo ?? ''} 
+                                onChange={e => handleProveedorChange(idx, "costo", e.target.value)} 
+                                required 
+                                min="0" 
+                                step="0.01" 
+                                disabled={modalModo === 'consultar'}
+                              />
                             </div>
                             <div className="col-sm-6">
                               <label>Cantidad</label>
-                              <input className="form-control" type="number" placeholder="Cantidad" value={p.cantidad} onChange={e => handleProveedorChange(idx, "cantidad", e.target.value)} required readOnly={modalModo === 'consultar'} />
+                              <input 
+                                type="number" 
+                                className="form-control" 
+                                value={p.cantidad ?? ''} 
+                                onChange={e => handleProveedorChange(idx, "cantidad", e.target.value)} 
+                                required 
+                                min="0" 
+                                disabled={modalModo === 'consultar'}
+                              />
                             </div>
                             {modalModo !== 'consultar' && (
                               <div className="col-12 d-flex align-items-end mt-2">
@@ -388,12 +453,18 @@ function Repuestos() {
                   </div>
                 </div>
                 <div className="modal-footer">
-                  <button type="button" className="btn btn-dorado" onClick={handleModalClose}><i className="bi bi-x-circle me-1"></i>
-                    {modalModo === 'consultar' ? 'Cerrar' : 'Cancelar'}
-                  </button>
-                  {modalModo !== 'consultar' && (
-                    <button type="submit" className="btn btn-azul"><i className="bi bi-save me-1"></i>Guardar</button>
-                  )}
+                  <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
+                    <button type="submit" className="btn btn-azul fw-bold">
+                      <i className="bi bi-save me-1"></i>Guardar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-dorado fw-bold"
+                      onClick={handleModalClose}
+                    >
+                      <i className="bi bi-x-circle me-1"></i>Cerrar
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>

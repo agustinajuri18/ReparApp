@@ -4,15 +4,17 @@ import MenuLateral from './MenuLateral';
 const colores = {
   azul: '#1f3345',
   dorado: '#c78f57',
-  rojo: '#b54745',
+  rojo: '#b54545',
   verdeAgua: '#85abab',
   beige: '#f0ede5'
 };
 
-function Empleados() {
+const API_URL = "http://localhost:5000/empleados";
+const CARGOS_URL = "http://localhost:5000/cargos";
+const USUARIOS_URL = "http://localhost:5000/usuarios";
+
+export default function Empleados() {
   const [empleados, setEmpleados] = useState([]);
-  const [cargos, setCargos] = useState([]);
-  const [usuarios, setUsuarios] = useState([]);
   const [form, setForm] = useState({
     nombre: "",
     apellido: "",
@@ -24,141 +26,173 @@ function Empleados() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState(""); // "consultar" | "modificar" | "alta"
   const [mensaje, setMensaje] = useState("");
+  const [formErrors, setFormErrors] = useState({});
+  const [cargos, setCargos] = useState([]);
+  const [allUsers, setAllUsers] = useState([]); // To map ID to name
+  const [usuariosParaDropdown, setUsuariosParaDropdown] = useState([]); // For the modal dropdown
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [clienteActual, setClienteActual] = useState(null);
 
-  // Cargar empleados según activos/inactivos
-  useEffect(() => {
-    fetch(`http://localhost:5000/empleados/${mostrarInactivos ? "?activos=false" : ""}`)
+  const fetchEmpleados = () => {
+    const url = `${API_URL}?activos=${!mostrarInactivos}`;
+    fetch(url)
       .then(res => res.json())
-      .then(data => setEmpleados(data))
+      .then(data => setEmpleados(Array.isArray(data) ? data : []))
       .catch(() => setMensaje("Error al cargar empleados"));
+  };
+
+  // Fetch data that changes based on filters
+  useEffect(() => {
+    fetchEmpleados();
   }, [mostrarInactivos]);
 
-  // Cargar cargos
+  // Fetch data that doesn't change often
   useEffect(() => {
-    fetch("http://localhost:5000/cargos/")
+    fetch(CARGOS_URL)
       .then(res => res.json())
-      .then(data => setCargos(data))
+      .then(data => setCargos(Array.isArray(data) ? data : []))
       .catch(() => setMensaje("Error al cargar cargos"));
-  }, []);
-
-  // Cargar usuarios activos
-  useEffect(() => {
-    fetch("http://localhost:5000/usuarios/?activos=true")
+    
+    fetch(USUARIOS_URL)
       .then(res => res.json())
-      .then(data => setUsuarios(data))
-      .catch(() => setMensaje("Error al cargar usuarios"));
+      .then(data => setAllUsers(Array.isArray(data) ? data : []))
+      .catch(() => setMensaje("Error al cargar todos los usuarios"));
   }, []);
 
-  function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  }
+
+  const handleChange = e => {
+    const { name, value } = e.target;
+    let processedValue = value;
+    if (name === 'idCargo' || name === 'idUsuario' || name === 'activo') {
+      processedValue = Number(value);
+    }
+    setForm({ ...form, [name]: processedValue });
+    setFormErrors(validarEmpleado({ ...form, [name]: processedValue }));
+  };
 
   function validarEmpleado(form) {
-    if (!form.nombre || form.nombre.trim().length < 2)
-      return "El nombre es obligatorio y debe tener al menos 2 caracteres.";
-    if (!form.apellido || form.apellido.trim().length < 2)
-      return "El apellido es obligatorio y debe tener al menos 2 caracteres.";
-    if (!form.idCargo || form.idCargo.toString().trim() === "")
-      return "El cargo es obligatorio.";  
-    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1")
-      return "El estado es obligatorio.";
-    return null;
+    const errors = {};
+    if (!form.nombre || form.nombre.trim().length < 2 || !/^[a-zA-Z\s]+$/.test(form.nombre.trim())) errors.nombre = "El nombre es obligatorio, debe contener solo letras y espacios, y tener al menos 2 caracteres.";
+    if (!form.apellido || form.apellido.trim().length < 2 || !/^[a-zA-Z\s]+$/.test(form.apellido.trim())) errors.apellido = "El apellido es obligatorio, debe contener solo letras y espacios, y tener al menos 2 caracteres.";
+    if (!form.idCargo) errors.idCargo = "Debe seleccionar un cargo.";
+    if (!form.idUsuario) errors.idUsuario = "Debe seleccionar un usuario.";
+    if (form.activo !== 0 && form.activo !== 1) errors.activo = "El estado es obligatorio.";
+    return errors;
   }
 
-  function handleSubmit(e) {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const error = validarEmpleado(form);
-    if (error) {
-      setMensaje(error);
+    const errors = validarEmpleado(form);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
     }
-    fetch("http://localhost:5000/empleados/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
-    })
-      .then(res => res.json())
-      .then(() => {
-        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
         setModalVisible(false);
-        setModalModo("");
-        setMensaje("Empleado agregado correctamente.");
-        fetch("http://localhost:5000/empleados/")
-          .then(res => res.json())
-          .then(data => setEmpleados(data))
-          .catch(() => setMensaje("Error al cargar empleados"));
-      });
-  }
+        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
+        fetchEmpleados();
+      } else {
+        const resultado = await res.json();
+        setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido");
+      }
+    } catch (error) {
+      setMensaje("Error de conexión");
+    }
+  };
 
-  function handleDelete(idEmpleado) {
-    fetch(`http://localhost:5000/empleados/${idEmpleado}/`, { method: "DELETE" })
-      .then(() => {
-        fetch("http://localhost:5000/empleados/")
-          .then(res => res.json())
-          .then(data => setEmpleados(data))
-          .catch(() => setMensaje("Error al cargar empleados"));
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    const errors = validarEmpleado(form);
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setMensaje("Por favor, corrige los errores antes de continuar.");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/${form.idEmpleado}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
       });
-  }
+      if (res.ok) {
+        setModalVisible(false);
+        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
+        fetchEmpleados();
+      } else {
+        const resultado = await res.json();
+        setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido");
+      }
+    } catch (error) {
+      setMensaje("Error de conexión");
+    }
+  };
+
+  const handleDelete = idEmpleado => {
+    fetch(`${API_URL}/${idEmpleado}`, { method: "DELETE" })
+      .then(() => {
+        fetchEmpleados();
+      });
+  };
 
   function handleModificar(empleado) {
     setEditId(empleado.idEmpleado);
+    setClienteActual(null);
     setForm(empleado);
     setModalModo("modificar");
     setModalVisible(true);
     setMensaje("");
+    setFormErrors({});
+
+    const currentUser = allUsers.find(u => u.idUsuario === empleado.idUsuario);
+    fetch(`${USUARIOS_URL}?no_asignados=true`)
+      .then(res => res.json())
+      .then(unassignedUsers => {
+        const finalUserList = [...unassignedUsers];
+        if (currentUser && !unassignedUsers.some(u => u.idUsuario === currentUser.idUsuario)) {
+          finalUserList.push(currentUser);
+        }
+        setUsuariosParaDropdown(finalUserList);
+      });
   }
 
   function handleConsultar(empleado) {
-    setEditId(empleado.idEmpleado);
-    setForm(empleado);
-    setModalModo("consultar");
+    setClienteActual(empleado);
+    setUsuariosParaDropdown(allUsers); // Ensure all users are available for display
+    setModalModo('consultar');
     setModalVisible(true);
     setMensaje("");
   }
 
   function handleAgregar() {
+    setClienteActual(null);
     setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
     setEditId(null);
     setModalModo("alta");
     setModalVisible(true);
     setMensaje("");
+    setFormErrors({});
+    fetch(`${USUARIOS_URL}?no_asignados=true`).then(res => res.json()).then(setUsuariosParaDropdown);
   }
 
   function handleCancelar() {
     setModalVisible(false);
-    setEditId(null);
-    setModalModo("");
+    setClienteActual(null);
     setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
     setMensaje("");
-  }
-
-  function handleUpdate(e) {
-    e.preventDefault();
-    fetch(`http://localhost:5000/empleados/${form.idEmpleado}/`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
-    })
-      .then(res => res.json())
-      .then(() => {
-        setEditId(null);
-        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
-        setModalVisible(false);
-        setModalModo("");
-        setMensaje("Empleado modificado correctamente.");
-        fetch("http://localhost:5000/empleados/")
-          .then(res => res.json())
-          .then(data => setEmpleados(data))
-          .catch(() => setMensaje("Error al cargar empleados"));
-      });
   }
 
   return (
     <div className="container-fluid main-background" style={{ minHeight: '100vh' }}>
       <div className="row flex-nowrap">
         <MenuLateral />
-        <main className="col-12 col-md-10 pt-4 px-2 px-md-4" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
+        <main className="col-12 col-md-10 pt-4 px-2 px-md-4 d-flex flex-column" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 ${colores.azul}22`, minHeight: '90vh' }}>
           <div className="card shadow-sm mb-4" style={{ border: `1.5px solid ${colores.azul}`, borderRadius: 16, background: colores.beige }}>
             <div className="card-header d-flex justify-content-between align-items-center" style={{ background: colores.azul, color: colores.beige, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
               <h4 className="mb-0"><i className="bi bi-people me-2"></i>Gestión de Empleados</h4>
@@ -173,7 +207,7 @@ function Empleados() {
                   className="btn btn-verdeAgua"
                   onClick={handleAgregar}
                 >
-                  <i className="bi bi-plus-lg"></i> Agregar
+                  <i className="bi bi-plus-lg"></i> Agregar empleado
                 </button>
               </div>
             </div>
@@ -182,7 +216,6 @@ function Empleados() {
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
-                      <th>ID</th>
                       <th>Nombre</th>
                       <th>Apellido</th>
                       <th>Cargo</th>
@@ -194,25 +227,30 @@ function Empleados() {
                   <tbody>
                     {empleados.map(e => (
                       <tr key={e.idEmpleado}>
-                        <td>{e.idEmpleado}</td>
                         <td>{e.nombre}</td>
                         <td>{e.apellido}</td>
-                        <td>{cargos.find(c => c.idCargo === e.idCargo)?.nombreCargo || e.idCargo}</td>
-                        <td>{usuarios.find(u => u.idUsuario === e.idUsuario)?.nombreUsuario || e.idUsuario}</td>
-                        <td>{e.activo ? "Sí" : "No"}</td>
+                        <td>{cargos.find(c => c.idCargo === e.idCargo)?.descripcion || 'N/A'}</td>
+                        <td>{allUsers.find(u => u.idUsuario === e.idUsuario)?.nombreUsuario || 'N/A'}</td>
+                        <td>{e.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
-                          <button className="btn btn-sm btn-verdeAgua fw-bold me-1"
-                            onClick={() => handleConsultar(e)}>
-                            <i className="bi bi-eye"></i> Consultar
+                          <button
+                            className="btn btn-sm btn-verdeAgua fw-bold me-1"
+                            onClick={() => handleConsultar(e)}
+                          >
+                            <i className="bi bi-search me-1"></i>Consultar
                           </button>
-                          <button className="btn btn-sm btn-dorado fw-bold me-1"
-                            onClick={() => handleModificar(e)}>
-                            <i className="bi bi-pencil-square"></i> Modificar
+                          <button
+                            className="btn btn-sm btn-dorado fw-bold me-1"
+                            onClick={() => handleModificar(e)}
+                          >
+                            <i className="bi bi-pencil-square me-1"></i>Modificar
                           </button>
-                          {Number(e.activo) === 1 && (
-                            <button className="btn btn-sm btn-rojo fw-bold"
-                              onClick={() => handleDelete(e.idEmpleado)}>
-                              <i className="bi bi-x-circle"></i> Eliminar
+                          {e.activo === 1 && (
+                            <button
+                              className="btn btn-sm btn-rojo fw-bold"
+                              onClick={() => handleDelete(e.idEmpleado)}
+                            >
+                              <i className="bi bi-trash me-1"></i>Eliminar
                             </button>
                           )}
                         </td>
@@ -221,32 +259,26 @@ function Empleados() {
                   </tbody>
                 </table>
                 {empleados.length === 0 && (
-                  <div className="text-center text-muted py-4">No hay empleados {mostrarInactivos ? "inactivos" : "activos"}.</div>
+                  <div className="text-center text-muted py-4">No hay empleados registrados.</div>
                 )}
               </div>
             </div>
           </div>
         </main>
       </div>
-      {/* Modal para alta, modificar y consultar */}
+      {/* Modal para consultar, modificar o alta */}
       {modalVisible && (
         <div className="modal" style={{ display: "block" }}>
           <div className="modal-dialog" style={{ maxWidth: "100vw" }}>
             <div className="modal-content" style={{ width: "100vw", maxWidth: "100vw" }}>
               <div className="modal-header">
-                <h5 className="modal-title fw-bold">
+                <h5 className="modal-title">
                   {modalModo === 'consultar'
                     ? "Consultar empleado"
                     : modalModo === 'modificar'
                     ? "Modificar empleado"
                     : "Nuevo empleado"}
                 </h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  aria-label="Cerrar"
-                  onClick={handleCancelar}
-                ></button>
               </div>
               <div className="modal-body" style={{ padding: 0 }}>
                 <form
@@ -259,113 +291,170 @@ function Empleados() {
                       : undefined
                   }
                 >
-                  <div className="row g-4">
-                    <div className="col-12 col-md-6">
-                      <fieldset style={{ border: "none" }}>
-                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                          <i className="bi bi-person-badge me-2"></i>Datos personales
-                        </legend>
+                  <fieldset style={{ border: "none" }}>
+                    <legend>
+                      <i className="bi bi-person-badge me-2"></i>Datos del empleado
+                    </legend>
+                    {/* División: Datos personales */}
+                    <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
+                      <i className="bi bi-person-lines-fill me-2"></i>Datos personales
+                    </h6>
+                    <div className="row g-4">
+                      <div className="col-12 col-md-6">
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-person me-2"></i>Nombre</label>
+                          <label>
+                            <i className="bi bi-person me-2"></i>Nombre
+                          </label>
                           <input
                             type="text"
                             name="nombre"
-                            value={form.nombre}
-                            onChange={modalModo === "consultar" ? undefined : handleChange}
+                            value={
+                              modalModo === "consultar"
+                                ? clienteActual?.nombre ?? ""
+                                : form.nombre
+                            }
+                            onChange={handleChange}
                             required
                             className="form-control"
-                            placeholder="Nombre"
                             readOnly={modalModo === "consultar"}
                           />
+                          {formErrors.nombre && <div className="input-error-message">{formErrors.nombre}</div>}
                         </div>
+                      </div>
+                      <div className="col-12 col-md-6">
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-person me-2"></i>Apellido</label>
+                          <label>
+                            <i className="bi bi-person me-2"></i>Apellido
+                          </label>
                           <input
                             type="text"
                             name="apellido"
-                            value={form.apellido}
-                            onChange={modalModo === "consultar" ? undefined : handleChange}
+                            value={
+                              modalModo === "consultar"
+                                ? clienteActual?.apellido ?? ""
+                                : form.apellido
+                            }
+                            onChange={handleChange}
                             required
                             className="form-control"
-                            placeholder="Apellido"
                             readOnly={modalModo === "consultar"}
                           />
+                          {formErrors.apellido && <div className="input-error-message">{formErrors.apellido}</div>}
                         </div>
-                      </fieldset>
+                      </div>
                     </div>
-                    <div className="col-12 col-md-6">
-                      <fieldset style={{ border: "none" }}>
-                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                          <i className="bi bi-briefcase me-2"></i>Datos laborales
-                        </legend>
+                    {/* División: Datos laborales */}
+                    <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                      <i className="bi bi-briefcase me-2"></i>Datos laborales
+                    </h6>
+                    <div className="row g-4">
+                      <div className="col-12 col-md-6">
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-briefcase me-2"></i>Cargo</label>
+                          <label>
+                            <i className="bi bi-briefcase me-2"></i>Cargo
+                          </label>
                           <select
                             name="idCargo"
-                            value={form.idCargo ?? ""}
-                            onChange={modalModo === "consultar" ? undefined : handleChange}
-                            className="form-select"
+                            value={
+                              modalModo === "consultar"
+                                ? clienteActual?.idCargo ?? ""
+                                : form.idCargo ?? ""
+                            }
+                            onChange={handleChange}
+                            className="form-control"
                             required
                             disabled={modalModo === "consultar"}
                           >
-                            <option value="">Seleccione cargo</option>
+                            <option value="">Seleccione un cargo</option>
                             {cargos.map(c => (
-                              <option key={c.idCargo} value={c.idCargo}>{c.nombreCargo}</option>
+                              <option key={c.idCargo} value={c.idCargo}>{c.descripcion}</option>
                             ))}
                           </select>
+                          {formErrors.idCargo && <div className="input-error-message">{formErrors.idCargo}</div>}
                         </div>
+                      </div>
+                      <div className="col-12 col-md-6">
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-person-badge me-2"></i>ID Usuario</label>
+                          <label>
+                            <i className="bi bi-person-badge me-2"></i>Usuario
+                          </label>
                           <select
                             name="idUsuario"
-                            value={form.idUsuario ?? ""}
-                            onChange={modalModo === "consultar" ? undefined : handleChange}
-                            className="form-select"
+                            value={
+                              modalModo === "consultar"
+                                ? clienteActual?.idUsuario ?? ""
+                                : form.idUsuario ?? ""
+                            }
+                            onChange={handleChange}
+                            className="form-control"
                             required
                             disabled={modalModo === "consultar"}
                           >
-                            <option value="">Seleccione usuario</option>
-                            {usuarios.map(u => (
+                            <option value="">Seleccione un usuario</option>
+                            {usuariosParaDropdown.map(u => (
                               <option key={u.idUsuario} value={u.idUsuario}>{u.nombreUsuario}</option>
                             ))}
                           </select>
+                          {formErrors.idUsuario && <div className="input-error-message">{formErrors.idUsuario}</div>}
                         </div>
-                        <legend style={{ fontWeight: 700, color: colores.azul, marginBottom: "1rem", fontSize: "1.3rem" }}>
-                          <i className="bi bi-check2-circle me-2"></i>Estado
-                        </legend>
+                      </div>
+                    </div>
+                    {/* División: Estado */}
+                    <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                      <i className="bi bi-check2-circle me-2"></i>Estado
+                    </h6>
+                    <div className="row g-4">
+                      <div className="col-12 col-md-6">
                         <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
+                          <label>
+                            <i className="bi bi-check2-circle me-2"></i>Estado
+                          </label>
                           <select
                             name="activo"
-                            value={form.activo ?? ""}
-                            onChange={modalModo === "consultar" ? undefined : handleChange}
-                            className="form-select"
+                            value={
+                              modalModo === "consultar"
+                                ? clienteActual?.activo ?? 1
+                                : form.activo
+                            }
+                            onChange={handleChange}
+                            className="form-control"
                             disabled={modalModo === "consultar"}
                           >
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
                           </select>
+                          {formErrors.activo && <div className="input-error-message">{formErrors.activo}</div>}
                         </div>
-                      </fieldset>
+                      </div>
                     </div>
-                  </div>
+                  </fieldset>
                   {mensaje && (
-                    <div className="alert alert-danger" style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 8 }}>
-                      {mensaje}
+                    <div className="alert alert-danger">{mensaje}</div>
+                  )}
+                  {(modalModo === "modificar" || modalModo === "alta") && (
+                    <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
+                      <button type="submit" className="btn btn-azul fw-bold">
+                        <i className="bi bi-save me-1"></i>
+                        {modalModo === "modificar" ? "Guardar cambios" : "Guardar"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-dorado fw-bold"
+                        onClick={() => setModalVisible(false)}
+                      >
+                        <i className="bi bi-x-circle me-1"></i>Cancelar
+                      </button>
                     </div>
                   )}
-                  <div className="d-flex justify-content-end gap-2 mt-3">
-                    {(modalModo === "modificar" || modalModo === "alta") && (
-                      <button type="submit" className="btn btn-azul fw-bold">
-                        <i className="bi bi-save me-1"></i>{modalModo === "modificar" ? "Actualizar" : "Agregar"}
-                      </button>
-                    )}
-                    <button type="button" className="btn btn-dorado fw-bold" onClick={handleCancelar}>
-                      <i className="bi bi-x-circle me-1"></i>Cancelar
-                    </button>
-                  </div>
                 </form>
               </div>
+              {modalModo === "consultar" && (
+                <div className="modal-footer">
+                  <button className="btn btn-dorado fw-bold" onClick={() => setModalVisible(false)}>
+                    Cerrar
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -373,5 +462,3 @@ function Empleados() {
     </div>
   );
 }
-
-export default Empleados;
