@@ -312,6 +312,15 @@ def buscar_empleado(idEmpleado):
     with session_scope() as s:
         return s.get(Empleado, idEmpleado)
 
+def mostrar_tecnicos(activos_only=True, idCargo=None):
+    with session_scope() as s:
+        q = s.query(Empleado)
+        if activos_only:
+            q = q.filter_by(activo=1)
+        if idCargo is not None:
+            q = q.filter_by(idCargo=idCargo)
+        return q.all()
+        
 
 # ----------- Estado & HistorialEstadoOrden -----------
 def mostrar_estados():
