@@ -67,20 +67,14 @@ def mostrar_usuarios(activos_only=True, no_asignados_only=False):
         if no_asignados_only:
             # Filter users not associated with any employee
             subq = s.query(Empleado.idUsuario).distinct()
-            q = q.filter(Usuario.idUsuario.not_in(subq))
+            q = q.filter(~Usuario.idUsuario.in_(subq))
         return q.all()
 
 def mostrar_usuario_por_id(idUsuario):
     with session_scope() as s:
         return s.get(Usuario, idUsuario)
 
-def alta_usuario(nombreUsuario, contraseña, activo=1):
-    with session_scope() as s:
-        u = Usuario(nombreUsuario=nombreUsuario, contraseña=contraseña, activo=activo)
-        s.add(u)
-        s.commit()
-        s.refresh(u)
-        return u
+# duplicate alta_usuario removed
 
 
 #----------- Sesiones -----------
@@ -560,6 +554,38 @@ def mostrar_repuestos_por_servicio(idServicio):
         ]
         return resultado
 
+# ----------------- Helpers -----------------
+def calcular_precio_total_orden_obj(orden):
+    """Calcula el precio total a partir de los detalles de una orden ORM (objeto OrdenDeReparacion).
+
+    Acepta un objeto `orden` con atributo `detalles` (lista de DetalleOrden) y devuelve float.
+    """
+    try:
+        if not orden:
+            return 0.0
+        detalles = getattr(orden, 'detalles', None)
+        if not detalles:
+            return 0.0
+        return float(sum((float(getattr(d, 'subtotal', 0) or 0) for d in detalles)))
+    except Exception:
+        return 0.0
+
+
+def calcular_precio_total_orden(nroDeOrden):
+    """Calcula el precio total de una orden consultando los detalles en BD por nroDeOrden.
+
+    Retorna float (0.0 si no existe o error).
+    """
+    with session_scope() as s:
+        orden = s.query(OrdenDeReparacion).options(joinedload(OrdenDeReparacion.detalles)).filter_by(nroDeOrden=nroDeOrden).first()
+        return calcular_precio_total_orden_obj(orden)
+
+
+def buscar_cliente_por_id(idCliente):
+    """Busca y devuelve un objeto Cliente por su id o None."""
+    with session_scope() as s:
+        return s.get(Cliente, idCliente)
+
 
 # ----------- DetalleOrden -----------
 def alta_detalle_orden(nroDeOrden, idServicio, repuesto_proveedor_id=None, costoServicio=0, costoRepuesto=0, subtotal=0):
@@ -625,6 +651,20 @@ def alta_orden_por_nroSerie(nroSerie, fecha=None, descripcionDanos=None, diagnos
             return None
         return alta_orden_de_reparacion(dispositivo.idDispositivo, fecha, descripcionDanos, diagnostico, presupuesto, idEmpleado)
 
+
+def mostrar_ordenes_de_reparacion():
+    """Devuelve lista de OrdenDeReparacion con relaciones cargadas (dispositivo, empleado, historial_estados, historial_arreglos, detalles)."""
+    with session_scope() as s:
+        q = s.query(OrdenDeReparacion).options(
+            joinedload(OrdenDeReparacion.dispositivo),
+            joinedload(OrdenDeReparacion.empleado),
+            joinedload(OrdenDeReparacion.historial_estados).joinedload(HistorialEstadoOrden.estado),
+            joinedload(OrdenDeReparacion.historial_arreglos),
+            joinedload(OrdenDeReparacion.detalles).joinedload(DetalleOrden.servicio),
+            joinedload(OrdenDeReparacion.detalles).joinedload(DetalleOrden.repuesto_proveedor)
+        )
+        return q.all()
+
 def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, detalles=None):
     with session_scope() as session:
         try:
@@ -688,9 +728,24 @@ def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos
             return {"message": "Orden actualizada correctamente"}
         except Exception as e:
             session.rollback()
-            return {"error": f"Error en la base deatos: {str(e)}"}
+            return {"error": f"Error en la base de datos: {str(e)}"}
 
-def mostrar_ordenes_de_reparacion(activos_only=True):
+
+def mostrar_ordenes():
+    # Delegar a la función central obtener_ordenes en modo 'summary'
+    return obtener_ordenes(mode='summary')
+
+
+def obtener_ordenes(mode='summary', idCliente=None, idDispositivo=None, nroDeOrden=None):
+    """Devuelve una lista de órdenes serializadas.
+
+    - mode: 'summary' (por defecto) o 'detail'.
+    - idCliente: si se pasa, filtra órdenes de dispositivos de ese cliente.
+    - idDispositivo: filtra por dispositivo.
+    - nroDeOrden: filtra por número de orden.
+
+    Siempre devuelve una lista de diccionarios con claves consistentes. En 'detail' agrega 'detalles' y 'historial_estados'.
+    """
     with session_scope() as s:
         q = s.query(OrdenDeReparacion).options(
             joinedload(OrdenDeReparacion.dispositivo),
@@ -700,45 +755,83 @@ def mostrar_ordenes_de_reparacion(activos_only=True):
             joinedload(OrdenDeReparacion.detalles).joinedload(DetalleOrden.servicio),
             joinedload(OrdenDeReparacion.detalles).joinedload(DetalleOrden.repuesto_proveedor)
         )
-        return q.all()
 
-def mostrar_ordenes():
-    with session_scope() as s:
-        DispositivoAlias = aliased(Dispositivo)
-        EmpleadoAlias = aliased(Empleado)
-        
-        query = s.query(
-            OrdenDeReparacion,
-            DispositivoAlias,
-            EmpleadoAlias
-        ).outerjoin(
-            DispositivoAlias, OrdenDeReparacion.idDispositivo == DispositivoAlias.idDispositivo
-        ).outerjoin(
-            EmpleadoAlias, OrdenDeReparacion.idEmpleado == EmpleadoAlias.idEmpleado
-        )
-        
-        resultados = query.all()
+        # Aplicar filtros
+        if nroDeOrden is not None:
+            q = q.filter(OrdenDeReparacion.nroDeOrden == nroDeOrden)
+        if idDispositivo is not None:
+            q = q.filter(OrdenDeReparacion.idDispositivo == idDispositivo)
+        if idCliente is not None:
+            # join con Dispositivo para filtrar por cliente
+            q = q.join(Dispositivo, OrdenDeReparacion.idDispositivo == Dispositivo.idDispositivo).filter(Dispositivo.idCliente == idCliente)
+
+        ordenes = q.all()
         resultado = []
-        
-        for o, d, e in resultados:
-            dispositivo_info = f"{d.marca} {d.modelo} ({d.nroSerie})" if d else "N/A"
-            empleado_info = f"{e.nombre} {e.apellido}" if e else "N/A"
-            
-            # Calcular presupuesto total de detalles
-            presupuesto_total = sum(float(det.subtotal or 0) for det in o.detalles) if o.detalles else 0
-            
-            resultado.append({
-                'nroDeOrden': o.nroDeOrden,
-                'idDispositivo': o.idDispositivo,
-                'fecha': o.fecha.isoformat() if o.fecha else None,
-                'descripcionDanos': o.descripcionDanos,
-                'diagnostico': o.diagnostico,
-                'presupuesto': presupuesto_total,  # Usar el calculado
-                'idEmpleado': o.idEmpleado,
+
+        for o in ordenes:
+            d = getattr(o, 'dispositivo', None)
+            e = getattr(o, 'empleado', None)
+            dispositivo_info = f"{getattr(d,'marca','') or ''} {getattr(d,'modelo','') or ''} ({getattr(d,'nroSerie','') or ''})".strip() if d else None
+
+            # calcular total consistente
+            precio_total = calcular_precio_total_orden_obj(o)
+
+            # último estado y fecha
+            ultimo_estado = None
+            if getattr(o, 'historial_estados', None):
+                ultimo_estado = sorted(o.historial_estados, key=lambda h: getattr(h, 'fechaCambio', None) or 0, reverse=True)[0]
+
+            base = {
+                'nroDeOrden': getattr(o, 'nroDeOrden', None),
+                'idDispositivo': getattr(o, 'idDispositivo', None),
+                'fecha': getattr(o, 'fecha', None).isoformat() if getattr(o, 'fecha', None) else None,
+                'descripcionDanos': getattr(o, 'descripcionDanos', None),
+                'diagnostico': getattr(o, 'diagnostico', None),
+                'precioTotal': float(precio_total),
+                'idEmpleado': getattr(o, 'idEmpleado', None),
                 'dispositivo_info': dispositivo_info,
-                'empleado_info': empleado_info
-            })
-        
+                'empleado_info': f"{getattr(e,'nombre','') or ''} {getattr(e,'apellido','') or ''}".strip() if e else None,
+                'estado': getattr(getattr(ultimo_estado, 'estado', None), 'nombre', None) if ultimo_estado else None,
+                'fechaEstado': getattr(ultimo_estado, 'fechaCambio', None).isoformat() if ultimo_estado and getattr(ultimo_estado, 'fechaCambio', None) else None
+            }
+
+            if mode == 'detail':
+                # agregar detalles y otras relaciones serializadas
+                detalles_serializados = []
+                for det in getattr(o, 'detalles', []) or []:
+                    rep = getattr(det, 'repuesto_proveedor', None)
+                    rep_desc = None
+                    proveedor = None
+                    if rep:
+                        rep_obj = getattr(rep, 'repuesto', None)
+                        proveedor = getattr(rep, 'proveedor', None)
+                        if rep_obj:
+                            rep_desc = f"{getattr(rep_obj,'marca','') or ''} {getattr(rep_obj,'modelo','') or ''}".strip()
+
+                    detalles_serializados.append({
+                        'idDetalle': getattr(det, 'idDetalle', None),
+                        'idServicio': getattr(det, 'idServicio', None),
+                        'servicioDescripcion': getattr(getattr(det, 'servicio', None), 'descripcion', None),
+                        'repuestoDescripcion': rep_desc,
+                        'proveedorRazonSocial': getattr(proveedor, 'razonSocial', None) if proveedor else None,
+                        'costoServicio': float(getattr(det, 'costoServicio', 0) or 0),
+                        'costoRepuesto': float(getattr(det, 'costoRepuesto', 0) or 0),
+                        'subtotal': float(getattr(det, 'subtotal', 0) or 0)
+                    })
+
+                base['detalles'] = detalles_serializados
+                # historial de arreglos y estados ya están cargados si se necesitan
+                base['historial_estados'] = [
+                    {
+                        'idHistorial': getattr(h, 'id', None),
+                        'idEstado': getattr(h, 'idEstado', None),
+                        'fechaCambio': getattr(h, 'fechaCambio', None).isoformat() if getattr(h, 'fechaCambio', None) else None,
+                        'observaciones': getattr(h, 'observaciones', None)
+                    } for h in getattr(o, 'historial_estados', []) or []
+                ]
+
+            resultado.append(base)
+
         return resultado
 
 

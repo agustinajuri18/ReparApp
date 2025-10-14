@@ -3,7 +3,7 @@ from flask_cors import cross_origin
 from datetime import datetime, date
 from ABMC_db import (
     alta_orden_de_reparacion, alta_orden_por_nroSerie, modificar_orden, # <--- CORRECCIÓN AQUÍ
-    mostrar_ordenes_de_reparacion, asignar_estado_orden, mostrar_estados,
+    mostrar_ordenes, asignar_estado_orden, mostrar_estados,
     mostrar_repuestos_por_servicio, mostrar_repuestoxproveedor, mostrar_proveedores,
     alta_detalle_orden, modificar_detalle_orden, baja_detalle_orden
 )
@@ -53,7 +53,7 @@ def registrar_orden():
 @bp.route('/ordenes', methods=['GET'])
 @cross_origin()
 def listar_ordenes():
-    ordenes = mostrar_ordenes_de_reparacion()
+    ordenes = mostrar_ordenes()
     resultado = []
     for o in ordenes:
         # Obtenemos el último estado de la orden

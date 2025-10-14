@@ -4,6 +4,7 @@ from ABMC_db import (
     alta_dispositivo, modificar_dispositivo, mostrar_dispositivos,
     baja_dispositivo, buscar_dispositivo_por_nroSerie, dispositivos_por_cliente
 )
+from ABMC_db import obtener_ordenes, buscar_cliente_por_id
 
 bp = Blueprint('dispositivos', __name__)
 
@@ -75,3 +76,39 @@ def baja_logica_dispositivo(idDispositivo):
     if dispositivo:
         return jsonify({'success': True})
     return jsonify({'error': 'Dispositivo no encontrado'}), 404
+
+
+@bp.route('/dispositivos/<int:idDispositivo>/historial-ordenes', methods=['GET'])
+def historial_ordenes_por_dispositivo(idDispositivo):
+    """Devuelve el historial de órdenes de reparación para un dispositivo.
+
+    Respuesta: lista de objetos con: nroDeOrden, fecha, diagnostico, tipoDocumento y numeroDocumento del cliente asociado.
+    """
+    try:
+        # Obtener el dispositivo (entre los dispositivos existentes)
+        dispositivos = mostrar_dispositivos(activos_only=False) or []
+        dispositivo = next((d for d in dispositivos if getattr(d, 'idDispositivo', None) == idDispositivo), None)
+        if not dispositivo:
+            return jsonify({'error': 'Dispositivo no encontrado'}), 404
+        # Obtener cliente asociado directamente
+        cliente = buscar_cliente_por_id(getattr(dispositivo, 'idCliente', None))
+
+        # Obtener órdenes ya serializadas desde la función central
+        ordenes = obtener_ordenes(mode='summary', idDispositivo=idDispositivo) or []
+        resultado = []
+        tipo_doc = getattr(cliente, 'idTipoDoc', None) if cliente else None
+        nro_doc = getattr(cliente, 'numeroDoc', None) if cliente else None
+
+        for o in ordenes:
+            resultado.append({
+                'nroDeOrden': o.get('nroDeOrden'),
+                'fecha': o.get('fecha'),
+                'diagnostico': o.get('diagnostico'),
+                'tipoDocumento': tipo_doc,
+                'numeroDocumento': nro_doc,
+                'importeFinal': float(o.get('precioTotal')) if o.get('precioTotal') is not None else None
+            })
+
+        return jsonify(resultado)
+    except Exception as e:
+        return jsonify({'error': 'No se pudo obtener el historial', 'detail': str(e)}), 500
