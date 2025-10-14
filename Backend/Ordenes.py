@@ -53,26 +53,9 @@ def registrar_orden():
 @bp.route('/ordenes', methods=['GET'])
 @cross_origin()
 def listar_ordenes():
+    # `mostrar_ordenes` (o la función central) ya devuelve una lista de dicts serializados.
     ordenes = mostrar_ordenes()
-    resultado = []
-    for o in ordenes:
-        # Obtenemos el último estado de la orden
-        ultimo_estado = None
-        if getattr(o, 'historial_estados', None):
-            ultimo_estado = sorted(o.historial_estados, key=lambda h: h.fechaCambio, reverse=True)[0]
-
-        resultado.append({
-            'nroDeOrden': o.nroDeOrden,
-            'idDispositivo': o.idDispositivo,
-            'fecha': o.fecha.isoformat() if o.fecha else None,
-            'descripcionDanos': o.descripcionDanos,
-            'diagnostico': o.diagnostico,
-            'presupuesto': o.presupuesto,
-            'idEmpleado': o.idEmpleado,
-            'estado': getattr(ultimo_estado, 'estado', None).nombre if ultimo_estado and getattr(ultimo_estado, 'estado', None) else None,
-            'fechaEstado': ultimo_estado.fechaCambio.isoformat() if ultimo_estado and getattr(ultimo_estado, 'fechaCambio', None) else None
-        })
-    return jsonify(resultado)
+    return jsonify(ordenes)
 
 @bp.route('/ordenes/<int:nroDeOrden>', methods=['PUT'])
 @cross_origin()
@@ -100,6 +83,25 @@ def modificar_orden_existente(nroDeOrden):
     if "error" in resultado:
         return jsonify(resultado), 500
     return jsonify(resultado), 200
+
+
+@bp.route('/ordenes/<int:nroDeOrden>', methods=['GET'])
+@cross_origin()
+def obtener_orden_detalle(nroDeOrden):
+    ordenes = mostrar_ordenes()  # mostrar_ordenes delega a obtener_ordenes
+    # Try to get detail mode via helper directly if available
+    try:
+        from ABMC_db import obtener_ordenes
+        detalle = obtener_ordenes(mode='detail', nroDeOrden=nroDeOrden)
+        if not detalle:
+            return jsonify({'error': 'Orden no encontrada'}), 404
+        return jsonify(detalle[0]), 200
+    except Exception:
+        # Fallback: buscar en la lista genérica
+        ord_list = [o for o in ordenes if o.get('nroDeOrden') == nroDeOrden]
+        if not ord_list:
+            return jsonify({'error': 'Orden no encontrada'}), 404
+        return jsonify(ord_list[0]), 200
 
 
 # Nuevo endpoint: repuestos + proveedores por servicio

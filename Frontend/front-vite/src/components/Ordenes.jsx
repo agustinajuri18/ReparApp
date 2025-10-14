@@ -235,7 +235,15 @@ function Ordenes() {
       })
       .then(data => {
         console.log("Detalles obtenidos:", data);
-        setDetalles(Array.isArray(data) ? data.map(d => ({ ...d, isNew: false })) : []);
+        setDetalles(Array.isArray(data) ? data.map(d => ({
+          ...d,
+          isNew: false,
+          // populate legacy keys from nested objects if backend returned them
+          codRepuestos: d.codRepuestos ?? (d.repuesto ? d.repuesto.idRepuesto : null),
+          cuitProveedor: d.cuitProveedor ?? (d.proveedor ? d.proveedor.cuil : null),
+          repuestoDescripcion: d.repuestoDescripcion ?? (d.repuesto ? `${d.repuesto.marca || ''} ${d.repuesto.modelo || ''}`.trim() : ''),
+          proveedorRazonSocial: d.proveedorRazonSocial ?? (d.proveedor ? d.proveedor.razonSocial : ''),
+        })) : []);
       })
       .catch(err => { 
         console.error("Error al obtener detalles:", err);
@@ -271,7 +279,14 @@ function Ordenes() {
       })
       .then(data => {
         console.log("Detalles obtenidos:", data);
-        setDetalles(Array.isArray(data) ? data.map(d => ({ ...d, isNew: false })) : []);
+        setDetalles(Array.isArray(data) ? data.map(d => ({
+          ...d,
+          isNew: false,
+          codRepuestos: d.codRepuestos ?? (d.repuesto ? d.repuesto.idRepuesto : null),
+          cuitProveedor: d.cuitProveedor ?? (d.proveedor ? d.proveedor.cuil : null),
+          repuestoDescripcion: d.repuestoDescripcion ?? (d.repuesto ? `${d.repuesto.marca || ''} ${d.repuesto.modelo || ''}`.trim() : ''),
+          proveedorRazonSocial: d.proveedorRazonSocial ?? (d.proveedor ? d.proveedor.razonSocial : ''),
+        })) : []);
       })
       .catch(err => { 
         console.error("Error al obtener detalles:", err);

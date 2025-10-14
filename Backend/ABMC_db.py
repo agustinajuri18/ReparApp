@@ -707,20 +707,66 @@ def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos
                         # Actualizar detalle existente
                         detalle_obj = session.query(DetalleOrden).get(id_detalle)
                         if detalle_obj:
-                            detalle_obj.idServicio = detalle_data.get('idServicio')
-                            detalle_obj.repuesto_proveedor_id = detalle_data.get('repuesto_proveedor_id')
-                            detalle_obj.costoServicio = detalle_data.get('costoServicio')
-                            detalle_obj.costoRepuesto = detalle_data.get('costoRepuesto')
-                            detalle_obj.subtotal = detalle_data.get('subtotal')
+                            # safe casts/conversions
+                            try:
+                                detalle_obj.idServicio = int(detalle_data.get('idServicio')) if detalle_data.get('idServicio') is not None else None
+                            except (ValueError, TypeError):
+                                detalle_obj.idServicio = detalle_data.get('idServicio')
+                            # repuesto_proveedor_id may be None
+                            try:
+                                rp = detalle_data.get('repuesto_proveedor_id')
+                                detalle_obj.repuesto_proveedor_id = int(rp) if rp is not None else None
+                            except (ValueError, TypeError):
+                                detalle_obj.repuesto_proveedor_id = detalle_data.get('repuesto_proveedor_id')
+
+                            try:
+                                detalle_obj.costoServicio = float(detalle_data.get('costoServicio')) if detalle_data.get('costoServicio') is not None else None
+                            except (ValueError, TypeError):
+                                detalle_obj.costoServicio = detalle_data.get('costoServicio')
+                            try:
+                                detalle_obj.costoRepuesto = float(detalle_data.get('costoRepuesto')) if detalle_data.get('costoRepuesto') is not None else None
+                            except (ValueError, TypeError):
+                                detalle_obj.costoRepuesto = detalle_data.get('costoRepuesto')
+                            try:
+                                detalle_obj.subtotal = float(detalle_data.get('subtotal')) if detalle_data.get('subtotal') is not None else None
+                            except (ValueError, TypeError):
+                                detalle_obj.subtotal = detalle_data.get('subtotal')
                     elif id_detalle is None:
                         # Crear nuevo detalle
+                        # prepare safe values and casts
+                        try:
+                            idServicio_new = int(detalle_data.get('idServicio')) if detalle_data.get('idServicio') is not None else None
+                        except (ValueError, TypeError):
+                            idServicio_new = detalle_data.get('idServicio')
+
+                        try:
+                            rp_new = detalle_data.get('repuesto_proveedor_id')
+                            repuesto_proveedor_id_new = int(rp_new) if rp_new is not None else None
+                        except (ValueError, TypeError):
+                            repuesto_proveedor_id_new = detalle_data.get('repuesto_proveedor_id')
+
+                        try:
+                            costoServicio_new = float(detalle_data.get('costoServicio')) if detalle_data.get('costoServicio') is not None else None
+                        except (ValueError, TypeError):
+                            costoServicio_new = detalle_data.get('costoServicio')
+
+                        try:
+                            costoRepuesto_new = float(detalle_data.get('costoRepuesto')) if detalle_data.get('costoRepuesto') is not None else None
+                        except (ValueError, TypeError):
+                            costoRepuesto_new = detalle_data.get('costoRepuesto')
+
+                        try:
+                            subtotal_new = float(detalle_data.get('subtotal')) if detalle_data.get('subtotal') is not None else None
+                        except (ValueError, TypeError):
+                            subtotal_new = detalle_data.get('subtotal')
+
                         nuevo_detalle = DetalleOrden(
                             nroDeOrden=nroDeOrden,
-                            idServicio=detalle_data.get('idServicio'),
-                            repuesto_proveedor_id=detalle_data.get('repuesto_proveedor_id'),
-                            costoServicio=detalle_data.get('costoServicio'),
-                            costoRepuesto=detalle_data.get('costoRepuesto'),
-                            subtotal=detalle_data.get('subtotal')
+                            idServicio=idServicio_new,
+                            repuesto_proveedor_id=repuesto_proveedor_id_new,
+                            costoServicio=costoServicio_new,
+                            costoRepuesto=costoRepuesto_new,
+                            subtotal=subtotal_new
                         )
                         session.add(nuevo_detalle)
 
@@ -807,13 +853,31 @@ def obtener_ordenes(mode='summary', idCliente=None, idDispositivo=None, nroDeOrd
                         proveedor = getattr(rep, 'proveedor', None)
                         if rep_obj:
                             rep_desc = f"{getattr(rep_obj,'marca','') or ''} {getattr(rep_obj,'modelo','') or ''}".strip()
+                    # Build nested repuesto and proveedor objects when available
+                    repuesto_obj = None
+                    proveedor_obj = None
+                    if rep:
+                        if rep_obj:
+                            repuesto_obj = {
+                                'idRepuesto': getattr(rep_obj, 'idRepuesto', None),
+                                'marca': getattr(rep_obj, 'marca', None),
+                                'modelo': getattr(rep_obj, 'modelo', None)
+                            }
+                        if proveedor:
+                            proveedor_obj = {
+                                'idProveedor': getattr(proveedor, 'idProveedor', None),
+                                'razonSocial': getattr(proveedor, 'razonSocial', None),
+                                'cuil': getattr(proveedor, 'cuil', None)
+                            }
 
                     detalles_serializados.append({
                         'idDetalle': getattr(det, 'idDetalle', None),
                         'idServicio': getattr(det, 'idServicio', None),
                         'servicioDescripcion': getattr(getattr(det, 'servicio', None), 'descripcion', None),
                         'repuestoDescripcion': rep_desc,
+                        'repuesto': repuesto_obj,
                         'proveedorRazonSocial': getattr(proveedor, 'razonSocial', None) if proveedor else None,
+                        'proveedor': proveedor_obj,
                         'costoServicio': float(getattr(det, 'costoServicio', 0) or 0),
                         'costoRepuesto': float(getattr(det, 'costoRepuesto', 0) or 0),
                         'subtotal': float(getattr(det, 'subtotal', 0) or 0)

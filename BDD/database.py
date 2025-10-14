@@ -160,7 +160,8 @@ class DetalleOrden(Base):
     idDetalle = Column(Integer, primary_key=True, autoincrement=True)
     nroDeOrden = Column(Integer, ForeignKey("OrdenDeReparacion.nroDeOrden"), nullable=False)
     idServicio = Column(Integer, ForeignKey("Servicio.idServicio"), nullable=False)
-    repuesto_proveedor_id = Column(Integer, ForeignKey("RepuestoxProveedor.id"), nullable=False)
+    # Allow NULL for repuesto_proveedor_id because some details may not include a repuesto
+    repuesto_proveedor_id = Column(Integer, ForeignKey("RepuestoxProveedor.id"), nullable=True)
     costoServicio = Column(Float)
     costoRepuesto = Column(Float)
     subtotal = Column(Float)

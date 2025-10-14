@@ -45,6 +45,17 @@ def obtener_detalles(nroDeOrden):
                 'proveedorRazonSocial': proveedorRazonSocial,
                 'codRepuestos': codRepuestos,
                 'cuitProveedor': cuitProveedor,
+                # nested objects for convenience
+                'repuesto': {
+                    'idRepuesto': getattr(repuesto, 'idRepuesto', None) if repuesto_proveedor and getattr(repuesto_proveedor, 'repuesto', None) else None,
+                    'marca': getattr(getattr(repuesto_proveedor, 'repuesto', None), 'marca', None) if repuesto_proveedor else None,
+                    'modelo': getattr(getattr(repuesto_proveedor, 'repuesto', None), 'modelo', None) if repuesto_proveedor else None
+                } if repuesto_proveedor and getattr(repuesto_proveedor, 'repuesto', None) else None,
+                'proveedor': {
+                    'idProveedor': getattr(getattr(repuesto_proveedor, 'proveedor', None), 'idProveedor', None) if repuesto_proveedor else None,
+                    'razonSocial': getattr(getattr(repuesto_proveedor, 'proveedor', None), 'razonSocial', None) if repuesto_proveedor else None,
+                    'cuil': getattr(getattr(repuesto_proveedor, 'proveedor', None), 'cuil', None) if repuesto_proveedor else None
+                } if repuesto_proveedor and getattr(repuesto_proveedor, 'proveedor', None) else None,
                 'costoServicio': float(detalle.costoServicio or 0),
                 'costoRepuesto': float(detalle.costoRepuesto or 0),
                 'subtotal': float(detalle.subtotal or 0)
