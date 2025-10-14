@@ -223,6 +223,7 @@ function Ordenes() {
 
   // En handleModificar, cambiar setShowAddDetalle(false) a setShowAddDetalle(true) para permitir añadir detalles en modificar
   const handleModificar = (orden) => {
+    // Configura el modal en modo modificar y carga detalles
     setModalModo('modificar');
     setForm({
       nroDeOrden: orden.nroDeOrden,
@@ -231,13 +232,15 @@ function Ordenes() {
       descripcionDanos: orden.descripcionDanos || "",
       diagnostico: orden.diagnostico || "",
       presupuesto: orden.presupuesto || 0,
-      idEmpleado: orden.idEmpleado || ""
+      idEmpleado: orden.idEmpleado || "",
+      estado: orden.estado || form.estado
     });
+
     fetch(`${API_URL}/${orden.nroDeOrden}/detalles`)
       .then(res => {
         if (!res.ok) {
           console.error(`Error ${res.status} al obtener detalles`);
-          return []; // Devolver array vacío en caso de error
+          return [];
         }
         return res.json();
       })
@@ -246,24 +249,25 @@ function Ordenes() {
         setDetalles(Array.isArray(data) ? data.map(d => ({
           ...d,
           isNew: false,
-          // populate legacy keys from nested objects if backend returned them
           codRepuestos: d.codRepuestos ?? (d.repuesto ? d.repuesto.idRepuesto : null),
           cuitProveedor: d.cuitProveedor ?? (d.proveedor ? d.proveedor.cuil : null),
           repuestoDescripcion: d.repuestoDescripcion ?? (d.repuesto ? `${d.repuesto.marca || ''} ${d.repuesto.modelo || ''}`.trim() : ''),
           proveedorRazonSocial: d.proveedorRazonSocial ?? (d.proveedor ? d.proveedor.razonSocial : ''),
         })) : []);
       })
-      .catch(err => { 
+      .catch(err => {
         console.error("Error al obtener detalles:", err);
         setDetalles([]);
+      })
+      .finally(() => {
+        setFormErrors({});
+        setMensaje("");
+        setModalVisible(true);
+        setShowAddDetalle(true);
+        setAvailableRepuestos([]);
+        setProveedoresFiltrados([]);
+        setEditingDetalleId(null);
       });
-    setFormErrors({});
-    setMensaje("");
-    setModalVisible(true);
-    setShowAddDetalle(true); // Cambiado a true para permitir añadir en modificar
-    setAvailableRepuestos([]);
-    setProveedoresFiltrados([]);
-    setEditingDetalleId(null);
   };
 
   const handleConsultar = (orden) => {
@@ -835,6 +839,7 @@ function Ordenes() {
                     <tr>
                       <th>N° Orden</th>
                       <th>Dispositivo</th>
+                      <th>Cliente</th>
                       <th>Empleado</th>
                       <th>Fecha</th>
                       <th>Estado</th> {/* Columna para estado */}
@@ -847,6 +852,10 @@ function Ordenes() {
                       <tr key={String(o.nroDeOrden)}>
                         <td>{o.nroDeOrden}</td>
                         <td>{o.dispositivo_info}</td>
+                        <td>{
+                          // cliente_info has format 'Nombre Apellido (numeroDoc)'. We show only the name part.
+                          o.cliente_info ? o.cliente_info.split('(')[0].trim() : (o.dispositivo_info ? o.dispositivo_info.split('(')[0].trim() : '')
+                        }</td>
                         <td>{o.empleado_info}</td>
                         <td>{o.fecha}</td>
                         <td>{o.estado}</td> {/* Mostramos el estado actual */}

@@ -4,7 +4,7 @@ from ABMC_db import (
     alta_cliente, modificar_cliente, mostrar_clientes, baja_cliente,
     buscar_cliente_por_doc, mostrar_tipos_documento, alta_tipo_documento
 )
-from ABMC_db import dispositivos_por_cliente, mostrar_ordenes, calcular_precio_total_orden_obj
+from ABMC_db import dispositivos_por_cliente, mostrar_ordenes, calcular_precio_total_orden_obj, obtener_ordenes
 
 bp = Blueprint('clientes', __name__)
 
@@ -127,12 +127,8 @@ def historial_ordenes_por_cliente(idCliente):
     Respuesta: lista de objetos con: nroDeOrden, fecha, dispositivo (marca/modelo/nroSerie), diagnostico, precioTotal
     """
     try:
-        # Obtener dispositivos asociados al cliente
-        dispositivos = dispositivos_por_cliente(idCliente) or []
-        if not dispositivos:
-            return jsonify([])
-
-            resultado = obtener_ordenes(mode='summary', idCliente=idCliente)
-            return jsonify(resultado)
+        # Usar la función centralizada para obtener órdenes por cliente
+        resultado = obtener_ordenes(mode='summary', idCliente=idCliente)
+        return jsonify(resultado or [])
     except Exception as e:
         return jsonify({'error': 'No se pudo obtener el historial', 'detail': str(e)}), 500

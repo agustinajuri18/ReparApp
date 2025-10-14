@@ -818,6 +818,7 @@ def obtener_ordenes(mode='summary', idCliente=None, idDispositivo=None, nroDeOrd
         for o in ordenes:
             d = getattr(o, 'dispositivo', None)
             e = getattr(o, 'empleado', None)
+            c = getattr(d, 'cliente', None) if d else None
             dispositivo_info = f"{getattr(d,'marca','') or ''} {getattr(d,'modelo','') or ''} ({getattr(d,'nroSerie','') or ''})".strip() if d else None
 
             # calcular total consistente
@@ -837,6 +838,8 @@ def obtener_ordenes(mode='summary', idCliente=None, idDispositivo=None, nroDeOrd
                 'precioTotal': float(precio_total),
                 'idEmpleado': getattr(o, 'idEmpleado', None),
                 'dispositivo_info': dispositivo_info,
+                'idCliente': getattr(c, 'idCliente', None) if c else None,
+                'cliente_info': f"{getattr(c,'nombre','') or ''} {getattr(c,'apellido','') or ''} ({getattr(c,'numeroDoc','') or ''})".strip() if c else None,
                 'empleado_info': f"{getattr(e,'nombre','') or ''} {getattr(e,'apellido','') or ''}".strip() if e else None,
                 'estado': getattr(getattr(ultimo_estado, 'estado', None), 'nombre', None) if ultimo_estado else None,
                 'fechaEstado': getattr(ultimo_estado, 'fechaCambio', None).isoformat() if ultimo_estado and getattr(ultimo_estado, 'fechaCambio', None) else None

@@ -25,6 +25,9 @@ export default function Clientes() {
   const [modalModo, setModalModo] = useState('consultar'); // 'consultar' | 'modificar'
   const [clienteActual, setClienteActual] = useState(null);
   const [modalErrors, setModalErrors] = useState({});
+  const [historialVisible, setHistorialVisible] = useState(false);
+  const [historialOrdenes, setHistorialOrdenes] = useState([]);
+  const [openMenuFor, setOpenMenuFor] = useState(null); // idCliente of open menu
   // Agregar estado para el ID en edición
   const [editId, setEditId] = useState(null);
 
@@ -49,6 +52,22 @@ export default function Clientes() {
     fetchTiposDocumento();
     // eslint-disable-next-line
   }, [mostrarInactivos]);
+
+  // Close dropdown menu when clicking outside or pressing Escape
+  useEffect(() => {
+    const onDocClick = (e) => {
+      setOpenMenuFor(null);
+    };
+    const onEsc = (e) => {
+      if (e.key === 'Escape') setOpenMenuFor(null);
+    };
+    document.addEventListener('click', onDocClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('click', onDocClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, []);
 
   const handleChange = e => {
     const value = e.target.name === "activo" ? parseInt(e.target.value) : e.target.value;
@@ -318,26 +337,49 @@ export default function Clientes() {
                         <td>{c.mail}</td>
                         <td>{c.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
-                          <button
-                            className="btn btn-sm btn-verdeAgua fw-bold me-1"
-                            onClick={() => handleConsultar(c)}
-                          >
-                            <i className="bi bi-search me-1"></i>Consultar
-                          </button>
-                          <button
-                            className="btn btn-sm btn-dorado fw-bold me-1"
-                            onClick={() => handleModificar(c)}
-                          >
-                            <i className="bi bi-pencil-square me-1"></i>Modificar
-                          </button>
-                          {c.activo === 1 && (
+                          <div className="d-flex align-items-center gap-2">
                             <button
-                              className="btn btn-sm btn-rojo fw-bold"
-                              onClick={() => c.idCliente && handleEliminar(c.idCliente)}
+                              className="btn btn-sm btn-verdeAgua fw-bold"
+                              onClick={() => handleConsultar(c)}
                             >
-                              <i className="bi bi-trash me-1"></i>Eliminar
+                              <i className="bi bi-search me-1"></i>Consultar
                             </button>
-                          )}
+                            <button
+                              className="btn btn-sm btn-primario fw-bold"
+                              onClick={async () => {
+                                // fetch historial for this cliente
+                                try {
+                                  const res = await fetch(`${API_URL}/${c.idCliente}/historial-ordenes`);
+                                  const data = await res.json().catch(() => []);
+                                  setHistorialOrdenes(Array.isArray(data) ? data : []);
+                                  setHistorialVisible(true);
+                                } catch (err) {
+                                  setMensaje('Error al cargar historial');
+                                }
+                              }}
+                            >
+                              <i className="bi bi-clock-history me-1"></i>Historial
+                            </button>
+
+                            {/* three-dot dropdown for modify/delete */}
+                            <div style={{ position: 'relative' }}>
+                              <button
+                                className="btn btn-sm btn-outline-secondary"
+                                onClick={(e) => { e.stopPropagation(); setOpenMenuFor(openMenuFor === c.idCliente ? null : c.idCliente); }}
+                                aria-expanded={openMenuFor === c.idCliente}
+                              >
+                                <i className="bi bi-three-dots-vertical"></i>
+                              </button>
+                              {openMenuFor === c.idCliente && (
+                                <div className="card position-absolute" style={{ right: 0, top: '110%', zIndex: 2000, minWidth: 140 }}>
+                                  <ul className="list-group list-group-flush p-2">
+                                    <li className="list-group-item border-0 p-0 mb-1"><button className="btn btn-sm btn-dorado w-100" onClick={() => { setOpenMenuFor(null); handleModificar(c); }}>Modificar</button></li>
+                                    <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={() => { setOpenMenuFor(null); c.idCliente && handleEliminar(c.idCliente); }}>Eliminar</button></li>
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -583,6 +625,51 @@ export default function Clientes() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {historialVisible && (
+        <div className="modal" style={{ display: 'block' }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title"><i className="bi bi-clock-history me-2"></i>Historial de Órdenes</h5>
+                <button className="btn-close" onClick={() => setHistorialVisible(false)}></button>
+              </div>
+              <div className="modal-body">
+                {historialOrdenes.length === 0 ? (
+                  <div className="text-muted">No se encontraron órdenes para este cliente.</div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table table-sm">
+                      <thead>
+                        <tr>
+                          <th>Nro Orden</th>
+                          <th>Fecha</th>
+                          <th>Dispositivo</th>
+                          <th>Diagnóstico</th>
+                          <th>Precio Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {historialOrdenes.map(o => (
+                          <tr key={o.nroDeOrden}>
+                            <td>{o.nroDeOrden}</td>
+                            <td>{o.fecha}</td>
+                            <td>{o.dispositivo_info}</td>
+                            <td>{o.diagnostico}</td>
+                            <td>{o.precioTotal}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-dorado" onClick={() => setHistorialVisible(false)}>Cerrar</button>
+              </div>
             </div>
           </div>
         </div>

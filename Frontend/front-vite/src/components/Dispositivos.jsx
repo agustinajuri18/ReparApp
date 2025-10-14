@@ -25,6 +25,9 @@ export default function Dispositivos() {
         activo: 1,
     });
     const [formErrors, setFormErrors] = useState({});
+    const [historialVisible, setHistorialVisible] = useState(false);
+    const [historialOrdenes, setHistorialOrdenes] = useState([]);
+    const [openMenuFor, setOpenMenuFor] = useState(null);
 
     // Cargar dispositivos
     const fetchDispositivos = () => {
@@ -56,6 +59,15 @@ export default function Dispositivos() {
         fetchTiposDocumento();
         // eslint-disable-next-line
     }, [mostrarInactivos]);
+
+    // Close three-dot menu when clicking outside or pressing Escape
+    useEffect(() => {
+        const onDocClick = () => setOpenMenuFor(null);
+        const onEsc = (e) => { if (e.key === 'Escape') setOpenMenuFor(null); };
+        document.addEventListener('click', onDocClick);
+        document.addEventListener('keydown', onEsc);
+        return () => { document.removeEventListener('click', onDocClick); document.removeEventListener('keydown', onEsc); };
+    }, []);
 
     // Modal handlers
     const handleAgregarClick = () => {
@@ -234,26 +246,48 @@ export default function Dispositivos() {
                                                 </td>
                                                 <td>{d.activo ? "Activo" : "Inactivo"}</td>
                                                 <td>
-                                                    <button
-                                                        className="btn btn-sm btn-verdeAgua fw-bold me-1"
-                                                        onClick={() => handleConsultar(d)}
-                                                    >
-                                                        <i className="bi bi-search me-1"></i>Consultar
-                                                    </button>
-                                                    <button
-                                                        className="btn btn-sm btn-dorado fw-bold me-1"
-                                                        onClick={() => handleModificar(d)}
-                                                    >
-                                                        <i className="bi bi-pencil-square me-1"></i>Modificar
-                                                    </button>
-                                                    {d.activo === 1 && (
+                                                    <div className="d-flex align-items-center gap-2">
                                                         <button
-                                                            className="btn btn-sm btn-rojo fw-bold"
-                                                            onClick={() => handleEliminar(d.idDispositivo)}
+                                                            className="btn btn-sm btn-verdeAgua fw-bold"
+                                                            onClick={() => handleConsultar(d)}
                                                         >
-                                                            <i className="bi bi-trash me-1"></i>Eliminar
+                                                            <i className="bi bi-search me-1"></i>Consultar
                                                         </button>
-                                                    )}
+                                                        <button
+                                                            className="btn btn-sm btn-primario fw-bold"
+                                                            onClick={async () => {
+                                                                try {
+                                                                    const res = await fetch(`${API_URL}/${d.idDispositivo}/historial-ordenes`);
+                                                                    const data = await res.json().catch(() => []);
+                                                                    setHistorialOrdenes(Array.isArray(data) ? data : []);
+                                                                    setHistorialVisible(true);
+                                                                } catch (err) {
+                                                                    setMensaje('Error al cargar historial');
+                                                                }
+                                                            }}
+                                                        >
+                                                            <i className="bi bi-clock-history me-1"></i>Historial
+                                                        </button>
+
+                                                        {/* three-dot dropdown for modify/delete */}
+                                                        <div style={{ position: 'relative' }}>
+                                                            <button
+                                                                className="btn btn-sm btn-outline-secondary"
+                                                                onClick={(e) => { e.stopPropagation(); setOpenMenuFor(openMenuFor === d.idDispositivo ? null : d.idDispositivo); }}
+                                                                aria-expanded={openMenuFor === d.idDispositivo}
+                                                            >
+                                                                <i className="bi bi-three-dots-vertical"></i>
+                                                            </button>
+                                                            {openMenuFor === d.idDispositivo && (
+                                                                <div className="card position-absolute" style={{ right: 0, top: '110%', zIndex: 2000, minWidth: 140 }}>
+                                                                    <ul className="list-group list-group-flush p-2">
+                                                                        <li className="list-group-item border-0 p-0 mb-1"><button className="btn btn-sm btn-dorado w-100" onClick={() => { setOpenMenuFor(null); handleModificar(d); }}>Modificar</button></li>
+                                                                        <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={() => { setOpenMenuFor(null); d.idDispositivo && handleEliminar(d.idDispositivo); }}>Eliminar</button></li>
+                                                                    </ul>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -445,6 +479,54 @@ export default function Dispositivos() {
                                         </div>
                                     )}
                                 </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {historialVisible && (
+                <div className="modal" style={{ display: 'block' }}>
+                    <div className="modal-dialog modal-lg modal-dialog-centered">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h5 className="modal-title"><i className="bi bi-clock-history me-2"></i>Historial de Órdenes</h5>
+                                <button className="btn-close" onClick={() => setHistorialVisible(false)}></button>
+                            </div>
+                            <div className="modal-body">
+                                {historialOrdenes.length === 0 ? (
+                                    <div className="text-muted">No se encontraron órdenes para este dispositivo.</div>
+                                ) : (
+                                    <div className="table-responsive">
+                                        <table className="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Nro Orden</th>
+                                                    <th>Fecha</th>
+                                                    <th>Diagnóstico</th>
+                                                    <th>Precio Total</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {historialOrdenes.map(o => {
+                                                    // precio puede venir en distintas keys según backend; usar fallback
+                                                    const precio = o.precioTotal ?? o.precio_total ?? o.price ?? 0;
+                                                    const precioFmt = typeof precio === 'number' ? precio.toFixed(2) : String(precio);
+                                                    return (
+                                                        <tr key={o.nroDeOrden}>
+                                                            <td>{o.nroDeOrden}</td>
+                                                            <td>{o.fecha}</td>
+                                                            <td>{o.diagnostico}</td>
+                                                            <td>${precioFmt}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="modal-footer">
+                                <button className="btn btn-dorado" onClick={() => setHistorialVisible(false)}>Cerrar</button>
                             </div>
                         </div>
                     </div>
