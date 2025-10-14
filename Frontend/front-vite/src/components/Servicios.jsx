@@ -335,10 +335,10 @@ export default function Servicios() {
               <div className="modal-header">
                 <h5 className="modal-title fw-bold">
                   {modalModo === 'consultar'
-                    ? "Consultar servicio"
+                    ? <><i className="bi bi-search me-2"></i>Consultar servicio</>
                     : modalModo === 'modificar'
-                    ? "Modificar servicio"
-                    : "Nuevo servicio"}
+                    ? <><i className="bi bi-pencil-square me-2"></i>Modificar servicio</>
+                    : <><i className="bi bi-plus-lg me-2"></i>Nuevo servicio</>}
                 </h5>
                 <button
                   type="button"
@@ -362,6 +362,10 @@ export default function Servicios() {
                     <legend>
                       <i className="bi bi-gear me-2"></i>Datos del servicio
                     </legend>
+                    {/* División: Información básica */}
+                    <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
+                      <i className="bi bi-info-circle me-2"></i>Información básica
+                    </h6>
                     <div className="row g-4">
                       <div className="col-12 col-md-6">
                         <div className="mb-3">
@@ -375,8 +379,9 @@ export default function Servicios() {
                             required
                             disabled={modalModo === "consultar" || modalModo === "modificar" || modalModo === "alta"}
                             readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
-                          {formErrors.idServicio && <div className="text-danger">{formErrors.idServicio}</div>}
+                          {formErrors.idServicio && <div className="input-error-message">{formErrors.idServicio}</div>}
                         </div>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-gear me-2"></i>Descripción</label>
@@ -388,11 +393,16 @@ export default function Servicios() {
                             required
                             disabled={modalModo === "consultar"}
                             readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
-                          {formErrors.descripcion && <div className="text-danger">{formErrors.descripcion}</div>}
+                          {formErrors.descripcion && <div className="input-error-message">{formErrors.descripcion}</div>}
                         </div>
                       </div>
                       <div className="col-12 col-md-6">
+                        {/* División: Precio */}
+                        <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
+                          <i className="bi bi-currency-dollar me-2"></i>Precio
+                        </h6>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-currency-dollar me-2"></i>Precio Base</label>
                           <input
@@ -406,9 +416,14 @@ export default function Servicios() {
                             required
                             disabled={modalModo === "consultar"}
                             readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
-                          {formErrors.precioBase && <div className="text-danger">{formErrors.precioBase}</div>}
+                          {formErrors.precioBase && <div className="input-error-message">{formErrors.precioBase}</div>}
                         </div>
+                        {/* División: Estado */}
+                        <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                          <i className="bi bi-check2-circle me-2"></i>Estado
+                        </h6>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
                           <select
@@ -417,11 +432,12 @@ export default function Servicios() {
                             value={servicioActual?.activo ?? ""}
                             onChange={handleChange}
                             disabled={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           >
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
                           </select>
-                          {formErrors.activo && <div className="text-danger">{formErrors.activo}</div>}
+                          {formErrors.activo && <div className="input-error-message">{formErrors.activo}</div>}
                         </div>
                       </div>
                     </div>
@@ -472,8 +488,8 @@ export default function Servicios() {
                         </button>
                       </div>
                     )}
-                    {formErrors.repuestos && <div className="text-danger">{formErrors.repuestos}</div>}
-                    {formErrors.repuestoDetalle && <div className="text-danger">{formErrors.repuestoDetalle}</div>}
+                    {formErrors.repuestos && <div className="input-error-message">{formErrors.repuestos}</div>}
+                    {formErrors.repuestoDetalle && <div className="input-error-message">{formErrors.repuestoDetalle}</div>}
                   </fieldset>
                   {mensaje && (
                     <div className="alert alert-danger">{mensaje}</div>
@@ -493,15 +509,15 @@ export default function Servicios() {
                       </button>
                     </div>
                   )}
-                  {modalModo === "consultar" && (
-                    <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
-                      <button className="btn btn-dorado fw-bold" onClick={() => setModalVisible(false)}>
-                        Cerrar
-                      </button>
-                    </div>
-                  )}
                 </form>
               </div>
+              {modalModo === "consultar" && (
+                <div className="modal-footer">
+                  <button className="btn btn-dorado fw-bold" onClick={() => setModalVisible(false)}>
+                    <i className="bi bi-x-circle me-1"></i>Cerrar
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

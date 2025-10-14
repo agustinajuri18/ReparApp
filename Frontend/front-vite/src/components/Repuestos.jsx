@@ -352,44 +352,108 @@ function Repuestos() {
       </div>
 
       {modalVisible && (
-        <div className="modal">
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
-              <form onSubmit={handleSubmit}>
-                <div className="modal-header">
-                  <h5 className="modal-title">
-                    {modalModo === 'consultar' && <><i className="bi bi-search me-2"></i>Consultar Repuesto</>}
-                    {modalModo === 'modificar' && <><i className="bi bi-pencil-square me-2"></i>Modificar Repuesto</>}
-                    {modalModo === 'alta' && <><i className="bi bi-plus-lg me-2"></i>Nuevo Repuesto</>}
-                  </h5>
-                  <button type="button" className="btn-close" onClick={handleModalClose} style={{ filter: 'invert(0.5) grayscale(100%) brightness(200%)' }}></button>
-                </div>
-                <div className="modal-body" style={{ maxHeight: 'calc(100vh - 210px)', overflowY: 'auto', padding: 0 }}>
-                  <div className="form-container">
+        <div className="modal" style={{ display: "block" }}>
+          <div className="modal-dialog" style={{ maxWidth: "100vw" }}>
+            <div className="modal-content" style={{ width: "100vw", maxWidth: "100vw" }}>
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  {modalModo === 'consultar' && <><i className="bi bi-search me-2"></i>Consultar Repuesto</>}
+                  {modalModo === 'modificar' && <><i className="bi bi-pencil-square me-2"></i>Modificar Repuesto</>}
+                  {modalModo === 'alta' && <><i className="bi bi-plus-lg me-2"></i>Nuevo Repuesto</>}
+                </h5>
+                <button type="button" className="btn-close" onClick={handleModalClose} style={{ filter: 'invert(0.5) grayscale(100%) brightness(200%)' }}></button>
+              </div>
+              <div className="modal-body" style={{ padding: 0 }}>
+                <form
+                  className="form-container"
+                  onSubmit={handleSubmit}
+                >
                     <fieldset style={{ border: 'none' }}>
                       <legend><i className="bi bi-gear me-2"></i>Datos del Repuesto</legend>
-                      <div className="row g-3">
+                      {/* División: Identificación */}
+                      <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
+                        <i className="bi bi-hash me-2"></i>Identificación
+                      </h6>
+                      <div className="row g-4">
                         <div className="col-12">
-                          <label htmlFor="idRepuesto"><i className="bi bi-hash me-2"></i>Código</label>
-                          <input type="text" id="idRepuesto" name="idRepuesto" value={form.idRepuesto} onChange={handleFormChange} required readOnly={modalModo !== 'alta'} />
-                          {formErrors.idRepuesto && <div className="input-error-message">{formErrors.idRepuesto}</div>}
+                          <div className="mb-3">
+                            <label>
+                              <i className="bi bi-hash me-2"></i>Código
+                            </label>
+                            <input
+                              type="text"
+                              name="idRepuesto"
+                              value={form.idRepuesto}
+                              onChange={handleFormChange}
+                              className="form-control"
+                              required
+                              readOnly={modalModo !== 'alta'}
+                              style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
+                            />
+                            {formErrors.idRepuesto && <div className="input-error-message">{formErrors.idRepuesto}</div>}
+                          </div>
+                        </div>
+                        {/* División: Especificaciones */}
+                        <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                          <i className="bi bi-pc me-2"></i>Especificaciones
+                        </h6>
+                        <div className="col-12 col-md-6">
+                          <div className="mb-3">
+                            <label>
+                              <i className="bi bi-pc me-2"></i>Marca
+                            </label>
+                            <input
+                              type="text"
+                              name="marca"
+                              value={form.marca}
+                              onChange={handleFormChange}
+                              className="form-control"
+                              required
+                              readOnly={modalModo === 'consultar'}
+                              style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
+                            />
+                            {formErrors.marca && <div className="input-error-message">{formErrors.marca}</div>}
+                          </div>
                         </div>
                         <div className="col-12 col-md-6">
-                          <label htmlFor="marca"><i className="bi bi-pc me-2"></i>Marca</label>
-                          <input type="text" id="marca" name="marca" value={form.marca} onChange={handleFormChange} required readOnly={modalModo === 'consultar'} />
-                          {formErrors.marca && <div className="input-error-message">{formErrors.marca}</div>}
+                          <div className="mb-3">
+                            <label>
+                              <i className="bi bi-pc-display me-2"></i>Modelo
+                            </label>
+                            <input
+                              type="text"
+                              name="modelo"
+                              value={form.modelo}
+                              onChange={handleFormChange}
+                              className="form-control"
+                              required
+                              readOnly={modalModo === 'consultar'}
+                              style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
+                            />
+                            {formErrors.modelo && <div className="input-error-message">{formErrors.modelo}</div>}
+                          </div>
                         </div>
-                        <div className="col-12 col-md-6">
-                          <label htmlFor="modelo"><i className="bi bi-pc-display me-2"></i>Modelo</label>
-                          <input type="text" id="modelo" name="modelo" value={form.modelo} onChange={handleFormChange} required readOnly={modalModo === 'consultar'} />
-                          {formErrors.modelo && <div className="input-error-message">{formErrors.modelo}</div>}
-                        </div>
+                        {/* División: Estado */}
+                        <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                          <i className="bi bi-check2-circle me-2"></i>Estado
+                        </h6>
                         <div className="col-12">
-                          <label htmlFor="activo"><i className="bi bi-check2-circle me-2"></i>Estado</label>
-                          <select id="activo" name="activo" value={form.activo} onChange={handleFormChange} disabled={modalModo === 'consultar'}>
-                            <option value={1}>Activo</option>
-                            <option value={0}>Inactivo</option>
-                          </select>
+                          <div className="mb-3">
+                            <label>
+                              <i className="bi bi-check2-circle me-2"></i>Estado
+                            </label>
+                            <select
+                              name="activo"
+                              value={form.activo}
+                              onChange={handleFormChange}
+                              className="form-control"
+                              disabled={modalModo === 'consultar'}
+                              style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
+                            >
+                              <option value={1}>Activo</option>
+                              <option value={0}>Inactivo</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
                     </fieldset>
@@ -459,24 +523,31 @@ function Repuestos() {
                         </button>
                       )}
                     </fieldset>
-                    {mensaje && <div className="alert mt-3">{mensaje}</div>}
-                  </div>
+                    {mensaje && <div className="alert alert-danger">{mensaje}</div>}
+                    {(modalModo === "modificar" || modalModo === "alta") && (
+                      <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
+                        <button type="submit" className="btn btn-azul fw-bold">
+                          <i className="bi bi-save me-1"></i>
+                          {modalModo === "modificar" ? "Guardar cambios" : "Guardar"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-dorado fw-bold"
+                          onClick={handleModalClose}
+                        >
+                          <i className="bi bi-x-circle me-1"></i>Cancelar
+                        </button>
+                      </div>
+                    )}
+                  </form>
                 </div>
-                <div className="modal-footer">
-                  <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
-                    <button type="submit" className="btn btn-azul fw-bold">
-                      <i className="bi bi-save me-1"></i>Guardar
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-dorado fw-bold"
-                      onClick={handleModalClose}
-                    >
+                {modalModo === "consultar" && (
+                  <div className="modal-footer">
+                    <button className="btn btn-dorado fw-bold" onClick={handleModalClose}>
                       <i className="bi bi-x-circle me-1"></i>Cerrar
                     </button>
                   </div>
-                </div>
-              </form>
+                )}
             </div>
           </div>
         </div>

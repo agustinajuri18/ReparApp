@@ -254,10 +254,10 @@ export default function Usuarios() {
               <div className="modal-header">
                 <h5 className="modal-title fw-bold">
                   {modalModo === 'consultar'
-                    ? "Consultar usuario"
+                    ? <><i className="bi bi-search me-2"></i>Consultar usuario</>
                     : modalModo === 'modificar'
-                    ? "Modificar usuario"
-                    : "Nuevo usuario"}
+                    ? <><i className="bi bi-pencil-square me-2"></i>Modificar usuario</>
+                    : <><i className="bi bi-plus-lg me-2"></i>Nuevo usuario</>}
                 </h5>
                 <button
                   type="button"
@@ -289,6 +289,10 @@ export default function Usuarios() {
                             <input value={editId} className="form-control" disabled readOnly />
                           </div>
                         )}
+                        {/* División: Credenciales de acceso */}
+                        <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
+                          <i className="bi bi-shield-lock me-2"></i>Credenciales de acceso
+                        </h6>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-person-fill me-2"></i>Nombre de usuario</label>
                           <input
@@ -299,9 +303,10 @@ export default function Usuarios() {
                             className="form-control"
                             required
                             readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
                           {formErrors.nombreUsuario && (
-                            <div className="text-danger">{formErrors.nombreUsuario}</div>
+                            <div className="input-error-message">{formErrors.nombreUsuario}</div>
                           )}
                         </div>
                         <div className="mb-3">
@@ -315,16 +320,21 @@ export default function Usuarios() {
                             className="form-control"
                             required={modalModo === "alta"}
                             readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
                           {editId && modalModo !== "consultar" && (
                             <small className="text-muted">Dejar vacío para no cambiar la contraseña</small>
                           )}
                           {formErrors.contraseña && (
-                            <div className="text-danger">{formErrors.contraseña}</div>
+                            <div className="input-error-message">{formErrors.contraseña}</div>
                           )}
                         </div>
                       </div>
                       <div className="col-12 col-md-6">
+                        {/* División: Estado */}
+                        <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
+                          <i className="bi bi-check2-circle me-2"></i>Estado
+                        </h6>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
                           <select
@@ -333,12 +343,13 @@ export default function Usuarios() {
                             onChange={modalModo === "consultar" ? undefined : handleChange}
                             className="form-select"
                             disabled={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           >
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
                           </select>
                           {formErrors.activo && (
-                            <div className="text-danger">{formErrors.activo}</div>
+                            <div className="input-error-message">{formErrors.activo}</div>
                           )}
                         </div>
                       </div>
@@ -367,7 +378,7 @@ export default function Usuarios() {
               {modalModo === "consultar" && (
                 <div className="modal-footer">
                   <button className="btn btn-dorado fw-bold" onClick={handleCancelar}>
-                    Cerrar
+                    <i className="bi bi-x-circle me-1"></i>Cerrar
                   </button>
                 </div>
               )}

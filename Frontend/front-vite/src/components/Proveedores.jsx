@@ -75,7 +75,7 @@ function Proveedores() {
   }
 
   function handleDelete(cuil) {
-    fetch(`${API_URL}${cuil}`, { method: "DELETE" })
+    fetch(`${API_URL}/${cuil}`, { method: "DELETE" })
       .then(() => {
         fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`)
           .then(res => res.json())
@@ -162,7 +162,7 @@ function Proveedores() {
       setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
     }
-    fetch(`${API_URL}${proveedorActual.cuil}`, {
+    fetch(`${API_URL}/${proveedorActual.cuil}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(proveedorParaEnviar)
@@ -256,7 +256,7 @@ function Proveedores() {
                 </button>
                 <button
                   className="btn btn-verdeAgua"
-                  onClick={() => { setMostrarFormulario(true); setFormErrors({}); setMensaje(""); }}
+                  onClick={handleAgregarClick}
                 >
                   <i className="bi bi-plus-lg"></i> Agregar proveedor
                 </button>
@@ -323,10 +323,10 @@ function Proveedores() {
               <div className="modal-header">
                 <h5 className="modal-title">
                   {modalModo === 'consultar'
-                    ? "Consultar proveedor"
+                    ? <><i className="bi bi-search me-2"></i>Consultar proveedor</>
                     : modalModo === 'modificar'
-                    ? "Modificar proveedor"
-                    : "Nuevo proveedor"}
+                    ? <><i className="bi bi-pencil-square me-2"></i>Modificar proveedor</>
+                    : <><i className="bi bi-plus-lg me-2"></i>Nuevo proveedor</>}
                 </h5>
                 <button type="button" className="btn-close" onClick={() => setModalVisible(false)}></button>
               </div>
@@ -345,6 +345,10 @@ function Proveedores() {
                     <legend>
                       <i className="bi bi-person-badge me-2"></i>Datos del proveedor
                     </legend>
+                    {/* División: Datos de identificación */}
+                    <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
+                      <i className="bi bi-credit-card-2-front me-2"></i>Datos de identificación
+                    </h6>
                     <div className="row g-4">
                       <div className="col-12 col-md-6">
                         <div className="row g-4">
@@ -365,6 +369,7 @@ function Proveedores() {
                                 required
                                 className="form-control"
                                 disabled={modalModo === "consultar"}
+                                style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                               />
                               {formErrors.cuil && <div className="input-error-message">{formErrors.cuil}</div>}
                             </div>
@@ -386,6 +391,7 @@ function Proveedores() {
                                 required
                                 className="form-control"
                                 readOnly={modalModo === "consultar"}
+                                style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                               />
                               {formErrors.razonSocial && <div className="input-error-message">{formErrors.razonSocial}</div>}
                             </div>
@@ -394,6 +400,10 @@ function Proveedores() {
                       </div>
                       <div className="col-12 col-md-6">
                         <div className="row g-4">
+                          {/* División: Datos de contacto */}
+                          <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
+                            <i className="bi bi-telephone me-2"></i>Datos de contacto
+                          </h6>
                           <div className="col-12">
                             <div className="mb-3">
                               <label>
@@ -411,10 +421,15 @@ function Proveedores() {
                                 required
                                 className="form-control"
                                 readOnly={modalModo === "consultar"}
+                                style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                               />
                               {formErrors.telefono && <div className="input-error-message">{formErrors.telefono}</div>}
                             </div>
                           </div>
+                          {/* División: Estado */}
+                          <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                            <i className="bi bi-check2-circle me-2"></i>Estado
+                          </h6>
                           <div className="col-12">
                             <div className="mb-3">
                               <label>
@@ -430,6 +445,7 @@ function Proveedores() {
                                 onChange={handleChange}
                                 className="form-control"
                                 disabled={modalModo === "consultar"}
+                                style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                               >
                                 <option value={1}>Activo</option>
                                 <option value={0}>Inactivo</option>
@@ -464,7 +480,7 @@ function Proveedores() {
               {modalModo === "consultar" && (
                 <div className="modal-footer">
                   <button className="btn btn-dorado fw-bold" onClick={() => setModalVisible(false)}>
-                    Cerrar
+                    <i className="bi bi-x-circle me-1"></i>Cerrar
                   </button>
                 </div>
               )}

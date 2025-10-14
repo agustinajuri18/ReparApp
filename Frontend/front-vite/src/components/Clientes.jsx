@@ -359,10 +359,10 @@ export default function Clientes() {
               <div className="modal-header">
                 <h5 className="modal-title">
                   {modalModo === 'consultar'
-                    ? "Consultar cliente"
+                    ? <><i className="bi bi-search me-2"></i>Consultar cliente</>
                     : modalModo === 'modificar'
-                    ? "Modificar cliente"
-                    : "Nuevo cliente"}
+                    ? <><i className="bi bi-pencil-square me-2"></i>Modificar cliente</>
+                    : <><i className="bi bi-plus-lg me-2"></i>Nuevo cliente</>}
                 </h5>
               </div>
               <div className="modal-body" style={{ padding: 0 }}>
@@ -401,6 +401,7 @@ export default function Clientes() {
                             className="form-control"
                             required
                             disabled={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           >
                             <option key="default" value="">Seleccione tipo de documento</option>
                             {tiposDocumento.map(td => (
@@ -427,6 +428,7 @@ export default function Clientes() {
                             required
                             className="form-control"
                             disabled={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
                           {formErrors.numeroDoc && <div className="input-error-message">{formErrors.numeroDoc}</div>}
                         </div>
@@ -448,6 +450,7 @@ export default function Clientes() {
                             required
                             className="form-control"
                             readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
                           {formErrors.nombre && <div className="input-error-message">{formErrors.nombre}</div>}
                         </div>
@@ -467,6 +470,7 @@ export default function Clientes() {
                             required
                             className="form-control"
                             readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
                           {formErrors.apellido && <div className="input-error-message">{formErrors.apellido}</div>}
                         </div>
@@ -494,6 +498,7 @@ export default function Clientes() {
                             required
                             className="form-control"
                             readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
                           {formErrors.telefono && <div className="input-error-message">{formErrors.telefono}</div>}
                         </div>
@@ -515,6 +520,7 @@ export default function Clientes() {
                             required
                             className="form-control"
                             readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
                           {formErrors.mail && <div className="input-error-message">{formErrors.mail}</div>}
                         </div>
@@ -540,6 +546,7 @@ export default function Clientes() {
                             onChange={handleChange}
                             className="form-control"
                             disabled={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           >
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
@@ -572,7 +579,7 @@ export default function Clientes() {
               {modalModo === "consultar" && (
                 <div className="modal-footer">
                   <button className="btn btn-dorado fw-bold" onClick={() => setModalVisible(false)}>
-                    Cerrar
+                    <i className="bi bi-x-circle me-1"></i>Cerrar
                   </button>
                 </div>
               )}

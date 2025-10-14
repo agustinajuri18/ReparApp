@@ -338,9 +338,10 @@ def mostrar_por_estado(idEstado):
 
 
 # ----------- HistorialArreglos -----------
-def mostrar_historial_arreglos(idDispositivo):
-    with session_scope() as s:
-        return s.query(HistorialArreglos).filter_by(idDispositivo=idDispositivo).all()
+# Versión corregida
+def mostrar_historial_arreglos(nroDeOrden):
+    with session_scope() as session:
+        return session.query(HistorialArreglos).filter_by(nroDeOrden=nroDeOrden).all()
 
 def alta_historial_arreglos(nroDeOrden, idDispositivo, fechaArreglo, descripcion=None):
     with session_scope() as s:

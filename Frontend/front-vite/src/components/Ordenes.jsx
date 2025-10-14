@@ -26,6 +26,8 @@ function Ordenes() {
   const [modalModo, setModalModo] = useState('alta');
 
   const [proveedoresFiltrados, setProveedoresFiltrados] = useState([]);
+
+  const [modalMensaje, setModalMensaje] = useState(null);
   const [showAddDetalle, setShowAddDetalle] = useState(false);
   const [availableRepuestos, setAvailableRepuestos] = useState([]); // <-- repuestos filtrados por servicio
 
@@ -36,7 +38,8 @@ function Ordenes() {
     descripcionDanos: "",
     diagnostico: "",
     presupuesto: 0,
-    idEmpleado: ""
+    idEmpleado: "",
+    estado: "EnDiagnostico" // Estado por defecto
   });
 
   const [detalles, setDetalles] = useState([]);
@@ -49,6 +52,10 @@ function Ordenes() {
     subtotal: ""
   });
   const [editingDetalleId, setEditingDetalleId] = useState(null);
+
+  // Para registrar avances técnicos
+  const [avances, setAvances] = useState([]);
+  const [nuevoAvance, setNuevoAvance] = useState("");
 
   const [showAddClienteModal, setShowAddClienteModal] = useState(false);
   const [showAddDispositivoModal, setShowAddDispositivoModal] = useState(false);
@@ -200,7 +207,8 @@ function Ordenes() {
       descripcionDanos: "",
       diagnostico: "",
       presupuesto: 0,
-      idEmpleado: ""
+      idEmpleado: "",
+      estado: "En Diagnóstico" // Mostrar estado legible para el usuario
     });
     setDetalles([]);
     setFormErrors({});
@@ -292,6 +300,13 @@ function Ordenes() {
         console.error("Error al obtener detalles:", err);
         setDetalles([]);
       });
+
+    // Cargar actualizaciones si existe el endpoint
+    fetch(`${API_URL}/${orden.nroDeOrden}/actualizaciones`)
+      .then(res => res.json())
+      .then(setAvances)
+      .catch(() => setAvances([]));
+
     setFormErrors({});
     setMensaje("");
     setModalVisible(true);
@@ -299,6 +314,155 @@ function Ordenes() {
     setAvailableRepuestos([]);
     setProveedoresFiltrados([]);
     setEditingDetalleId(null);
+  };
+
+  // --- Confirmación de Presupuesto ---
+  // Reemplaza la función confirmarPresupuesto existente por esta
+  const confirmarPresupuesto = (aceptado) => {
+    fetch(`http://localhost:5000/ordenes/${form.nroDeOrden}/confirmacion-presupuesto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aceptado, usuario: "encargado1" })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          // En lugar de usar setMensaje global, usamos un estado local para el modal
+          setModalMensaje({
+            tipo: 'success',
+            texto: `Presupuesto ${aceptado ? 'aceptado' : 'rechazado'} correctamente.`
+          });
+          fetchOrdenes();
+          setForm(prev => ({
+            ...prev,
+            estado: data.nuevoEstado
+          }));
+        } else {
+          setModalMensaje({
+            tipo: 'danger',
+            texto: data.error || 'Ocurrió un error'
+          });
+        }
+      })
+      .catch(() => {
+        setModalMensaje({
+          tipo: 'danger',
+          texto: 'Error de red'
+        });
+      });
+  };
+
+  // --- Registro de avances técnicos ---
+  const registrarAvance = (e) => {
+    e.preventDefault();
+
+    // Validación básica
+    if (!nuevoAvance.trim()) {
+      setModalMensaje({
+        tipo: 'warning',
+        texto: 'Debe ingresar una descripción del avance'
+      });
+      return;
+    }
+
+    console.log("Enviando avance:", nuevoAvance); // Debug
+
+    fetch(`http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ descripcion: nuevoAvance, usuario: "tecnico1" })
+    })
+      .then(res => {
+        console.log("Respuesta del servidor:", res.status); // Debug
+        if (!res.ok) {
+          throw new Error(`Error al registrar avance: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        console.log("Datos del servidor:", data); // Debug
+
+        if (data.success) {
+          // Limpiar el campo
+          setNuevoAvance("");
+
+          // Mostrar mensaje de éxito dentro del modal
+          setModalMensaje({
+            tipo: 'success',
+            texto: "Avance registrado correctamente"
+          });
+
+          // Cargar avances inmediatamente después del registro exitoso
+          console.log("Recargando avances para orden:", form.nroDeOrden); // Debug
+
+          fetch(`http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`)
+            .then(res => {
+              console.log("Respuesta de carga de avances:", res.status); // Debug
+              if (!res.ok) {
+                throw new Error("Error al cargar avances");
+              }
+              return res.json();
+            })
+            .then(data => {
+              console.log("Avances cargados:", data); // Debug
+              setAvances(data);
+            })
+            .catch(err => {
+              console.error("Error al cargar avances:", err);
+              setModalMensaje({
+                tipo: 'warning',
+                texto: "Avance registrado pero no se pudieron cargar las actualizaciones"
+              });
+            });
+        } else {
+          setModalMensaje({
+            tipo: 'danger',
+            texto: data.error || "Error al registrar el avance"
+          });
+        }
+      })
+      .catch(err => {
+        console.error("Error en registrarAvance:", err); // Debug
+        setModalMensaje({
+          tipo: 'danger',
+          texto: err.message
+        });
+      });
+  };
+  // Función para cargar avances
+  const cargarAvances = () => {
+    const url = `http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`;
+
+    // Mostrar indicador de carga (opcional)
+    // setModalMensaje({ tipo: 'info', texto: 'Cargando avances...' });
+
+    fetch(url)
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`Error HTTP: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        setAvances(Array.isArray(data) ? data : []);
+
+        // Opcional: mostrar mensaje solo si no hay mensaje de éxito ya visible
+        if (!modalMensaje || modalMensaje.tipo !== 'success') {
+          setModalMensaje({
+            tipo: 'info',
+            texto: data.length > 0
+              ? `${data.length} avances registrados para esta orden`
+              : 'No hay avances registrados para esta orden'
+          });
+        }
+      })
+      .catch(err => {
+        console.error("Error al cargar avances:", err);
+        setModalMensaje({
+          tipo: 'warning',
+          texto: `No se pudieron cargar los avances: ${err.message}`
+        });
+      });
   };
 
   // --- Manejadores de Formularios ---
@@ -370,6 +534,16 @@ function Ordenes() {
       updatedDetalle.costoRepuesto = "";
     }
 
+    // --- lógica de autocompletar costos (como ya tenías) ---
+    let costoServ = parseFloat(updatedDetalle.costoServicio || 0);
+    let costoRep = parseFloat(updatedDetalle.costoRepuesto || 0);
+
+    if (name === "codigoServicio") {
+      const servicioSeleccionado = servicios.find(s => s.idServicio?.toString() === value);
+      costoServ = servicioSeleccionado ? parseFloat(servicioSeleccionado.precioBase) : 0;
+      updatedDetalle.costoServicio = costoServ;
+    }
+
     if (name === "repuestoProveedor") {
       const [codRepuesto, cuilProv] = value.split('/');
       let costoEncontrado = 0;
@@ -380,8 +554,7 @@ function Ordenes() {
       updatedDetalle.costoRepuesto = costoEncontrado;
     }
 
-    const costoServ = parseFloat(updatedDetalle.costoServicio || 0);
-    const costoRep = parseFloat(updatedDetalle.costoRepuesto || 0);
+    costoRep = parseFloat(updatedDetalle.costoRepuesto || 0);
     updatedDetalle.subtotal = costoServ + costoRep;
 
     setNuevoDetalle(updatedDetalle);
@@ -404,21 +577,29 @@ function Ordenes() {
       detalles: detalles.map(d => {
         let finalRepuestoProveedorId = d.repuesto_proveedor_id;
 
-        // Si el detalle es nuevo o fue editado, necesitamos encontrar el ID de la relación.
-        if (d.isNew || editingDetalleId === d.idDetalle || !finalRepuestoProveedorId) {
-            const repuestoProveedorRel = repuestosProveedores.find(rp => 
-                String(rp.idRepuesto) === String(d.codRepuestos) &&
-                String(rp.cuilProveedor) === String(d.cuitProveedor) // <-- CORRECCIÓN: Usar 'cuilProveedor'
-            );
-            if (repuestoProveedorRel) {
-                finalRepuestoProveedorId = repuestoProveedorRel.id;
-            }
-        }
+    // Si el detalle es nuevo o fue editado, necesitamos encontrar el ID de la relación.
+    if (d.isNew || editingDetalleId === d.idDetalle || !finalRepuestoProveedorId) {
+      // Intentar por cuilProveedor (legacy)
+      let repuestoProveedorRel = repuestosProveedores.find(rp => 
+        String(rp.idRepuesto) === String(d.codRepuestos) &&
+        (String(rp.cuilProveedor) === String(d.cuitProveedor) || String(rp.cuil) === String(d.cuitProveedor))
+      );
+      // Si no se encontró, intentar por idProveedor
+      if (!repuestoProveedorRel) {
+        repuestoProveedorRel = repuestosProveedores.find(rp => 
+          String(rp.idRepuesto) === String(d.codRepuestos) &&
+          (String(rp.idProveedor) === String(d.cuitProveedor) || String(rp.idProveedor) === String(d.idProveedor))
+        );
+      }
+      if (repuestoProveedorRel) {
+        finalRepuestoProveedorId = repuestoProveedorRel.id;
+      }
+    }
         
         return {
           idDetalle: typeof d.idDetalle === 'string' && d.idDetalle.startsWith('new_') ? null : d.idDetalle,
           idServicio: d.codigoServicio || d.idServicio,
-          repuesto_proveedor_id: finalRepuestoProveedorId,
+          repuesto_proveedor_id: finalRepuestoProveedorId ?? null,
           costoServicio: parseFloat(d.costoServicio || 0),
           costoRepuesto: parseFloat(d.costoRepuesto || 0),
           subtotal: parseFloat(d.subtotal || 0)
@@ -656,17 +837,19 @@ function Ordenes() {
                       <th>Dispositivo</th>
                       <th>Empleado</th>
                       <th>Fecha</th>
+                      <th>Estado</th> {/* Columna para estado */}
                       <th>Diagnóstico</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {ordenes.map((o) => (
-                      <tr key={o.nroDeOrden}>
+                      <tr key={String(o.nroDeOrden)}>
                         <td>{o.nroDeOrden}</td>
                         <td>{o.dispositivo_info}</td>
                         <td>{o.empleado_info}</td>
                         <td>{o.fecha}</td>
+                        <td>{o.estado}</td> {/* Mostramos el estado actual */}
                         <td>{o.diagnostico}</td>
                         <td>
                           <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
@@ -691,11 +874,19 @@ function Ordenes() {
           <div className="modal-dialog modal-xl modal-dialog-scrollable">
             <div className="modal-content">
               <form onSubmit={handleSubmit}>
+
                 <div className="modal-header">
                   <h5 className="modal-title">{modalModo === 'alta' ? 'Nueva Orden' : modalModo === 'modificar' ? 'Modificar Orden' : 'Consultar Orden'}</h5>
                   <button type="button" className="btn-close" onClick={handleModalClose}></button>
                 </div>
-                <div className="modal-body" style={{ padding: 16, maxHeight: '70vh', overflowY: 'auto' }}>
+                {modalMensaje && (
+                  <div className={`alert alert-${modalMensaje.tipo} alert-dismissible fade show mx-3 mt-3 mb-0`}>
+                    {modalMensaje.texto}
+                    <button type="button" className="btn-close" onClick={() => setModalMensaje(null)}></button>
+                  </div>
+                )}
+
+                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto', padding: 16 }}>
                   <fieldset>
                     <legend>Datos de la Orden</legend>
                     <div className="row g-3">
@@ -725,6 +916,16 @@ function Ordenes() {
                         <input type="date" name="fecha" value={form.fecha} onChange={handleFormChange} className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar'} />
                         {formErrors.fecha && <div className="input-error-message">{formErrors.fecha}</div>}
                       </div>
+                      <div className="col-md-4">
+                        <label>Estado actual</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={modalModo === 'alta' ? 'En Diagnóstico' : form.estado || "-"}
+                          readOnly
+                          style={{ backgroundColor: "#e9ecef" }}
+                        />
+                      </div>
                       <div className="col-md-8">
                         <label>Descripción de Daños</label>
                         <input name="descripcionDanos" value={form.descripcionDanos} onChange={handleFormChange} className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar'} />
@@ -739,6 +940,20 @@ function Ordenes() {
                         <input type="number" name="presupuesto" value={form.presupuesto} className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`} readOnly />
                       </div>
                     </div>
+
+                    {/* Botones de confirmación de presupuesto (solo si está pendiente) */}
+                    {modalModo === 'consultar' &&
+                      (form.estado === 'PendienteDeAprobacion' ||
+                        form.estado?.toLowerCase().includes('pendiente') && form.estado?.toLowerCase().includes('aprob')) && (
+                        <div className="my-3">
+                          <button type="button" className="btn btn-success me-2" onClick={() => confirmarPresupuesto(true)}>
+                            Aceptar Presupuesto
+                          </button>
+                          <button type="button" className="btn btn-danger" onClick={() => confirmarPresupuesto(false)}>
+                            Rechazar Presupuesto
+                          </button>
+                        </div>
+                      )}
                   </fieldset>
 
                   <fieldset className="mt-4">
@@ -764,7 +979,7 @@ function Ordenes() {
                       </thead>
                       <tbody>
                         {detalles.map((detalle, index) => (
-                          <tr key={detalle.idDetalle || index}>
+                          <tr key={String(detalle.idDetalle ?? index)}>
                             <td>{detalle.servicioDescripcion}</td>
                             <td>{detalle.repuestoDescripcion}</td>
                             <td>{detalle.proveedorRazonSocial}</td>
@@ -839,7 +1054,7 @@ function Ordenes() {
                           >
                             <option value="">Seleccione un proveedor</option>
                             {proveedoresFiltrados.map((p, index) => (
-                              <option key={`${p.cuilProveedor}-${index}`} value={`${nuevoDetalle.codigoRepuesto}/${p.cuilProveedor}`}>
+                              <option key={`${p.idProveedor}-${index}`} value={`${nuevoDetalle.codigoRepuesto}/${p.idProveedor}`}>
                                 {p.razonSocial} - ${p.costo}
                               </option>
                             ))}
@@ -862,14 +1077,180 @@ function Ordenes() {
                           {nuevoDetalleErrors.subtotal && <div className="input-error-message">{nuevoDetalleErrors.subtotal}</div>}
                         </div>
                         <div className="col-auto d-flex gap-2">
-                          <button type="button" className="btn btn-verdeAgua" onClick={handleAgregarDetalleLocal}>{editingDetalleId ? 'Actualizar' : 'Añadir'}</button>
+                          <button type="button" className="btn btn-verdeAgua" onClick={handleAgregarDetalleLocal}>
+                            {editingDetalleId ? 'Actualizar' : 'Añadir'}
+                          </button>
                           {editingDetalleId && (
-                            <button type="button" className="btn btn-dorado" onClick={() => { setEditingDetalleId(null); setNuevoDetalle({ codigoServicio: "", codigoRepuesto: "", repuestoProveedor: "", costoServicio: "", costoRepuesto: "", subtotal: "" }); setMensaje('Edición cancelada.'); }}>Cancelar</button>
+                            <button type="button" className="btn btn-dorado" onClick={() => {
+                              setEditingDetalleId(null);
+                              setNuevoDetalle({
+                                codigoServicio: "",
+                                codigoRepuesto: "",
+                                repuestoProveedor: "",
+                                costoServicio: "",
+                                costoRepuesto: "",
+                                subtotal: ""
+                              });
+                              setMensaje('Edición cancelada.');
+                            }}>
+                              Cancelar
+                            </button>
                           )}
                         </div>
                       </div>
                     )}
                   </fieldset>
+
+                  {/* Sección de Avances Técnicos */}
+                  <fieldset className="mt-4">
+                    <legend>Avances Técnicos</legend>
+
+                    {/* Solo muestra la entrada si está en reparación */}
+                    {form.estado === 'EnReparacion' && (
+                      <div className="mb-3">
+                        <div className="input-group">
+                          <input
+                            type="text"
+                            value={nuevoAvance}
+                            onChange={e => setNuevoAvance(e.target.value)}
+                            placeholder="Descripción del avance técnico"
+                            className="form-control"
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-dorado"
+                            onClick={() => {
+                              // Validación
+                              if (!nuevoAvance.trim()) {
+                                setModalMensaje({
+                                  tipo: 'warning',
+                                  texto: 'Debe ingresar una descripción del avance'
+                                });
+                                return;
+                              }
+
+                              // Mostrar indicador de carga
+                              setModalMensaje({
+                                tipo: 'info',
+                                texto: 'Registrando avance...'
+                              });
+
+                              fetch(`http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`, {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'Accept': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                  descripcion: nuevoAvance,
+                                  usuario: "vbluciana"
+                                })
+                              })
+                                .then(res => {
+                                  if (!res.ok) {
+                                    throw new Error(`Error del servidor: ${res.status}`);
+                                  }
+                                  return res.json();
+                                })
+                                .then(data => {
+                                  if (data.success) {
+                                    // Limpiar campo
+                                    setNuevoAvance("");
+
+                                    // Mostrar confirmación
+                                    setModalMensaje({
+                                      tipo: 'success',
+                                      texto: "Avance registrado correctamente"
+                                    });
+
+                                    // Recargar avances tras un breve retardo
+                                    setTimeout(() => {
+                                      fetch(`http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`)
+                                        .then(res => res.json())
+                                        .then(data => setAvances(Array.isArray(data) ? data : []))
+                                        .catch(err => console.error("Error al recargar avances:", err));
+                                    }, 300);
+                                  } else {
+                                    throw new Error(data.error || "Error desconocido");
+                                  }
+                                })
+                                .catch(err => {
+                                  console.error("Error:", err);
+                                  setModalMensaje({
+                                    tipo: 'danger',
+                                    texto: `Error: ${err.message}`
+                                  });
+                                });
+                            }}
+                          >
+                            <i className="bi bi-plus-circle me-1"></i> Registrar avance
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Botón para ver avances (siempre visible) */}
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                      <h5 className="mb-0">Historial de avances</h5>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-verdeAgua"
+                        onClick={() => {
+                          // Mostrar indicador de carga
+                          setModalMensaje({
+                            tipo: 'info',
+                            texto: 'Actualizando historial de avances...'
+                          });
+
+                          fetch(`http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`)
+                            .then(res => {
+                              if (!res.ok) throw new Error("Error al cargar historial");
+                              return res.json();
+                            })
+                            .then(data => {
+                              setAvances(Array.isArray(data) ? data : []);
+                              setModalMensaje({
+                                tipo: 'info',
+                                texto: `Se ${data.length > 0 ? `encontraron ${data.length} avances` : 'cargó el historial de avances'}`
+                              });
+                            })
+                            .catch(err => {
+                              setModalMensaje({
+                                tipo: 'danger',
+                                texto: `Error al cargar historial: ${err.message}`
+                              });
+                            });
+                        }}
+                      >
+                        <i className="bi bi-arrow-clockwise me-1"></i> Actualizar historial
+                      </button>
+                    </div>
+
+                    {/* Lista de avances */}
+                    {avances.length > 0 ? (
+                      <div className="list-group">
+                        {avances.map(a => (
+                          <div key={a.idHistorialor} className="list-group-item list-group-item-action">
+                            <div className="d-flex w-100 justify-content-between">
+                              <h6 className="mb-1 fw-bold">Avance técnico</h6>
+                              <small className="text-muted">
+                                {new Date(a.fechaArreglo).toLocaleString()}
+                              </small>
+                            </div>
+                            <p className="mb-1">{a.descripcion}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="alert alert-light text-center">
+                        No hay avances registrados para esta orden.
+                        {form.estado === 'EnReparacion' ?
+                          ' Utilice el formulario superior para registrar un nuevo avance.' :
+                          ''}
+                      </div>
+                    )}
+                  </fieldset>
+
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn btn-dorado" onClick={handleModalClose}>Cerrar</button>

@@ -302,6 +302,10 @@ export default function Dispositivos() {
                                         <legend>
                                             <i className="bi bi-cpu me-2"></i>Datos del dispositivo
                                         </legend>
+                                        {/* División: Información del dispositivo */}
+                                        <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
+                                            <i className="bi bi-cpu me-2"></i>Información del dispositivo
+                                        </h6>
                                         <div className="row g-4">
                                             <div className="col-12 col-md-6">
                                                 <div className="mb-3">
@@ -317,6 +321,8 @@ export default function Dispositivos() {
                                                     />
                                                     {formErrors.nroSerie && <div className="input-error-message">{formErrors.nroSerie}</div>}
                                                 </div>
+                                            </div>
+                                            <div className="col-12 col-md-6">
                                                 <div className="mb-3">
                                                     <label className="fw-semibold"><i className="bi bi-pc me-2"></i>Marca</label>
                                                     <input
@@ -330,6 +336,8 @@ export default function Dispositivos() {
                                                     />
                                                     {formErrors.marca && <div className="input-error-message">{formErrors.marca}</div>}
                                                 </div>
+                                            </div>
+                                            <div className="col-12 col-md-6">
                                                 <div className="mb-3">
                                                     <label className="fw-semibold"><i className="bi bi-pc-display me-2"></i>Modelo</label>
                                                     <input
@@ -344,7 +352,13 @@ export default function Dispositivos() {
                                                     {formErrors.modelo && <div className="input-error-message">{formErrors.modelo}</div>}
                                                 </div>
                                             </div>
-                                            <div className="col-12 col-md-6">
+                                        </div>
+                                        {/* División: Cliente asociado */}
+                                        <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                                            <i className="bi bi-person-lines-fill me-2"></i>Cliente asociado
+                                        </h6>
+                                        <div className="row g-4">
+                                            <div className="col-12">
                                                 <div className="mb-3">
                                                     <label className="fw-semibold"><i className="bi bi-person-lines-fill me-2"></i>Cliente</label>
                                                     {modalModo === "consultar" ? (
@@ -378,7 +392,16 @@ export default function Dispositivos() {
                                                             ))}
                                                         </select>
                                                     )}
+                                                    {formErrors.idCliente && <div className="input-error-message">{formErrors.idCliente}</div>}
                                                 </div>
+                                            </div>
+                                        </div>
+                                        {/* División: Estado */}
+                                        <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
+                                            <i className="bi bi-check2-circle me-2"></i>Estado
+                                        </h6>
+                                        <div className="row g-4">
+                                            <div className="col-12 col-md-6">
                                                 <div className="mb-3">
                                                     <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
                                                     <select

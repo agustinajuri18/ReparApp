@@ -135,10 +135,12 @@ export default function Empleados() {
   };
 
   const handleDelete = idEmpleado => {
-    fetch(`${API_URL}/${idEmpleado}`, { method: "DELETE" })
-      .then(() => {
-        fetchEmpleados();
-      });
+    if (window.confirm("¿Estás seguro de que deseas eliminar este empleado?")) {
+      fetch(`${API_URL}/${idEmpleado}`, { method: "DELETE" })
+        .then(() => {
+          fetchEmpleados();
+        });
+    }
   };
 
   function handleModificar(empleado) {
@@ -317,6 +319,7 @@ export default function Empleados() {
                             required
                             className="form-control"
                             readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
                           {formErrors.nombre && <div className="input-error-message">{formErrors.nombre}</div>}
                         </div>
@@ -338,6 +341,7 @@ export default function Empleados() {
                             required
                             className="form-control"
                             readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
                           {formErrors.apellido && <div className="input-error-message">{formErrors.apellido}</div>}
                         </div>
@@ -364,6 +368,7 @@ export default function Empleados() {
                             className="form-control"
                             required
                             disabled={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           >
                             <option value="">Seleccione un cargo</option>
                             {cargos.map(c => (
@@ -389,6 +394,7 @@ export default function Empleados() {
                             className="form-control"
                             required
                             disabled={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           >
                             <option value="">Seleccione un usuario</option>
                             {usuariosParaDropdown.map(u => (
@@ -419,6 +425,7 @@ export default function Empleados() {
                             onChange={handleChange}
                             className="form-control"
                             disabled={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           >
                             <option value={1}>Activo</option>
                             <option value={0}>Inactivo</option>
