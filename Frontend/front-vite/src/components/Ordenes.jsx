@@ -3,7 +3,7 @@ import MenuLateral from './MenuLateral';
 
 const API_URL = "http://localhost:5000/ordenes";
 const DISPOSITIVOS_URL = "http://localhost:5000/dispositivos";
-const EMPLEADOS_URL = "http://localhost:5000/empleados";
+const TECNICOS_URL = "http://localhost:5000/empleadosTecnicos";
 const CLIENTES_URL = "http://localhost:5000/clientes";
 const TIPOS_DOC_URL = "http://localhost:5000/tipos-documento";
 const ESTADOS_URL = "http://localhost:5000/estados";
@@ -91,7 +91,7 @@ function Ordenes() {
   useEffect(() => {
     fetchOrdenes();
     fetchClientes();
-    fetchEmpleados();
+    fetchTecnicos();
     fetchDispositivos();
     fetchTiposDocumento();
     fetchServicios();
@@ -105,11 +105,11 @@ function Ordenes() {
       .catch(err => console.error("Error fetching clientes:", err));
   };
 
-  const fetchEmpleados = () => {
-    fetch(EMPLEADOS_URL)
+  const fetchTecnicos = () => {
+    fetch(TECNICOS_URL)
       .then(res => res.json())
       .then(data => setEmpleados(Array.isArray(data) ? data : []))
-      .catch(err => console.error("Error fetching empleados:", err));
+      .catch(err => console.error("Error fetching tecnicos:", err));
   };
 
   const fetchDispositivos = () => {
@@ -698,9 +698,9 @@ function Ordenes() {
                         {formErrors.idDispositivo && <div className="input-error-message">{formErrors.idDispositivo}</div>}
                       </div>
                       <div className="col-md-6">
-                        <label>Empleado Asignado</label>
+                        <label>Técnico Asignado</label>
                         <select name="idEmpleado" value={form.idEmpleado} onChange={handleFormChange} className={`form-select ${modalModo === 'consultar' ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar'}>
-                          <option value="">Seleccione un empleado</option>
+                          <option value="">Seleccione un Técnico</option>
                           {empleados.map(e => <option key={e.idEmpleado} value={e.idEmpleado}>{`${e.nombre} ${e.apellido}`}</option>)}
                         </select>
                         {formErrors.idEmpleado && <div className="input-error-message">{formErrors.idEmpleado}</div>}

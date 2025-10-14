@@ -2,7 +2,7 @@ import re
 from flask import Blueprint, request, jsonify
 from ABMC_db import (
     alta_empleado, modificar_empleado as modificar_empleado_db, mostrar_empleados, baja_empleado,
-    mostrar_cargos
+    mostrar_cargos, mostrar_tecnicos
 )
 from flask_cors import cross_origin
 
@@ -82,4 +82,21 @@ def listar_cargos():
             'idCargo': c.idCargo,
             'descripcion': c.descripcion
         } for c in cargos
+    ])
+
+# ------ API Para obtener solamente tecnicos acivos, utilizado para asignar técnicos a una orden de reparacion ------
+@bp.route('/empleadosTecnicos', methods=['GET'])
+def listar_tecnicos():
+    activos = request.args.get('activos', 'true').lower() == 'true'
+    id_cargo_tecnico = 2
+    empleados = mostrar_tecnicos(activos_only=activos, idCargo=id_cargo_tecnico)
+    return jsonify([
+        {
+            'idEmpleado': e.idEmpleado,
+            'nombre': e.nombre,
+            'apellido': e.apellido,
+            'idCargo': e.idCargo,
+            'idUsuario': e.idUsuario,
+            'activo': e.activo
+        } for e in empleados
     ])
