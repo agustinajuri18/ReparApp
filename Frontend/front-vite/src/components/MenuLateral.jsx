@@ -6,6 +6,7 @@ const menuOptions = [
   { path: "/ordenes", label: "Órdenes" },
   { path: "/clientes", label: "Clientes" },
   { path: "/dispositivos", label: "Dispositivos" },
+  { path: "/reportes", label: "Reportes" },
   { path: "/proveedores", label: "Proveedores" },
   { path: "/repuestos", label: "Repuestos" },
   { path: "/servicios", label: "Servicios" },

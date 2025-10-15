@@ -30,6 +30,10 @@ export default function Clientes() {
   // Agregar estado para el ID en edición
   const [editId, setEditId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dupChecking, setDupChecking] = useState(false);
+  const [duplicateExists, setDuplicateExists] = useState(false);
+  const [duplicateMsg, setDuplicateMsg] = useState("");
+  const checkTimer = React.useRef(null);
 
   // Cargar clientes
   const fetchClientes = () => {
@@ -77,7 +81,60 @@ export default function Clientes() {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
     setFormErrors(validarCliente({ ...form, [name]: value }));
+    // si el usuario está cambiando tipo o nro de documento, lanzar verificación debounced
+    if (name === 'idTipoDoc' || name === 'numeroDoc') {
+      // limpiar mensaje previo
+      setDuplicateExists(false);
+      setDuplicateMsg("");
+      if (checkTimer.current) clearTimeout(checkTimer.current);
+      const updated = { ...form, [name]: value };
+      checkTimer.current = setTimeout(() => {
+        // sólo si ambos campos tienen valor
+        if (updated.idTipoDoc && updated.numeroDoc) {
+          verificarDuplicado(updated.idTipoDoc, updated.numeroDoc);
+        }
+      }, 500);
+    }
   };
+
+  // limpiar timer on unmount
+  React.useEffect(() => {
+    return () => { if (checkTimer.current) clearTimeout(checkTimer.current); };
+  }, []);
+
+  async function verificarDuplicado(idTipoDoc, numeroDoc) {
+    setDupChecking(true);
+    setDuplicateExists(false);
+    setDuplicateMsg("");
+    try {
+      const res = await fetch(`${API_URL}/existe?idTipoDoc=${encodeURIComponent(idTipoDoc)}&numeroDoc=${encodeURIComponent(numeroDoc)}`);
+      if (!res.ok) {
+        setDupChecking(false);
+        return;
+      }
+      const j = await res.json();
+      if (j.exists) {
+        // comprobar si el cliente encontrado es el mismo que estamos editando
+        const otro = clientes.find(c => String(c.idTipoDoc) === String(idTipoDoc) && String(c.numeroDoc) === String(numeroDoc));
+        if (otro && String(otro.idCliente) === String(editId)) {
+          // es el mismo cliente en edición -> no es duplicado
+          setDuplicateExists(false);
+          setDuplicateMsg("");
+        } else {
+          setDuplicateExists(true);
+          setDuplicateMsg('Ya existe un cliente con ese tipo y número de documento.');
+        }
+      } else {
+        setDuplicateExists(false);
+        setDuplicateMsg("");
+      }
+    } catch (err) {
+      // no bloquear por error de red; apenas loguear
+      console.warn('verificarDuplicado error', err);
+    } finally {
+      setDupChecking(false);
+    }
+  }
 
   // Mostrar modal para alta o modificación
   const handleAgregarClick = () => {
@@ -150,6 +207,20 @@ export default function Clientes() {
       setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
     }
+    // Verificar duplicado de documento antes de crear
+    try {
+      const existeRes = await fetch(`${API_URL}/existe?idTipoDoc=${encodeURIComponent(form.idTipoDoc)}&numeroDoc=${encodeURIComponent(form.numeroDoc)}`);
+      if (existeRes.ok) {
+        const j = await existeRes.json();
+        if (j.exists) {
+          setMensaje('Ya existe un cliente con ese tipo y número de documento.');
+          return;
+        }
+      }
+    } catch (err) {
+      // si falla la comprobación, no bloqueamos la creación por red (fall back a servidor)
+      console.warn('No se pudo verificar duplicado:', err);
+    }
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -177,6 +248,23 @@ export default function Clientes() {
     if (Object.keys(errors).length > 0) {
       setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
+    }
+    // Verificar duplicado si se cambió documento
+    try {
+      const existeRes = await fetch(`${API_URL}/existe?idTipoDoc=${encodeURIComponent(form.idTipoDoc)}&numeroDoc=${encodeURIComponent(form.numeroDoc)}`);
+      if (existeRes.ok) {
+        const j = await existeRes.json();
+        if (j.exists) {
+          // si existe, comprobar si es el mismo cliente en edición
+          const otro = clientes.find(c => String(c.idTipoDoc) === String(form.idTipoDoc) && String(c.numeroDoc) === String(form.numeroDoc));
+          if (otro && String(otro.idCliente) !== String(editId)) {
+            setMensaje('Otro cliente ya tiene ese tipo y número de documento.');
+            return;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('No se pudo verificar duplicado:', err);
     }
     try {
       const res = await fetch(`${API_URL}/${editId}`, {
@@ -501,6 +589,8 @@ export default function Clientes() {
                             style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
                           {formErrors.numeroDoc && <div className="input-error-message">{formErrors.numeroDoc}</div>}
+                          {dupChecking && <div className="small text-muted">Verificando documento...</div>}
+                          {duplicateExists && <div className="input-error-message">{duplicateMsg}</div>}
                         </div>
                       </div>
                       <div className="col-12 col-md-6">
@@ -602,7 +692,7 @@ export default function Clientes() {
                   )}
                   {(modalModo === "modificar" || modalModo === "alta") && (
                     <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
-                      <button type="submit" className="btn btn-azul fw-bold">
+                      <button type="submit" className="btn btn-azul fw-bold" disabled={dupChecking || duplicateExists}>
                         <i className="bi bi-save me-1"></i>
                         {modalModo === "modificar" ? "Guardar cambios" : "Guardar"}
                       </button>

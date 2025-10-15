@@ -8,6 +8,7 @@ import Ordenes from "./components/Ordenes.jsx"
 import Usuarios from "./components/Usuarios.jsx"
 import Home from "./components/Home.jsx"
 import Dispositivos from "./components/Dispositivos.jsx"
+import Reportes from "./components/Reportes.jsx"
 
 // Import de los componentes reutilizables
 import PiePagina from './components/PiePagina.jsx' // <-- Importa el componente PiePagina
@@ -31,6 +32,7 @@ function App() {
               <Route path='/servicios' element={<Servicios />} />
               <Route path='/proveedores' element={<Proveedores />} />
               <Route path='/dispositivos' element={<Dispositivos />} />
+              <Route path='/reportes' element={<Reportes />} />
             </Routes>
           </main>
         </div>

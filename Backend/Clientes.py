@@ -45,6 +45,11 @@ def registrar_cliente():
     if mail and not validar_email(mail):
         return jsonify({"error": "Email inválido"}), 400
 
+    # Verificar duplicados: mismo tipo+numero de documento
+    existente = buscar_cliente_por_doc(idTipoDoc, numeroDoc)
+    if existente:
+        return jsonify({"error": "Ya existe un cliente con el mismo tipo y número de documento"}), 400
+
     try:
         cliente = alta_cliente(
             idTipoDoc=idTipoDoc,
@@ -92,6 +97,13 @@ def listar_clientes():
 @bp.route("/clientes/<int:idCliente>", methods=["PUT"])
 def modificar_datos_cliente(idCliente):
     data = request.get_json()
+    # Si se intentan cambiar idTipoDoc/numeroDoc verificar duplicado en otro cliente
+    new_idTipoDoc = data.get('idTipoDoc')
+    new_numeroDoc = data.get('numeroDoc')
+    if new_idTipoDoc and new_numeroDoc:
+        existente = buscar_cliente_por_doc(new_idTipoDoc, new_numeroDoc)
+        if existente and existente.idCliente != idCliente:
+            return jsonify({"error": "Otro cliente ya tiene ese tipo y número de documento"}), 400
     cliente = modificar_cliente(
         idCliente=idCliente,
         idTipoDoc=data.get('idTipoDoc'),
@@ -105,6 +117,16 @@ def modificar_datos_cliente(idCliente):
     if cliente:
         return jsonify({'success': True})
     return jsonify({'error': 'Cliente no encontrado'}), 404
+
+
+@bp.route('/clientes/existe', methods=['GET'])
+def cliente_existe():
+    idTipoDoc = request.args.get('idTipoDoc')
+    numeroDoc = request.args.get('numeroDoc')
+    if not idTipoDoc or not numeroDoc:
+        return jsonify({'error': 'Faltan parámetros'}), 400
+    existe = True if buscar_cliente_por_doc(idTipoDoc, numeroDoc) else False
+    return jsonify({'exists': existe})
 
 @bp.route("/clientes/<int:idCliente>", methods=["DELETE"])
 def eliminar_cliente(idCliente):

@@ -22,6 +22,10 @@ function Proveedores() {
   const [formMode, setFormMode] = useState("alta"); // "alta" | "modificar"
   const [editId, setEditId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dupChecking, setDupChecking] = useState(false);
+  const [duplicateExists, setDuplicateExists] = useState(false);
+  const [duplicateMsg, setDuplicateMsg] = useState("");
+  const checkTimer = React.useRef(null);
 
   // Cargar proveedores
   useEffect(() => {
@@ -35,9 +39,28 @@ function Proveedores() {
   }, [mostrarInactivos, searchTerm]);
 
   const handleChange = e => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-    setFormErrors(validarProveedor({ ...form, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+    setFormErrors(validarProveedor({ ...form, [name]: value }));
+    // if editing CUIL, debounce a duplicate check
+    if (name === 'cuil') {
+      setDuplicateExists(false);
+      setDuplicateMsg("");
+      if (checkTimer.current) clearTimeout(checkTimer.current);
+      const updatedCuil = value;
+      checkTimer.current = setTimeout(() => {
+        // only verify if it looks like a valid cuil (11 digits)
+        if (/^\d{11}$/.test(updatedCuil)) {
+          verificarDuplicado(updatedCuil);
+        }
+      }, 500);
+    }
   };
+
+  // limpiar timer on unmount
+  React.useEffect(() => {
+    return () => { if (checkTimer.current) clearTimeout(checkTimer.current); };
+  }, []);
 
   function validarProveedor(obj) {
     const errors = {};
@@ -54,6 +77,10 @@ function Proveedores() {
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) {
       setMensaje("Por favor, corrige los errores antes de continuar.");
+      return;
+    }
+    if (duplicateExists) {
+      setMensaje('Ya existe un proveedor con ese CUIL/CUIT.');
       return;
     }
     fetch(API_URL, {
@@ -158,6 +185,18 @@ function Proveedores() {
     setProveedorActual(nuevo);
     setModalErrors(validarProveedor({ ...nuevo, cuil: proveedorActual.cuil }));
     setMensaje("");
+    // debounce check when changing cuil in modal
+    if (name === 'cuil') {
+      setDuplicateExists(false);
+      setDuplicateMsg('');
+      if (checkTimer.current) clearTimeout(checkTimer.current);
+      const updated = value;
+      checkTimer.current = setTimeout(() => {
+        if (/^\d{11}$/.test(updated)) {
+          verificarDuplicado(updated);
+        }
+      }, 500);
+    }
   }
 
   function handleModalSave(e) {
@@ -201,6 +240,34 @@ function Proveedores() {
       .then(data => setProveedores(Array.isArray(data) ? data : []))
       .catch(() => setMensaje("Error al cargar proveedores"));
   };
+
+  async function verificarDuplicado(cuil) {
+    setDupChecking(true);
+    setDuplicateExists(false);
+    setDuplicateMsg("");
+    try {
+      const res = await fetch(`${API_URL}/existe?cuil=${encodeURIComponent(cuil)}`);
+      if (!res.ok) return;
+      const j = await res.json();
+      if (j.exists) {
+        // if editing, allow same record (don't count as duplicate)
+        if (editId && String(editId) === String(cuil)) {
+          setDuplicateExists(false);
+          setDuplicateMsg("");
+        } else {
+          setDuplicateExists(true);
+          setDuplicateMsg('Ya existe un proveedor con ese CUIL/CUIT.');
+        }
+      } else {
+        setDuplicateExists(false);
+        setDuplicateMsg("");
+      }
+    } catch (err) {
+      console.warn('verificarDuplicado error', err);
+    } finally {
+      setDupChecking(false);
+    }
+  }
 
   const handleCancelar = () => {
     setModalVisible(false);
@@ -397,6 +464,8 @@ function Proveedores() {
                                 style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                               />
                               {formErrors.cuil && <div className="input-error-message">{formErrors.cuil}</div>}
+                              {dupChecking && <div className="small text-muted">Verificando CUIL...</div>}
+                              {duplicateExists && <div className="input-error-message">{duplicateMsg}</div>}
                             </div>
                           </div>
                           <div className="col-12">
@@ -460,7 +529,7 @@ function Proveedores() {
                   )}
                   {(modalModo === "modificar" || modalModo === "alta") && (
                     <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
-                      <button type="submit" className="btn btn-azul fw-bold">
+                      <button type="submit" className="btn btn-azul fw-bold" disabled={dupChecking || duplicateExists}>
                         <i className="bi bi-save me-1"></i>
                         {modalModo === "modificar" ? "Guardar cambios" : "Guardar"}
                       </button>

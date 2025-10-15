@@ -16,7 +16,7 @@ function Repuestos() {
   const [modalModo, setModalModo] = useState('alta');
 
   const [form, setForm] = useState({
-    codigo: "",
+    idRepuesto: "",
     marca: "",
     modelo: "",
     proveedores: [],
@@ -77,11 +77,8 @@ function Repuestos() {
 
   function validarRepuesto(data) {
     const errors = {};
-    const idRepuestoStr = String(data.idRepuesto || "");
-    const marcaStr = String(data.marca || "");
-    const modeloStr = String(data.modelo || "");
-
-    if (idRepuestoStr.trim().length < 1) errors.idRepuesto = "El código es obligatorio.";
+  const marcaStr = String(data.marca || "");
+  const modeloStr = String(data.modelo || "");
     if (marcaStr.trim().length < 1) errors.marca = "La marca es obligatoria.";
     if (modeloStr.trim().length < 1) errors.modelo = "El modelo es obligatorio.";
 
@@ -394,17 +391,18 @@ function Repuestos() {
                             <label>
                               <i className="bi bi-hash me-2"></i>Código
                             </label>
-                            <input
-                              type="text"
-                              name="idRepuesto"
-                              value={form.idRepuesto}
-                              onChange={handleFormChange}
-                              className="form-control"
-                              required
-                              readOnly={modalModo !== 'alta'}
-                              style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                            />
-                            {formErrors.idRepuesto && <div className="input-error-message">{formErrors.idRepuesto}</div>}
+                            {modalModo === 'alta' ? (
+                              <div className="form-text text-muted">El código se asignará automáticamente al crear el repuesto.</div>
+                            ) : (
+                              <input
+                                type="text"
+                                name="idRepuesto"
+                                value={form.idRepuesto}
+                                readOnly
+                                className="form-control"
+                                style={{ backgroundColor: '#dee2e6' }}
+                              />
+                            )}
                           </div>
                         </div>
                         {/* División: Especificaciones */}

@@ -56,13 +56,19 @@ def modificar_datos_proveedor(cuil):
     proveedor = buscar_proveedor_por_cuil(cuil)
     if not proveedor:
         return jsonify({'error': 'Proveedor no encontrado'}), 404
+    # Si se intenta cambiar el CUIL, verificar duplicado
+    new_cuil = data.get('cuil')
+    if new_cuil and str(new_cuil) != str(proveedor.cuil):
+        otro = buscar_proveedor_por_cuil(new_cuil)
+        if otro:
+            return jsonify({'error': 'Otro proveedor ya tiene ese CUIL'}), 400
     # Modify using idProveedor
     proveedor_modificado = modificar_proveedor(
         idProveedor=proveedor.idProveedor,
         razonSocial=data.get('razonSocial'),
         telefono=data.get('telefono'),
         activo=data.get('activo'),
-        cuil=data.get('cuil')  # Allow updating cuil
+        cuil=new_cuil or proveedor.cuil
     )
     if proveedor_modificado:
         return jsonify({'success': True})
@@ -83,3 +89,12 @@ def reactivar_proveedor_endpoint(cuil):
         return jsonify({'error': 'Proveedor no encontrado'}), 404
     reactivar_proveedor(proveedor.idProveedor)
     return jsonify({'success': True})
+
+
+@bp.route('/proveedores/existe', methods=['GET'])
+def proveedor_existe():
+    cuil = request.args.get('cuil')
+    if not cuil:
+        return jsonify({'error': 'Falta parámetro cuil'}), 400
+    existe = True if buscar_proveedor_por_cuil(cuil) else False
+    return jsonify({'exists': existe})
