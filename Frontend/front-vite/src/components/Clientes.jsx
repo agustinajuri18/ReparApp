@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import ReactDOM from 'react-dom';
 import MenuLateral from './MenuLateral';
 
 const API_URL = "http://localhost:5000/clientes";
@@ -27,6 +28,7 @@ export default function Clientes() {
   const [historialVisible, setHistorialVisible] = useState(false);
   const [historialOrdenes, setHistorialOrdenes] = useState([]);
   const [openMenuFor, setOpenMenuFor] = useState(null); // idCliente of open menu
+  const menuAnchorRefs = React.useRef({}); // map idCliente -> button ref
   // Agregar estado para el ID en edición
   const [editId, setEditId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -449,7 +451,7 @@ export default function Clientes() {
                         <td>{c.mail}</td>
                         <td>{c.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td style={{ position: 'relative', overflow: 'visible' }}>
-                          <div className="d-flex align-items-center gap-2">
+                          <div className="d-flex align-items-center gap-2" style={{ overflow: 'visible' }}>
                             <button
                               className="btn btn-sm btn-verdeAgua fw-bold"
                               onClick={() => handleConsultar(c)}
@@ -474,8 +476,9 @@ export default function Clientes() {
                             </button>
 
                             {/* three-dot dropdown for modify/delete */}
-                            <div style={{ position: 'relative' }}>
+                            <div style={{ position: 'relative', overflow: 'visible' }}>
                               <button
+                                ref={el => { if (el) menuAnchorRefs.current[c.idCliente] = el }}
                                 className="btn btn-sm btn-outline-secondary"
                                 onClick={(e) => { e.stopPropagation(); setOpenMenuFor(openMenuFor === c.idCliente ? null : c.idCliente); }}
                                 aria-expanded={openMenuFor === c.idCliente}
@@ -483,16 +486,14 @@ export default function Clientes() {
                                 <i className="bi bi-three-dots-vertical"></i>
                               </button>
                               {openMenuFor === c.idCliente && (
-                                <div className="card position-absolute" style={{ right: 0, top: '110%', zIndex: 9999, minWidth: 140 }}>
-                                  <ul className="list-group list-group-flush p-2">
-                                    <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${c.activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => { setOpenMenuFor(null); c.activo && handleModificar(c); }} disabled={!c.activo}>Modificar</button></li>
-                                    {c.activo ? (
-                                      <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={() => { setOpenMenuFor(null); c.idCliente && handleEliminar(c.idCliente); }}>Eliminar</button></li>
-                                    ) : (
-                                      <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100" onClick={() => { setOpenMenuFor(null); c.idCliente && handleReactivar(c.idCliente); }}>Reactivar</button></li>
-                                    )}
-                                  </ul>
-                                </div>
+                                <ActionMenuPortal
+                                  anchorEl={menuAnchorRefs.current[c.idCliente]}
+                                  onClose={() => setOpenMenuFor(null)}
+                                  onModificar={() => { setOpenMenuFor(null); c.activo && handleModificar(c); }}
+                                  onEliminar={() => { setOpenMenuFor(null); c.idCliente && handleEliminar(c.idCliente); }}
+                                  onReactivar={() => { setOpenMenuFor(null); c.idCliente && handleReactivar(c.idCliente); }}
+                                  activo={c.activo}
+                                />
                               )}
                             </div>
                           </div>
@@ -764,6 +765,58 @@ export default function Clientes() {
         </div>
       )}
     </div>
+  );
+}
+
+// Portal component for action menu
+function ActionMenuPortal({ anchorEl, onClose, onModificar, onEliminar, onReactivar, activo }) {
+  const [pos, setPos] = React.useState({ left: 0, top: 0, transformOrigin: 'top right' });
+
+  useEffect(() => {
+    if (!anchorEl) return;
+    const rect = anchorEl.getBoundingClientRect();
+    const menuWidth = 160; // approx
+    const left = rect.right - menuWidth;
+    const top = rect.bottom + 6; // 6px gap
+
+    // If there's not enough space below, open upwards
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const menuHeight = 120; // approximate
+    if (spaceBelow < menuHeight) {
+      setPos({ left: Math.max(8, left), top: rect.top - menuHeight - 6, transformOrigin: 'bottom right' });
+    } else {
+      setPos({ left: Math.max(8, left), top: top, transformOrigin: 'top right' });
+    }
+  }, [anchorEl]);
+
+  React.useEffect(() => {
+    const onDocClick = (e) => {
+      if (!anchorEl) return;
+      const node = document.getElementById('action-menu-portal');
+      if (node && !node.contains(e.target) && !anchorEl.contains(e.target)) onClose();
+    };
+    const onEsc = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onEsc);
+    return () => { document.removeEventListener('mousedown', onDocClick); document.removeEventListener('keydown', onEsc); };
+  }, [anchorEl, onClose]);
+
+  if (!anchorEl) return null;
+
+  return ReactDOM.createPortal(
+    <div id="action-menu-portal" style={{ position: 'absolute', left: pos.left, top: pos.top, zIndex: 2147483647, minWidth: 140 }}>
+      <div className="card" style={{ overflow: 'visible' }}>
+        <ul className="list-group list-group-flush p-2">
+          <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar} disabled={!activo}>Modificar</button></li>
+          {activo ? (
+            <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={onEliminar}>Eliminar</button></li>
+          ) : (
+            <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100" onClick={onReactivar}>Reactivar</button></li>
+          )}
+        </ul>
+      </div>
+    </div>,
+    document.body
   );
 }
 

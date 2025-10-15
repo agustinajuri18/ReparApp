@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import ReactDOM from 'react-dom';
 import MenuLateral from './MenuLateral';
 import PiePagina from './PiePagina';
 
@@ -27,6 +28,7 @@ export default function Dispositivos() {
     const [historialVisible, setHistorialVisible] = useState(false);
     const [historialOrdenes, setHistorialOrdenes] = useState([]);
     const [openMenuFor, setOpenMenuFor] = useState(null);
+    const menuAnchorRefs = React.useRef({});
 
     // Cargar dispositivos
     const fetchDispositivos = () => {
@@ -271,8 +273,9 @@ export default function Dispositivos() {
                                                         </button>
 
                                                         {/* three-dot dropdown for modify/delete */}
-                                                        <div style={{ position: 'relative' }}>
+                                                        <div style={{ position: 'relative', overflow: 'visible' }}>
                                                             <button
+                                                                ref={el => { if (el) menuAnchorRefs.current[d.idDispositivo] = el }}
                                                                 className="btn btn-sm btn-outline-secondary"
                                                                 onClick={(e) => { e.stopPropagation(); setOpenMenuFor(openMenuFor === d.idDispositivo ? null : d.idDispositivo); }}
                                                                 aria-expanded={openMenuFor === d.idDispositivo}
@@ -280,16 +283,14 @@ export default function Dispositivos() {
                                                                 <i className="bi bi-three-dots-vertical"></i>
                                                             </button>
                                                             {openMenuFor === d.idDispositivo && (
-                                                                <div className="card position-absolute" style={{ right: 0, top: '110%', zIndex: 9999, minWidth: 140 }}>
-                                                                    <ul className="list-group list-group-flush p-2">
-                                                                        <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${d.activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => { setOpenMenuFor(null); d.activo && handleModificar(d); }} disabled={!d.activo}>Modificar</button></li>
-                                                                        {d.activo ? (
-                                                                            <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={() => { setOpenMenuFor(null); d.idDispositivo && handleEliminar(d.idDispositivo); }}>Eliminar</button></li>
-                                                                        ) : (
-                                                                            <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100" onClick={() => { setOpenMenuFor(null); d.idDispositivo && handleReactivar(d.idDispositivo); }}>Reactivar</button></li>
-                                                                        )}
-                                                                    </ul>
-                                                                </div>
+                                                                <ActionMenuPortal
+                                                                    anchorEl={menuAnchorRefs.current[d.idDispositivo]}
+                                                                    onClose={() => setOpenMenuFor(null)}
+                                                                    onModificar={() => { setOpenMenuFor(null); d.activo && handleModificar(d); }}
+                                                                    onEliminar={() => { setOpenMenuFor(null); d.idDispositivo && handleEliminar(d.idDispositivo); }}
+                                                                    onReactivar={() => { setOpenMenuFor(null); d.idDispositivo && handleReactivar(d.idDispositivo); }}
+                                                                    activo={d.activo}
+                                                                />
                                                             )}
                                                         </div>
                                                     </div>
@@ -519,3 +520,55 @@ export default function Dispositivos() {
         </div>
     );
 }
+
+        // Portal component for action menu (copied from Clientes.jsx)
+        function ActionMenuPortal({ anchorEl, onClose, onModificar, onEliminar, onReactivar, activo }) {
+            const [pos, setPos] = React.useState({ left: 0, top: 0, transformOrigin: 'top right' });
+
+            useEffect(() => {
+                if (!anchorEl) return;
+                const rect = anchorEl.getBoundingClientRect();
+                const menuWidth = 160; // approx
+                const left = rect.right - menuWidth;
+                const top = rect.bottom + 6; // 6px gap
+
+                // If there's not enough space below, open upwards
+                const spaceBelow = window.innerHeight - rect.bottom;
+                const menuHeight = 120; // approximate
+                if (spaceBelow < menuHeight) {
+                    setPos({ left: Math.max(8, left), top: rect.top - menuHeight - 6, transformOrigin: 'bottom right' });
+                } else {
+                    setPos({ left: Math.max(8, left), top: top, transformOrigin: 'top right' });
+                }
+            }, [anchorEl]);
+
+            React.useEffect(() => {
+                const onDocClick = (e) => {
+                    if (!anchorEl) return;
+                    const node = document.getElementById('action-menu-portal');
+                    if (node && !node.contains(e.target) && !anchorEl.contains(e.target)) onClose();
+                };
+                const onEsc = (e) => { if (e.key === 'Escape') onClose(); };
+                document.addEventListener('mousedown', onDocClick);
+                document.addEventListener('keydown', onEsc);
+                return () => { document.removeEventListener('mousedown', onDocClick); document.removeEventListener('keydown', onEsc); };
+            }, [anchorEl, onClose]);
+
+            if (!anchorEl) return null;
+
+            return ReactDOM.createPortal(
+                <div id="action-menu-portal" style={{ position: 'absolute', left: pos.left, top: pos.top, zIndex: 2147483647, minWidth: 140 }}>
+                    <div className="card" style={{ overflow: 'visible' }}>
+                        <ul className="list-group list-group-flush p-2">
+                            <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar} disabled={!activo}>Modificar</button></li>
+                            {activo ? (
+                                <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={onEliminar}>Eliminar</button></li>
+                            ) : (
+                                <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100" onClick={onReactivar}>Reactivar</button></li>
+                            )}
+                        </ul>
+                    </div>
+                </div>,
+                document.body
+            );
+        }
