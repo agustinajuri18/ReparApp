@@ -261,6 +261,32 @@ button,
   border: 2px solid var(--color-verdeAgua);
 }
 
+/* Make modals slightly narrower on larger screens while preserving mobile behavior.
+   Use higher specificity and !important to override inline styles used in components. */
+@media (min-width: 900px) {
+  /* Limit dialog width on desktop */
+  .modal .modal-dialog {
+    max-width: 900px !important;
+    width: auto !important;
+    margin: 3rem auto !important;
+  }
+
+  /* Keep content centered and a bit more compact */
+  .modal .modal-content {
+    max-width: 860px !important;
+    padding: 1.6rem 1.4rem !important;
+    border-radius: 16px !important;
+  }
+
+  /* If modal contains a full-width form, cap its width inside the modal */
+  .modal .modal-content .form-container {
+    max-width: 820px !important;
+    padding: 1.2rem 1rem !important;
+    margin: 0 auto !important;
+    border-radius: 10px !important;
+  }
+}
+
 .modal-header {
   background: var(--color-azul);
   color: var(--color-beige);

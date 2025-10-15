@@ -27,16 +27,16 @@ const MenuLateral = () => {
   return (
     <nav
       className="col-12 col-md-2 d-flex flex-md-column flex-row align-items-center align-items-md-start py-3 px-2 px-md-3"
-      style={{ background: colores.azul, minHeight: "100vh" }}
+      style={{ background: colores.azul, minHeight: "100vh", width: '14rem', maxWidth: '18rem' }}
     >
       {/* Logo arriba del menú */}
       <img
         src={logo}
         alt="Logo"
         style={{
-          width: "160px", // <-- Cambiado de 120px a 160px
-          marginBottom: "32px",
-          borderRadius: "12px",
+          width: "110px",
+          marginBottom: "24px",
+          borderRadius: "10px",
           boxShadow: `0 2px 8px ${colores.dorado}55`,
         }}
       />
@@ -64,8 +64,11 @@ const MenuLateral = () => {
                     : colores.beige,
                 fontWeight:
                   location.pathname === option.path ? 700 : 400,
-                fontSize: 18,
-                letterSpacing: 0.5,
+                fontSize: 16,
+                letterSpacing: 0.4,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
               }}
               to={option.path}
             >
