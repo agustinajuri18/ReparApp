@@ -21,86 +21,64 @@ bp = Blueprint('ordenes', __name__)
 @bp.route('/ordenes', methods=['POST'])
 @cross_origin()
 def registrar_orden():
-    data = request.json or {}
+    data = request.get_json() or {}
 
-    if 'idDispositivo' not in data:
-        return jsonify({'error': 'Se requiere idDispositivo'}), 400
+    nroSerie = data.get('nroSerie')
+    idDispositivo = data.get('idDispositivo')
 
-    orden = alta_orden_de_reparacion(
-        idDispositivo=data['idDispositivo'],
-        fecha=datetime.now().date(),
-        descripcionDanos=data.get('descripcionDanos'),
-        diagnostico=data.get('diagnostico'),
-        presupuesto=data.get('presupuesto'),
-        idEmpleado=data.get('idEmpleado')
-    )
-
-    if not orden:
-        return jsonify({'error': 'No se pudo crear la orden'}), 400
-
-    # Asignar estado inicial si se proporciona
-    if 'idEstado' in data:
-        asignar_estado_orden(
-            nroDeOrden=orden.nroDeOrden,
-            idEstado=data['idEstado'],
-            fechaCambio=datetime.now(),
-            observaciones=data.get('observaciones')
-        )
-
-    data = request.json
-    
-    # Verificamos si se envía un nroSerie o un idDispositivo
-    if 'nroSerie' in data:
-        # Crear orden por número de serie
-        orden = alta_orden_por_nroSerie(
-            nroSerie=data['nroSerie'],
-            fecha=datetime.now().date(),
-            descripcionDanos=data.get('descripcionDanos'),
-            diagnostico=data.get('diagnostico'),
-            presupuesto=data.get('presupuesto'),
-            idEmpleado=data.get('idEmpleado')
-        )
-        if not orden:
-            return jsonify({'error': 'No se encontró dispositivo con ese número de serie'}), 404
-    elif 'idDispositivo' in data:
-        # Crear orden con ID de dispositivo
-        orden = alta_orden_de_reparacion(
-            idDispositivo=data['idDispositivo'],
-            fecha=datetime.now().date(),
-            descripcionDanos=data.get('descripcionDanos'),
-            diagnostico=data.get('diagnostico'),
-            presupuesto=data.get('presupuesto'),
-            idEmpleado=data.get('idEmpleado')
-        )
-    else:
+    # Necesitamos al menos nroSerie o idDispositivo
+    if not nroSerie and not idDispositivo:
         return jsonify({'error': 'Se requiere nroSerie o idDispositivo'}), 400
-        
-    # Si llegamos aquí, la orden se creó exitosamente
-    # Buscamos el ID del estado "EnDiagnostico"
-    estados = {e.nombre: e.idEstado for e in mostrar_estados()}
-    id_estado_diagnostico = estados.get('EnDiagnostico')
-    
-    if not id_estado_diagnostico:
-        return jsonify({'error': 'No se encontró el estado EnDiagnostico'}), 500
-    
-    # Creamos el primer registro en el historial de estados con EnDiagnostico
-    historial = asignar_estado_orden(
-        nroDeOrden=orden.nroDeOrden,
-        idEstado=id_estado_diagnostico,
-        fechaCambio=datetime.now(),
-        observaciones="Estado inicial: En Diagnóstico"
-    )
-    
-    return jsonify({
-        'nroDeOrden': orden.nroDeOrden,
-        'idDispositivo': orden.idDispositivo,
-        'fecha': orden.fecha.isoformat() if orden.fecha else None,
-        'descripcionDanos': orden.descripcionDanos,
-        'diagnostico': orden.diagnostico,
-        'presupuesto': orden.presupuesto,
-        'idEmpleado': orden.idEmpleado,
-        'estado': 'EnDiagnostico'  # Indicamos explícitamente el estado inicial
-    }), 201
+
+    fecha_hoy = datetime.now().date()
+
+    try:
+        if nroSerie:
+            orden = alta_orden_por_nroSerie(
+                nroSerie=nroSerie,
+                fecha=fecha_hoy,
+                descripcionDanos=data.get('descripcionDanos'),
+                diagnostico=data.get('diagnostico'),
+                presupuesto=data.get('presupuesto'),
+                idEmpleado=data.get('idEmpleado')
+            )
+            if not orden:
+                return jsonify({'error': 'No se encontró dispositivo con ese número de serie'}), 404
+        else:
+            orden = alta_orden_de_reparacion(
+                idDispositivo=idDispositivo,
+                fecha=fecha_hoy,
+                descripcionDanos=data.get('descripcionDanos'),
+                diagnostico=data.get('diagnostico'),
+                presupuesto=data.get('presupuesto'),
+                idEmpleado=data.get('idEmpleado')
+            )
+
+        # Asignar estado inicial "EnDiagnostico" si existe en la tabla Estado
+        estados = {e.nombre: e.idEstado for e in mostrar_estados()}
+        id_estado_diagnostico = estados.get('EnDiagnostico')
+        if id_estado_diagnostico:
+            asignar_estado_orden(
+                nroDeOrden=orden.nroDeOrden,
+                idEstado=id_estado_diagnostico,
+                fechaCambio=datetime.now(),
+                observaciones="Estado inicial: En Diagnóstico"
+            )
+
+        return jsonify({
+            'nroDeOrden': orden.nroDeOrden,
+            'idDispositivo': getattr(orden, 'idDispositivo', None),
+            'fecha': orden.fecha.isoformat() if getattr(orden, 'fecha', None) else None,
+            'descripcionDanos': getattr(orden, 'descripcionDanos', None),
+            'diagnostico': getattr(orden, 'diagnostico', None),
+            'presupuesto': getattr(orden, 'presupuesto', None),
+            'idEmpleado': getattr(orden, 'idEmpleado', None),
+            'estado': 'EnDiagnostico' if id_estado_diagnostico else None
+        }), 201
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Error al crear la orden: {str(e)}'}), 500
     
 
 @bp.route('/ordenes', methods=['GET'])
