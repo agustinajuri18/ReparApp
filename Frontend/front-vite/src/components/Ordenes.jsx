@@ -76,11 +76,11 @@ function Ordenes() {
       .then(res => res.json())
       .then(data => {
         if (!Array.isArray(data)) return setOrdenes([]);
-        // sort by nroDeOrden ascending (numeric)
+        // sort by nroDeOrden descending (numeric)
         const sorted = data.slice().sort((a, b) => {
           const na = Number(a?.nroDeOrden ?? 0);
           const nb = Number(b?.nroDeOrden ?? 0);
-          return na - nb;
+          return nb - na;
         });
         setOrdenes(sorted);
       })
