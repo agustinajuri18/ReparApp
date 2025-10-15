@@ -54,6 +54,14 @@ def baja_logica_repuesto(idRepuesto):
         return jsonify({'success': True})
     return jsonify({'error': 'Repuesto no encontrado'}), 404
 
+@bp.route('/repuestos/<int:idRepuesto>/reactivar', methods=['PUT'])
+def reactivar_repuesto(idRepuesto):
+    from ABMC_db import reactivar_repuesto
+    repuesto = reactivar_repuesto(idRepuesto)
+    if repuesto:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Repuesto no encontrado'}), 404
+
 @bp.route('/repuestos-proveedores', methods=['POST'])
 def agregar_repuestoxproveedor():
     data = request.get_json()

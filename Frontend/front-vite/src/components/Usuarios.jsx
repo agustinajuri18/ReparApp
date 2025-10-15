@@ -16,8 +16,7 @@ export default function Usuarios() {
   const [form, setForm] = useState({
     idUsuario: "",
     nombreUsuario: "",
-    contraseña: "",
-    activo: 1
+    contraseña: ""
   });
   const [editId, setEditId] = useState(null);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
@@ -47,12 +46,11 @@ export default function Usuarios() {
     if (!form.nombreUsuario || form.nombreUsuario.trim().length < 3) errors.nombreUsuario = "El nombre de usuario es obligatorio y debe tener al menos 3 caracteres.";
     if (modalModo === "alta" && (!form.contraseña || form.contraseña.length < 6)) errors.contraseña = "La contraseña es obligatoria y debe tener al menos 6 caracteres.";
     if (modalModo === "modificar" && form.contraseña && form.contraseña.length < 6) errors.contraseña = "La contraseña debe tener al menos 6 caracteres si se modifica.";
-    if (form.activo !== 0 && form.activo !== 1) errors.activo = "El estado es obligatorio.";
     return errors;
   }
 
   function handleAgregar() {
-    setForm({ idUsuario: "", nombreUsuario: "", contraseña: "", activo: 1 });
+    setForm({ idUsuario: "", nombreUsuario: "", contraseña: "" });
     setEditId(null);
     setModalModo("alta");
     setModalVisible(true);
@@ -61,7 +59,7 @@ export default function Usuarios() {
 
   function handleEdit(usuario) {
     setEditId(usuario.idUsuario);
-    setForm({ idUsuario: usuario.idUsuario, nombreUsuario: usuario.nombreUsuario, contraseña: "", activo: Number(usuario.activo) });
+    setForm({ idUsuario: usuario.idUsuario, nombreUsuario: usuario.nombreUsuario, contraseña: "" });
     setModalModo("modificar");
     setModalVisible(true);
     setMensaje("");
@@ -69,7 +67,7 @@ export default function Usuarios() {
 
   function handleConsultar(usuario) {
     setEditId(usuario.idUsuario);
-    setForm({ idUsuario: usuario.idUsuario, nombreUsuario: usuario.nombreUsuario, contraseña: "", activo: Number(usuario.activo) });
+    setForm({ idUsuario: usuario.idUsuario, nombreUsuario: usuario.nombreUsuario, contraseña: "" });
     setModalModo("consultar");
     setModalVisible(true);
     setMensaje("");
@@ -88,8 +86,7 @@ export default function Usuarios() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         nombreUsuario: form.nombreUsuario,
-        contraseña: form.contraseña,
-        activo: form.activo
+        contraseña: form.contraseña
       })
     })
       .then(async res => {
@@ -106,7 +103,7 @@ export default function Usuarios() {
         return data;
       })
       .then(() => {
-        setForm({ idUsuario: "", nombreUsuario: "", contraseña: "", activo: 1 });
+        setForm({ idUsuario: "", nombreUsuario: "", contraseña: "" });
         setModalVisible(false);
         setEditId(null);
         setModalModo("alta");
@@ -129,7 +126,6 @@ export default function Usuarios() {
     try {
       const body = {
         nombreUsuario: form.nombreUsuario,
-        activo: form.activo,
         ...(form.contraseña && { contraseña: form.contraseña })
       };
       const res = await fetch(`${API_URL}/${form.idUsuario}`, {
@@ -142,8 +138,7 @@ export default function Usuarios() {
         setForm({
           idUsuario: "",
           nombreUsuario: "",
-          contraseña: "",
-          activo: 1
+          contraseña: ""
         });
         fetchUsuarios();
       } else {
@@ -174,7 +169,7 @@ export default function Usuarios() {
     setModalVisible(false);
     setEditId(null);
     setModalModo("alta");
-    setForm({ idUsuario: "", nombreUsuario: "", contraseña: "", activo: 1 });
+    setForm({ idUsuario: "", nombreUsuario: "", contraseña: "" });
     setMensaje("");
   }
 
@@ -223,8 +218,8 @@ export default function Usuarios() {
                             onClick={() => handleConsultar(u)}>
                             <i className="bi bi-search"></i> Consultar
                           </button>
-                          <button className="btn btn-sm btn-dorado fw-bold me-1"
-                            onClick={() => handleEdit(u)}>
+                          <button className={`btn btn-sm fw-bold me-1 ${u.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`}
+                            onClick={() => u.activo === 1 && handleEdit(u)} disabled={u.activo !== 1}>
                             <i className="bi bi-pencil-square"></i> Modificar
                           </button>
                           {u.activo === 1 && (
@@ -327,29 +322,6 @@ export default function Usuarios() {
                           )}
                           {formErrors.contraseña && (
                             <div className="input-error-message">{formErrors.contraseña}</div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="col-12 col-md-6">
-                        {/* División: Estado */}
-                        <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
-                          <i className="bi bi-check2-circle me-2"></i>Estado
-                        </h6>
-                        <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
-                          <select
-                            name="activo"
-                            value={Number(form.activo)}
-                            onChange={modalModo === "consultar" ? undefined : handleChange}
-                            className="form-select"
-                            disabled={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          >
-                            <option value={1}>Activo</option>
-                            <option value={0}>Inactivo</option>
-                          </select>
-                          {formErrors.activo && (
-                            <div className="input-error-message">{formErrors.activo}</div>
                           )}
                         </div>
                       </div>

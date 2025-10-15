@@ -32,7 +32,8 @@ def registrar_servicio():
 
 @bp.route('/servicios', methods=['GET'])
 def listar_servicios():
-    servicios = mostrar_servicios()
+    activos = request.args.get('activos', 'true').lower() == 'true'
+    servicios = mostrar_servicios(activos_only=activos)
     return jsonify([
         {
             'idServicio': s.idServicio,
@@ -58,6 +59,14 @@ def modificar_datos_servicio(idServicio):
 @bp.route('/servicios/<int:idServicio>', methods=['DELETE'])
 def baja_logica_servicio(idServicio):
     servicio = baja_servicio(idServicio)
+    if servicio:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Servicio no encontrado'}), 404
+
+@bp.route('/servicios/<int:idServicio>/reactivar', methods=['PUT'])
+def reactivar_servicio(idServicio):
+    from ABMC_db import reactivar_servicio
+    servicio = reactivar_servicio(idServicio)
     if servicio:
         return jsonify({'success': True})
     return jsonify({'error': 'Servicio no encontrado'}), 404

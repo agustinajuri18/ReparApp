@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
+import SearchableSelect from './SearchableSelect';
 
 const colores = {
   azul: '#1f3345',
@@ -20,7 +21,6 @@ export default function Empleados() {
     apellido: "",
     idCargo: "",
     idUsuario: "",
-    activo: 1
   });
   const [editId, setEditId] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -63,7 +63,7 @@ export default function Empleados() {
   const handleChange = e => {
     const { name, value } = e.target;
     let processedValue = value;
-    if (name === 'idCargo' || name === 'idUsuario' || name === 'activo') {
+    if (name === 'idCargo' || name === 'idUsuario') {
       processedValue = Number(value);
     }
     setForm({ ...form, [name]: processedValue });
@@ -76,7 +76,6 @@ export default function Empleados() {
     if (!form.apellido || form.apellido.trim().length < 2 || !/^[a-zA-Z\s]+$/.test(form.apellido.trim())) errors.apellido = "El apellido es obligatorio, debe contener solo letras y espacios, y tener al menos 2 caracteres.";
     if (!form.idCargo) errors.idCargo = "Debe seleccionar un cargo.";
     if (!form.idUsuario) errors.idUsuario = "Debe seleccionar un usuario.";
-    if (form.activo !== 0 && form.activo !== 1) errors.activo = "El estado es obligatorio.";
     return errors;
   }
 
@@ -96,7 +95,7 @@ export default function Empleados() {
       });
       if (res.ok) {
         setModalVisible(false);
-        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
+        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "" });
         fetchEmpleados();
       } else {
         const resultado = await res.json();
@@ -123,7 +122,7 @@ export default function Empleados() {
       });
       if (res.ok) {
         setModalVisible(false);
-        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
+        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "" });
         fetchEmpleados();
       } else {
         const resultado = await res.json();
@@ -141,6 +140,17 @@ export default function Empleados() {
           fetchEmpleados();
         });
     }
+  };
+
+  const handleReactivar = idEmpleado => {
+    fetch(`${API_URL}/${idEmpleado}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activo: 1 })
+    })
+      .then(() => {
+        fetchEmpleados();
+      });
   };
 
   function handleModificar(empleado) {
@@ -174,7 +184,7 @@ export default function Empleados() {
 
   function handleAgregar() {
     setClienteActual(null);
-    setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
+    setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "" });
     setEditId(null);
     setModalModo("alta");
     setModalVisible(true);
@@ -186,7 +196,7 @@ export default function Empleados() {
   function handleCancelar() {
     setModalVisible(false);
     setClienteActual(null);
-    setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", activo: 1 });
+    setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "" });
     setMensaje("");
   }
 
@@ -214,7 +224,7 @@ export default function Empleados() {
               </div>
             </div>
             <div className="card-body">
-              <div className="table-responsive">
+              <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
@@ -242,17 +252,25 @@ export default function Empleados() {
                             <i className="bi bi-search me-1"></i>Consultar
                           </button>
                           <button
-                            className="btn btn-sm btn-dorado fw-bold me-1"
-                            onClick={() => handleModificar(e)}
+                            className={`btn btn-sm fw-bold me-1 ${e.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`}
+                            onClick={() => e.activo === 1 && handleModificar(e)}
+                            disabled={e.activo !== 1}
                           >
                             <i className="bi bi-pencil-square me-1"></i>Modificar
                           </button>
-                          {e.activo === 1 && (
+                          {e.activo === 1 ? (
                             <button
                               className="btn btn-sm btn-rojo fw-bold"
                               onClick={() => handleDelete(e.idEmpleado)}
                             >
                               <i className="bi bi-trash me-1"></i>Eliminar
+                            </button>
+                          ) : (
+                            <button
+                              className="btn btn-sm btn-verdeAgua fw-bold"
+                              onClick={() => handleReactivar(e.idEmpleado)}
+                            >
+                              <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
                             </button>
                           )}
                         </td>
@@ -357,24 +375,24 @@ export default function Empleados() {
                           <label>
                             <i className="bi bi-briefcase me-2"></i>Cargo
                           </label>
-                          <select
-                            name="idCargo"
-                            value={
-                              modalModo === "consultar"
-                                ? clienteActual?.idCargo ?? ""
-                                : form.idCargo ?? ""
-                            }
-                            onChange={handleChange}
-                            className="form-control"
-                            required
-                            disabled={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          >
-                            <option value="">Seleccione un cargo</option>
-                            {cargos.map(c => (
-                              <option key={c.idCargo} value={c.idCargo}>{c.descripcion}</option>
-                            ))}
-                          </select>
+                          {modalModo === "consultar" ? (
+                            <input
+                              type="text"
+                              className="form-control"
+                              value={cargos.find(c => c.idCargo === clienteActual?.idCargo)?.descripcion || ""}
+                              readOnly
+                              style={{ backgroundColor: '#dee2e6' }}
+                            />
+                          ) : (
+                            <SearchableSelect
+                              options={cargos}
+                              value={cargos.find(c => c.idCargo === form.idCargo) || ""}
+                              onChange={(selected) => setForm(prev => ({ ...prev, idCargo: selected ? selected.idCargo : "" }))}
+                              placeholder="Seleccione un cargo"
+                              displayFormat={(c) => c.descripcion}
+                              required
+                            />
+                          )}
                           {formErrors.idCargo && <div className="input-error-message">{formErrors.idCargo}</div>}
                         </div>
                       </div>
@@ -383,54 +401,25 @@ export default function Empleados() {
                           <label>
                             <i className="bi bi-person-badge me-2"></i>Usuario
                           </label>
-                          <select
-                            name="idUsuario"
-                            value={
-                              modalModo === "consultar"
-                                ? clienteActual?.idUsuario ?? ""
-                                : form.idUsuario ?? ""
-                            }
-                            onChange={handleChange}
-                            className="form-control"
-                            required
-                            disabled={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          >
-                            <option value="">Seleccione un usuario</option>
-                            {usuariosParaDropdown.map(u => (
-                              <option key={u.idUsuario} value={u.idUsuario}>{u.nombreUsuario}</option>
-                            ))}
-                          </select>
+                          {modalModo === "consultar" ? (
+                            <input
+                              type="text"
+                              className="form-control"
+                              value={usuariosParaDropdown.find(u => u.idUsuario === clienteActual?.idUsuario)?.nombreUsuario || ""}
+                              readOnly
+                              style={{ backgroundColor: '#dee2e6' }}
+                            />
+                          ) : (
+                            <SearchableSelect
+                              options={usuariosParaDropdown}
+                              value={usuariosParaDropdown.find(u => u.idUsuario === form.idUsuario) || ""}
+                              onChange={(selected) => setForm(prev => ({ ...prev, idUsuario: selected ? selected.idUsuario : "" }))}
+                              placeholder="Seleccione un usuario"
+                              displayFormat={(u) => u.nombreUsuario}
+                              required
+                            />
+                          )}
                           {formErrors.idUsuario && <div className="input-error-message">{formErrors.idUsuario}</div>}
-                        </div>
-                      </div>
-                    </div>
-                    {/* División: Estado */}
-                    <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
-                      <i className="bi bi-check2-circle me-2"></i>Estado
-                    </h6>
-                    <div className="row g-4">
-                      <div className="col-12 col-md-6">
-                        <div className="mb-3">
-                          <label>
-                            <i className="bi bi-check2-circle me-2"></i>Estado
-                          </label>
-                          <select
-                            name="activo"
-                            value={
-                              modalModo === "consultar"
-                                ? clienteActual?.activo ?? 1
-                                : form.activo
-                            }
-                            onChange={handleChange}
-                            className="form-control"
-                            disabled={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          >
-                            <option value={1}>Activo</option>
-                            <option value={0}>Inactivo</option>
-                          </select>
-                          {formErrors.activo && <div className="input-error-message">{formErrors.activo}</div>}
                         </div>
                       </div>
                     </div>

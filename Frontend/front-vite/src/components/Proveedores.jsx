@@ -10,7 +10,6 @@ function Proveedores() {
     cuil: "",
     razonSocial: "",
     telefono: "",
-    activo: 1
   });
   const [formErrors, setFormErrors] = useState({});
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
@@ -22,13 +21,18 @@ function Proveedores() {
   const [modalErrors, setModalErrors] = useState({});
   const [formMode, setFormMode] = useState("alta"); // "alta" | "modificar"
   const [editId, setEditId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Cargar proveedores
   useEffect(() => {
-    fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`)
+    const params = new URLSearchParams({
+      activos: mostrarInactivos ? "false" : "true",
+      ...(searchTerm && { search: searchTerm })
+    });
+    fetch(`${API_URL}?${params}`)
       .then(res => res.json())
       .then(data => setProveedores(data));
-  }, [mostrarInactivos]);
+  }, [mostrarInactivos, searchTerm]);
 
   const handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -40,7 +44,6 @@ function Proveedores() {
     if (!obj.cuil || !/^\d{11}$/.test(obj.cuil)) errors.cuil = "El CUIL/CUIT debe tener 11 dígitos numéricos.";
     if (!obj.razonSocial || obj.razonSocial.trim().length < 2) errors.razonSocial = "La razón social es obligatoria y debe tener al menos 2 caracteres.";
     if (!obj.telefono || obj.telefono.trim().length < 6 || !/^\d{6,}$/.test(obj.telefono.trim())) errors.telefono = "El teléfono es obligatorio, debe contener solo números y tener al menos 6 dígitos.";
-    if (obj.activo !== 0 && obj.activo !== 1 && obj.activo !== "0" && obj.activo !== "1") errors.activo = "El estado es obligatorio.";
     return errors;
   }
 
@@ -64,7 +67,7 @@ function Proveedores() {
         return data;
       })
       .then(() => {
-        setForm({ cuil: "", razonSocial: "", telefono: "", activo: 1 });
+        setForm({ cuil: "", razonSocial: "", telefono: "" });
         setMostrarFormulario(false);
         setMensaje("");
         fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`)
@@ -83,6 +86,19 @@ function Proveedores() {
       });
   }
 
+  function handleReactivar(cuil) {
+    fetch(`${API_URL}/${cuil}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activo: 1 })
+    })
+      .then(() => {
+        fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`)
+          .then(res => res.json())
+          .then(data => setProveedores(data));
+      });
+  }
+
   const handleAgregarClick = () => {
     setFormMode("alta");
     setProveedorActual(null);
@@ -94,7 +110,6 @@ function Proveedores() {
       cuil: "",
       razonSocial: "",
       telefono: "",
-      activo: 1,
     });
   };
 
@@ -106,7 +121,6 @@ function Proveedores() {
       cuil: prov.cuil || "",
       razonSocial: prov.razonSocial || "",
       telefono: prov.telefono || "",
-      activo: prov.activo ?? 1,
     });
     setModalModo("modificar");
     setModalVisible(true);
@@ -116,7 +130,6 @@ function Proveedores() {
       cuil: prov.cuil || "",
       razonSocial: prov.razonSocial || "",
       telefono: prov.telefono || "",
-      activo: prov.activo ?? 1,
     });
   };
 
@@ -126,7 +139,6 @@ function Proveedores() {
       cuil: prov.cuil || "",
       razonSocial: prov.razonSocial || "",
       telefono: prov.telefono || "",
-      activo: prov.activo ?? 1,
     });
     setModalModo('consultar');
     setModalVisible(true);
@@ -224,12 +236,8 @@ function Proveedores() {
           cuil: "",
           razonSocial: "",
           telefono: "",
-          activo: 1,
         });
         setEditId(null);
-        if (form.activo === 1) {
-          setMostrarInactivos(false);
-        }
         fetchProveedores();
       } else {
         setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido del servidor");
@@ -263,7 +271,16 @@ function Proveedores() {
               </div>
             </div>
             <div className="card-body">
-              <div className="table-responsive">
+              <div className="mb-3">
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Buscar por razón social o CUIT..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
@@ -289,17 +306,25 @@ function Proveedores() {
                             <i className="bi bi-search me-1"></i>Consultar
                           </button>
                           <button
-                            className="btn btn-sm btn-dorado fw-bold me-1"
-                            onClick={() => handleModificar(prov)}
+                            className={`btn btn-sm fw-bold me-1 ${prov.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`}
+                            onClick={() => prov.activo === 1 && handleModificar(prov)}
+                            disabled={prov.activo !== 1}
                           >
                             <i className="bi bi-pencil-square me-1"></i>Modificar
                           </button>
-                          {prov.activo === 1 && (
+                          {prov.activo === 1 ? (
                             <button
                               className="btn btn-sm btn-rojo fw-bold"
                               onClick={() => handleDelete(prov.cuil)}
                             >
                               <i className="bi bi-trash me-1"></i>Eliminar
+                            </button>
+                          ) : (
+                            <button
+                              className="btn btn-sm btn-verdeAgua fw-bold"
+                              onClick={() => handleReactivar(prov.cuil)}
+                            >
+                              <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
                             </button>
                           )}
                         </td>
@@ -424,33 +449,6 @@ function Proveedores() {
                                 style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                               />
                               {formErrors.telefono && <div className="input-error-message">{formErrors.telefono}</div>}
-                            </div>
-                          </div>
-                          {/* División: Estado */}
-                          <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
-                            <i className="bi bi-check2-circle me-2"></i>Estado
-                          </h6>
-                          <div className="col-12">
-                            <div className="mb-3">
-                              <label>
-                                <i className="bi bi-check2-circle me-2"></i>Estado
-                              </label>
-                              <select
-                                name="activo"
-                                value={
-                                  modalModo === "consultar"
-                                    ? proveedorActual?.activo ?? 1
-                                    : form.activo
-                                }
-                                onChange={handleChange}
-                                className="form-control"
-                                disabled={modalModo === "consultar"}
-                                style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                              >
-                                <option value={1}>Activo</option>
-                                <option value={0}>Inactivo</option>
-                              </select>
-                              {formErrors.activo && <div className="input-error-message">{formErrors.activo}</div>}
                             </div>
                           </div>
                         </div>

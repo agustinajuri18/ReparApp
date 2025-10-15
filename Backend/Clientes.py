@@ -2,7 +2,8 @@ import re
 from flask import Blueprint, request, jsonify
 from ABMC_db import (
     alta_cliente, modificar_cliente, mostrar_clientes, baja_cliente,
-    buscar_cliente_por_doc, mostrar_tipos_documento, alta_tipo_documento
+    buscar_cliente_por_doc, mostrar_tipos_documento, alta_tipo_documento,
+    reactivar_cliente
 )
 from ABMC_db import dispositivos_por_cliente, mostrar_ordenes, calcular_precio_total_orden_obj, obtener_ordenes
 
@@ -70,10 +71,11 @@ def registrar_cliente():
 @bp.route("/clientes", methods=["GET"])
 def listar_clientes():
     activos = request.args.get('activos', 'true')
+    search = request.args.get('search', None)
     if activos == 'true':
-        clientes = mostrar_clientes(activos_only=True)
+        clientes = mostrar_clientes(activos_only=True, search=search)
     else:
-        clientes = [c for c in mostrar_clientes(activos_only=False) if not c.activo]
+        clientes = [c for c in mostrar_clientes(activos_only=False, search=search) if not c.activo]
     return jsonify([
         {
             'idCliente': c.idCliente,
@@ -107,6 +109,13 @@ def modificar_datos_cliente(idCliente):
 @bp.route("/clientes/<int:idCliente>", methods=["DELETE"])
 def eliminar_cliente(idCliente):
     cliente = baja_cliente(idCliente)
+    if cliente:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Cliente no encontrado'}), 404
+
+@bp.route("/clientes/<int:idCliente>/reactivar", methods=["PUT"])
+def reactivar_cliente_endpoint(idCliente):
+    cliente = reactivar_cliente(idCliente)
     if cliente:
         return jsonify({'success': True})
     return jsonify({'error': 'Cliente no encontrado'}), 404

@@ -2,7 +2,7 @@ import re
 from flask import Blueprint, request, jsonify
 from ABMC_db import (
     alta_empleado, modificar_empleado as modificar_empleado_db, mostrar_empleados, baja_empleado,
-    mostrar_cargos, mostrar_tecnicos
+    mostrar_cargos, mostrar_tecnicos, reactivar_empleado
 )
 from flask_cors import cross_origin
 
@@ -70,6 +70,13 @@ def modificar_empleado(idEmpleado):
 @bp.route('/empleados/<int:idEmpleado>', methods=['DELETE'])
 def eliminar_empleado(idEmpleado):
     empleado = baja_empleado(idEmpleado)
+    if empleado:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Empleado no encontrado'}), 404
+
+@bp.route('/empleados/<int:idEmpleado>/reactivar', methods=['PUT'])
+def reactivar_empleado_endpoint(idEmpleado):
+    empleado = reactivar_empleado(idEmpleado)
     if empleado:
         return jsonify({'success': True})
     return jsonify({'error': 'Empleado no encontrado'}), 404

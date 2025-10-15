@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import MenuLateral from './MenuLateral';
+import SearchableSelect from './SearchableSelect';
 
 const API_URL = "http://localhost:5000/ordenes";
 const DISPOSITIVOS_URL = "http://localhost:5000/dispositivos";
@@ -64,6 +65,10 @@ function Ordenes() {
   const [nuevoClienteErrors, setNuevoClienteErrors] = useState({});
   const [nuevoDispositivoErrors, setNuevoDispositivoErrors] = useState({});
   const [nuevoDetalleErrors, setNuevoDetalleErrors] = useState({}); // Agregar esta línea si no está presente (después de const [nuevoDispositivoErrors, setNuevoDispositivoErrors] = useState({});)
+
+  // State for preserving form data when redirecting
+  const [preservedFormData, setPreservedFormData] = useState(null);
+  const [redirectAfterAdd, setRedirectAfterAdd] = useState(null); // 'cliente' or 'dispositivo'
 
   // --- Carga de Datos ---
   const fetchOrdenes = () => {
@@ -195,6 +200,19 @@ function Ordenes() {
     return errors;
   }
 
+  // Functions to handle adding new cliente/dispositivo with form preservation
+  const handleAddDispositivo = () => {
+    setPreservedFormData({ ...form, detalles: [...detalles] });
+    setRedirectAfterAdd('dispositivo');
+    setShowAddDispositivoModal(true);
+  };
+
+  const handleAddCliente = () => {
+    setPreservedFormData({ ...form, detalles: [...detalles] });
+    setRedirectAfterAdd('cliente');
+    setShowAddClienteModal(true);
+  };
+
   // --- Manejadores de Modal ---
   const handleModalClose = () => setModalVisible(false);
 
@@ -268,6 +286,11 @@ function Ordenes() {
         setProveedoresFiltrados([]);
         setEditingDetalleId(null);
       });
+  };
+
+  const handleGenerarPDF = (nroDeOrden) => {
+    // Abrir la página de previsualización en una nueva ventana
+    window.open(`${API_URL}/${nroDeOrden}/preview`, '_blank', 'width=1000,height=800');
   };
 
   const handleConsultar = (orden) => {
@@ -577,6 +600,7 @@ function Ordenes() {
 
     const payload = {
       ...form,
+      ...(modalModo === 'alta' && { diagnostico: undefined }), // Excluir diagnóstico en modo alta
       presupuesto: parseFloat(form.presupuesto) || 0,
       detalles: detalles.map(d => {
         let finalRepuestoProveedorId = d.repuesto_proveedor_id;
@@ -776,8 +800,14 @@ function Ordenes() {
       body: JSON.stringify(nuevoCliente)
     })
     .then(res => res.json())
-    .then(() => {
+    .then(data => {
       fetchClientes();
+      if (preservedFormData && redirectAfterAdd === 'cliente') {
+        setForm(preservedFormData);
+        setDetalles(preservedFormData.detalles || []);
+        setPreservedFormData(null);
+        setRedirectAfterAdd(null);
+      }
       setNuevoCliente({ idTipoDoc: "", numeroDoc: "", nombre: "", apellido: "", telefono: "", mail: "", activo: 1 });
       setShowAddClienteModal(false);
       setNuevoClienteErrors({});
@@ -799,7 +829,14 @@ function Ordenes() {
     .then(res => res.json())
     .then(data => {
       fetchDispositivos();
-      setForm(prev => ({ ...prev, idDispositivo: data.idDispositivo })); // Seleccionar el nuevo
+      if (preservedFormData && redirectAfterAdd === 'dispositivo') {
+        setForm({ ...preservedFormData, idDispositivo: data.idDispositivo });
+        setDetalles(preservedFormData.detalles || []);
+        setPreservedFormData(null);
+        setRedirectAfterAdd(null);
+      } else {
+        setForm(prev => ({ ...prev, idDispositivo: data.idDispositivo })); // Seleccionar el nuevo
+      }
       setNuevoDispositivo({ nroSerie: "", marca: "", modelo: "", idCliente: "", activo: 1 });
       setShowAddDispositivoModal(false);
       setNuevoDispositivoErrors({});
@@ -833,7 +870,7 @@ function Ordenes() {
             </div>
             <div className="card-body">
               {/* quitar el alert de mensaje general */}
-              <div className="table-responsive">
+              <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-hover align-middle">
                   <thead>
                     <tr>
@@ -863,6 +900,9 @@ function Ordenes() {
                         <td>
                           <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
                             <i className="bi bi-search me-1"></i>Consultar
+                          </button>
+                          <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarPDF(o.nroDeOrden)}>
+                            <i className="bi bi-file-earmark-pdf me-1"></i>PDF
                           </button>
                           <button className="btn btn-sm btn-dorado fw-bold" onClick={() => handleModificar(o)}>
                             <i className="bi bi-pencil-square me-1"></i>Modificar
@@ -902,11 +942,19 @@ function Ordenes() {
                       <div className="col-md-6">
                         <label>Dispositivo</label>
                         <div className="d-flex">
-                          <select name="idDispositivo" value={form.idDispositivo} onChange={handleFormChange} className={`form-select ${modalModo === 'consultar' ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar'}>
-                            <option value="">Seleccione un dispositivo</option>
-                            {dispositivos.map(d => <option key={d.idDispositivo} value={d.idDispositivo}>{`${d.marca} ${d.modelo} (${d.nroSerie})`}</option>)}
-                          </select>
-                          <button type="button" className="btn btn-secondary" onClick={() => setShowAddDispositivoModal(true)}>
+                          <div className="flex-grow-1 me-2">
+                            <SearchableSelect
+                              options={dispositivos}
+                              value={dispositivos.find(d => d.idDispositivo === form.idDispositivo) || ""}
+                              onChange={(selected) => setForm(prev => ({ ...prev, idDispositivo: selected ? selected.idDispositivo : "" }))}
+                              placeholder="Seleccione un dispositivo"
+                              displayFormat={(d) => `${d.marca} ${d.modelo} (${d.nroSerie})`}
+                              className={modalModo === 'consultar' ? 'readonly-field' : ''}
+                              disabled={modalModo === 'consultar'}
+                              required
+                            />
+                          </div>
+                          <button type="button" className="btn btn-secondary" onClick={handleAddDispositivo}>
                             Nuevo Dispositivo
                           </button>
                         </div>
@@ -914,10 +962,15 @@ function Ordenes() {
                       </div>
                       <div className="col-md-6">
                         <label>Técnico Asignado</label>
-                        <select name="idEmpleado" value={form.idEmpleado} onChange={handleFormChange} className={`form-select ${modalModo === 'consultar' ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar'}>
-                          <option value="">Seleccione un Técnico</option>
-                          {empleados.map(e => <option key={e.idEmpleado} value={e.idEmpleado}>{`${e.nombre} ${e.apellido}`}</option>)}
-                        </select>
+                        <SearchableSelect
+                          options={empleados}
+                          value={empleados.find(e => e.idEmpleado === form.idEmpleado) || ""}
+                          onChange={(selected) => setForm(prev => ({ ...prev, idEmpleado: selected ? selected.idEmpleado : "" }))}
+                          placeholder="Seleccione un Técnico"
+                          displayFormat={(e) => `${e.nombre} ${e.apellido}`}
+                          className={modalModo === 'consultar' ? 'readonly-field' : ''}
+                          disabled={modalModo === 'consultar'}
+                        />
                         {formErrors.idEmpleado && <div className="input-error-message">{formErrors.idEmpleado}</div>}
                       </div>
                       <div className="col-md-4">
@@ -940,10 +993,12 @@ function Ordenes() {
                         <input name="descripcionDanos" value={form.descripcionDanos} onChange={handleFormChange} className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar'} />
                         {formErrors.descripcionDanos && <div className="input-error-message">{formErrors.descripcionDanos}</div>}
                       </div>
-                      <div className="col-md-8">
-                        <label>Diagnóstico</label>
-                        <input name="diagnostico" value={form.diagnostico} onChange={handleFormChange} className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar'} />
-                      </div>
+                      {modalModo !== 'alta' && (
+                        <div className="col-md-8">
+                          <label>Diagnóstico</label>
+                          <input name="diagnostico" value={form.diagnostico} onChange={handleFormChange} className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar'} />
+                        </div>
+                      )}
                       <div className="col-md-4">
                         <label>Presupuesto Total</label>
                         <input type="number" name="presupuesto" value={form.presupuesto} className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`} readOnly />
@@ -1376,15 +1431,16 @@ function Ordenes() {
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-person-lines-fill me-2"></i>Cliente</label>
                           <div className="d-flex">
-                            <select name="idCliente" className="form-control me-2" value={nuevoDispositivo.idCliente} onChange={handleNuevoDispositivoChange}>
-                              <option value="">Seleccione un cliente...</option>
-                              {clientes.map(c => (
-                                <option key={c.idCliente} value={c.idCliente}>
-                                  {tiposDoc.find(td => td.idTipoDoc === c.idTipoDoc)?.nombre || c.idTipoDoc} - {c.numeroDoc} ({c.nombre} {c.apellido})
-                                </option>
-                              ))}
-                            </select>
-                            <button type="button" className="btn btn-verdeAgua" onClick={() => setShowAddClienteModal(true)}><i className="bi bi-plus-lg"></i></button>
+                            <div className="flex-grow-1 me-2">
+                              <SearchableSelect
+                                options={clientes}
+                                value={clientes.find(c => c.idCliente === nuevoDispositivo.idCliente) || ""}
+                                onChange={(selected) => setNuevoDispositivo(prev => ({ ...prev, idCliente: selected ? selected.idCliente : "" }))}
+                                placeholder="Seleccione un cliente..."
+                                displayFormat={(c) => `${tiposDoc.find(td => td.idTipoDoc === c.idTipoDoc)?.nombre || c.idTipoDoc} - ${c.numeroDoc} (${c.nombre} ${c.apellido})`}
+                              />
+                            </div>
+                            <button type="button" className="btn btn-verdeAgua" onClick={handleAddCliente}><i className="bi bi-plus-lg"></i></button>
                           </div>
                           {nuevoDispositivoErrors.idCliente && <div className="input-error-message">{nuevoDispositivoErrors.idCliente}</div>}
                         </div>

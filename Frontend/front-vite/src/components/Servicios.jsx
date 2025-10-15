@@ -30,7 +30,7 @@ export default function Servicios() {
 
   // Cargar servicios
   const fetchServicios = () => {
-    fetch(API_URL)
+    fetch(`${API_URL}?activos=${mostrarInactivos ? 'false' : 'true'}`)
       .then(res => res.json())
       .then(data => setServicios(Array.isArray(data) ? data : []))
       .catch(() => setMensaje("Error al cargar servicios"));
@@ -104,6 +104,16 @@ export default function Servicios() {
     }
   };
 
+  const handleReactivar = async (idServicio) => {
+    try {
+      const res = await fetch(`${API_URL}/${idServicio}/reactivar`, { method: "PUT" });
+      if (!res.ok) throw new Error("Error al reactivar el servicio.");
+      fetchServicios();
+    } catch (err) {
+      setMensaje(err.message);
+    }
+  };
+
   const handleChange = e => {
     setServicioActual({ ...servicioActual, [e.target.name]: e.target.value });
     setFormErrors(validarServicio({ ...servicioActual, [e.target.name]: e.target.value }));
@@ -113,7 +123,6 @@ export default function Servicios() {
     const errors = {};
     if (!form.descripcion || form.descripcion.trim().length < 2) errors.descripcion = "La descripción es obligatoria y debe tener al menos 2 caracteres.";
     if (!form.precioBase || isNaN(Number(form.precioBase)) || Number(form.precioBase) < 0) errors.precioBase = "El precio base debe ser un número mayor o igual a 0.";
-    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") errors.activo = "El estado es obligatorio.";
     // Remove the mandatory repuestos check
     // if (form.repuestos.length === 0) errors.repuestos = "Debe agregar al menos un repuesto.";
     if (modalModo !== 'consultar') {
@@ -140,8 +149,7 @@ export default function Servicios() {
     }
     const servicioData = {
       descripcion: servicioActual.descripcion,
-      precioBase: Number(servicioActual.precioBase),
-      activo: servicioActual.activo
+      precioBase: Number(servicioActual.precioBase)
     };
     const res = await fetch(`${API_URL}/`, {
       method: "POST",
@@ -183,8 +191,7 @@ export default function Servicios() {
     }
     const servicioData = {
       descripcion: servicioActual.descripcion,
-      precioBase: Number(servicioActual.precioBase),
-      activo: servicioActual.activo
+      precioBase: Number(servicioActual.precioBase)
     };
     const res = await fetch(`${API_URL}/${servicioActual.idServicio}`, {
       method: "PUT",
@@ -275,7 +282,7 @@ export default function Servicios() {
               </div>
             </div>
             <div className="card-body">
-              <div className="table-responsive">
+              <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
@@ -301,17 +308,25 @@ export default function Servicios() {
                             <i className="bi bi-search me-1"></i>Consultar
                           </button>
                           <button
-                            className="btn btn-sm btn-dorado fw-bold me-1"
-                            onClick={() => handleModificar(s)}
+                            className={`btn btn-sm fw-bold me-1 ${s.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`}
+                            onClick={() => s.activo === 1 && handleModificar(s)}
+                            disabled={s.activo !== 1}
                           >
                             <i className="bi bi-pencil-square me-1"></i>Modificar
                           </button>
-                          {s.activo === 1 && (
+                          {s.activo === 1 ? (
                             <button
                               className="btn btn-sm btn-rojo fw-bold"
                               onClick={() => handleEliminar(s.idServicio)}
                             >
                               <i className="bi bi-trash me-1"></i>Eliminar
+                            </button>
+                          ) : (
+                            <button
+                              className="btn btn-sm btn-verdeAgua fw-bold"
+                              onClick={() => handleReactivar(s.idServicio)}
+                            >
+                              <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
                             </button>
                           )}
                         </td>
@@ -419,25 +434,6 @@ export default function Servicios() {
                             style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
                           {formErrors.precioBase && <div className="input-error-message">{formErrors.precioBase}</div>}
-                        </div>
-                        {/* División: Estado */}
-                        <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
-                          <i className="bi bi-check2-circle me-2"></i>Estado
-                        </h6>
-                        <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
-                          <select
-                            className="form-control"
-                            name="activo"
-                            value={servicioActual?.activo ?? ""}
-                            onChange={handleChange}
-                            disabled={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          >
-                            <option value={1}>Activo</option>
-                            <option value={0}>Inactivo</option>
-                          </select>
-                          {formErrors.activo && <div className="input-error-message">{formErrors.activo}</div>}
                         </div>
                       </div>
                     </div>

@@ -22,7 +22,6 @@ export default function Dispositivos() {
         marca: "",
         modelo: "",
         idCliente: "",
-        activo: 1,
     });
     const [formErrors, setFormErrors] = useState({});
     const [historialVisible, setHistorialVisible] = useState(false);
@@ -77,7 +76,6 @@ export default function Dispositivos() {
             marca: "",
             modelo: "",
             idCliente: "",
-            activo: 1,
         });
         setModalModo("alta");
         setModalVisible(true);
@@ -105,10 +103,19 @@ export default function Dispositivos() {
         }
     };
 
+    const handleReactivar = async (idDispositivo) => {
+        await fetch(`${API_URL}/${idDispositivo}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ activo: 1 })
+        });
+        fetchDispositivos();
+    };
+
     const handleChange = e => {
-        const value = e.target.name === "activo" ? parseInt(e.target.value) : e.target.value;
-        setDispositivoActual({ ...dispositivoActual, [e.target.name]: value });
-        setFormErrors(validarDispositivo({ ...dispositivoActual, [e.target.name]: value }));
+        const { name, value } = e.target;
+        setDispositivoActual({ ...dispositivoActual, [name]: value });
+        setFormErrors(validarDispositivo({ ...dispositivoActual, [name]: value }));
     };
 
     function validarDispositivo(form) {
@@ -117,7 +124,6 @@ export default function Dispositivos() {
         if (!form.marca || form.marca.trim().length < 2) errors.marca = "La marca es obligatoria y debe tener al menos 2 caracteres.";
         if (!form.modelo || form.modelo.trim().length < 2) errors.modelo = "El modelo es obligatorio y debe tener al menos 2 caracteres.";
         if (!form.idCliente) errors.idCliente = "Debe seleccionar un cliente válido.";
-        if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") errors.activo = "El estado es obligatorio.";
         return errors;
     }
 
@@ -146,7 +152,6 @@ export default function Dispositivos() {
                     marca: "",
                     modelo: "",
                     idCliente: "",
-                    activo: 1,
                 });
                 fetchDispositivos();
             } else {
@@ -182,11 +187,7 @@ export default function Dispositivos() {
                     marca: "",
                     modelo: "",
                     idCliente: "",
-                    activo: 1,
                 });
-                if (dispositivoActual.activo === 1) {
-                    setMostrarInactivos(false);
-                }
                 fetchDispositivos();
             } else {
                 setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido del servidor");
@@ -220,7 +221,7 @@ export default function Dispositivos() {
                             </div>
                         </div>
                         <div className="card-body">
-                            <div className="table-responsive">
+                            <div className="table-responsive" style={{ overflow: 'visible' }}>
                                 <table className="table table-striped table-hover align-middle">
                                     <thead>
                                         <tr>
@@ -245,7 +246,7 @@ export default function Dispositivos() {
                                                     })()}
                                                 </td>
                                                 <td>{d.activo ? "Activo" : "Inactivo"}</td>
-                                                <td>
+                                                <td style={{ position: 'relative', overflow: 'visible' }}>
                                                     <div className="d-flex align-items-center gap-2">
                                                         <button
                                                             className="btn btn-sm btn-verdeAgua fw-bold"
@@ -279,10 +280,14 @@ export default function Dispositivos() {
                                                                 <i className="bi bi-three-dots-vertical"></i>
                                                             </button>
                                                             {openMenuFor === d.idDispositivo && (
-                                                                <div className="card position-absolute" style={{ right: 0, top: '110%', zIndex: 2000, minWidth: 140 }}>
+                                                                <div className="card position-absolute" style={{ right: 0, top: '110%', zIndex: 9999, minWidth: 140 }}>
                                                                     <ul className="list-group list-group-flush p-2">
-                                                                        <li className="list-group-item border-0 p-0 mb-1"><button className="btn btn-sm btn-dorado w-100" onClick={() => { setOpenMenuFor(null); handleModificar(d); }}>Modificar</button></li>
-                                                                        <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={() => { setOpenMenuFor(null); d.idDispositivo && handleEliminar(d.idDispositivo); }}>Eliminar</button></li>
+                                                                        <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${d.activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => { setOpenMenuFor(null); d.activo && handleModificar(d); }} disabled={!d.activo}>Modificar</button></li>
+                                                                        {d.activo ? (
+                                                                            <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={() => { setOpenMenuFor(null); d.idDispositivo && handleEliminar(d.idDispositivo); }}>Eliminar</button></li>
+                                                                        ) : (
+                                                                            <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100" onClick={() => { setOpenMenuFor(null); d.idDispositivo && handleReactivar(d.idDispositivo); }}>Reactivar</button></li>
+                                                                        )}
                                                                     </ul>
                                                                 </div>
                                                             )}
@@ -430,28 +435,6 @@ export default function Dispositivos() {
                                                 </div>
                                             </div>
                                         </div>
-                                        {/* División: Estado */}
-                                        <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
-                                            <i className="bi bi-check2-circle me-2"></i>Estado
-                                        </h6>
-                                        <div className="row g-4">
-                                            <div className="col-12 col-md-6">
-                                                <div className="mb-3">
-                                                    <label className="fw-semibold"><i className="bi bi-check2-circle me-2"></i>Estado</label>
-                                                    <select
-                                                        className="form-control"
-                                                        name="activo"
-                                                        value={dispositivoActual?.activo}
-                                                        onChange={modalModo === "consultar" ? undefined : handleChange}
-                                                        disabled={modalModo === "consultar"}
-                                                    >
-                                                        <option value={1}>Activo</option>
-                                                        <option value={0}>Inactivo</option>
-                                                    </select>
-                                                    {formErrors.activo && <div className="input-error-message">{formErrors.activo}</div>}
-                                                </div>
-                                            </div>
-                                        </div>
                                     </fieldset>
                                     {mensaje && (
                                         <div className="alert alert-danger">{mensaje}</div>
@@ -496,7 +479,7 @@ export default function Dispositivos() {
                                 {historialOrdenes.length === 0 ? (
                                     <div className="text-muted">No se encontraron órdenes para este dispositivo.</div>
                                 ) : (
-                                    <div className="table-responsive">
+                                    <div className="table-responsive" style={{ overflow: 'visible' }}>
                                         <table className="table table-sm">
                                             <thead>
                                                 <tr>

@@ -64,6 +64,8 @@ def mostrar_usuarios(activos_only=True, no_asignados_only=False):
         q = s.query(Usuario)
         if activos_only:
             q = q.filter(Usuario.activo == 1)
+        elif activos_only is False:
+            q = q.filter(Usuario.activo == 0)
         if no_asignados_only:
             # Filter users not associated with any employee
             subq = s.query(Empleado.idUsuario).distinct()
@@ -131,11 +133,20 @@ def modificar_cliente(idCliente, idTipoDoc=None, numeroDoc=None, nombre=None, ap
         s.commit()
         return cliente
 
-def mostrar_clientes(activos_only=True):
+def mostrar_clientes(activos_only=True, search=None):
     with session_scope() as s:
         q = s.query(Cliente)
-        if activos_only:
+        if activos_only is True:
             q = q.filter_by(activo=1)
+        elif activos_only is False:
+            q = q.filter_by(activo=0)
+        if search:
+            # Search by name or DNI
+            q = q.filter(
+                (Cliente.nombre.ilike(f'%{search}%')) |
+                (Cliente.apellido.ilike(f'%{search}%')) |
+                (Cliente.numeroDoc.ilike(f'%{search}%'))
+            )
         return q.all()
 
 def baja_cliente(idCliente):
@@ -145,6 +156,14 @@ def baja_cliente(idCliente):
             cliente.activo = 0
             s.commit()
         return cliente
+
+def reactivar_cliente(idCliente):
+    with session_scope() as s:
+        c = s.get(Cliente, idCliente)
+        if c:
+            c.activo = 1
+            s.commit()
+        return c
 
 def buscar_cliente_por_doc(idTipoDoc, numeroDoc):
     with session_scope() as s:
@@ -200,11 +219,21 @@ def baja_dispositivo(idDispositivo):
             s.commit()
         return d
 
+def reactivar_dispositivo(idDispositivo):
+    with session_scope() as s:
+        d = s.get(Dispositivo, idDispositivo)
+        if d:
+            d.activo = 1
+            s.commit()
+        return d
+
 def mostrar_dispositivos(activos_only=True):
     with session_scope() as s:
         q = s.query(Dispositivo)
-        if activos_only:
+        if activos_only is True:
             q = q.filter_by(activo=1)
+        elif activos_only is False:
+            q = q.filter_by(activo=0)
         return q.all()
 
 def dispositivos_por_cliente(idCliente):
@@ -249,11 +278,27 @@ def baja_proveedor(idProveedor):
             s.commit()
         return p
 
-def mostrar_proveedores(activos_only=True):
+def reactivar_proveedor(idProveedor):
+    with session_scope() as s:
+        p = s.get(Proveedor, idProveedor)
+        if p:
+            p.activo = 1
+            s.commit()
+        return p
+
+def mostrar_proveedores(activos_only=True, search=None):
     with session_scope() as s:
         q = s.query(Proveedor)
-        if activos_only:
+        if activos_only is True:
             q = q.filter_by(activo=1)
+        elif activos_only is False:
+            q = q.filter_by(activo=0)
+        if search:
+            # Search by razon social or CUIT
+            q = q.filter(
+                (Proveedor.razonSocial.ilike(f'%{search}%')) |
+                (Proveedor.cuil.ilike(f'%{search}%'))
+            )
         return q.all()
 
 def buscar_proveedor_por_cuil(cuil):
@@ -295,11 +340,21 @@ def baja_empleado(idEmpleado):
             s.commit()
         return e
 
+def reactivar_empleado(idEmpleado):
+    with session_scope() as s:
+        e = s.get(Empleado, idEmpleado)
+        if e:
+            e.activo = 1
+            s.commit()
+        return e
+
 def mostrar_empleados(activos_only=True):
     with session_scope() as s:
         q = s.query(Empleado)
-        if activos_only:
+        if activos_only is True:
             q = q.filter_by(activo=1)
+        elif activos_only is False:
+            q = q.filter_by(activo=0)
         return q.all()
 
 def buscar_empleado(idEmpleado):
@@ -311,6 +366,8 @@ def mostrar_tecnicos(activos_only=True, idCargo=None):
         q = s.query(Empleado)
         if activos_only:
             q = q.filter_by(activo=1)
+        elif activos_only is False:
+            q = q.filter_by(activo=0)
         if idCargo is not None:
             q = q.filter_by(idCargo=idCargo)
         return q.all()
@@ -389,8 +446,10 @@ def modificar_servicio(idServicio, descripcion=None, precioBase=None, activo=Non
 def mostrar_servicios(activos_only=True):
     with session_scope() as s:
         q = s.query(Servicio)
-        if activos_only:
+        if activos_only is True:
             q = q.filter_by(activo=1)
+        elif activos_only is False:
+            q = q.filter_by(activo=0)
         return q.all()
 
 def baja_servicio(idServicio):
@@ -398,6 +457,14 @@ def baja_servicio(idServicio):
         sv = s.get(Servicio, idServicio)
         if sv:
             sv.activo = 0
+            s.commit()
+        return sv
+
+def reactivar_servicio(idServicio):
+    with session_scope() as s:
+        sv = s.get(Servicio, idServicio)
+        if sv:
+            sv.activo = 1
             s.commit()
         return sv
 
@@ -430,11 +497,21 @@ def baja_repuesto(idRepuesto):
             s.commit()
         return r
 
+def reactivar_repuesto(idRepuesto):
+    with session_scope() as s:
+        r = s.get(Repuesto, idRepuesto)
+        if r:
+            r.activo = 1
+            s.commit()
+        return r
+
 def mostrar_repuestos(activos_only=True):
     with session_scope() as s:
         q = s.query(Repuesto)
         if activos_only:
             q = q.filter_by(activo=1)
+        elif activos_only is False:
+            q = q.filter_by(activo=0)
         return q.all()
 
 
@@ -811,6 +888,9 @@ def obtener_ordenes(mode='summary', idCliente=None, idDispositivo=None, nroDeOrd
         if idCliente is not None:
             # join con Dispositivo para filtrar por cliente
             q = q.join(Dispositivo, OrdenDeReparacion.idDispositivo == Dispositivo.idDispositivo).filter(Dispositivo.idCliente == idCliente)
+
+        # Ordenar por fecha descendente (más recientes primero)
+        q = q.order_by(OrdenDeReparacion.fecha.desc())
 
         ordenes = q.all()
         resultado = []

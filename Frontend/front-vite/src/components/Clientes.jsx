@@ -18,7 +18,6 @@ export default function Clientes() {
     apellido: "",
     telefono: "",
     mail: "",
-    activo: 1,
   });
   const [formErrors, setFormErrors] = useState({});
   const [modalVisible, setModalVisible] = useState(false);
@@ -30,10 +29,15 @@ export default function Clientes() {
   const [openMenuFor, setOpenMenuFor] = useState(null); // idCliente of open menu
   // Agregar estado para el ID en edición
   const [editId, setEditId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Cargar clientes
   const fetchClientes = () => {
-    fetch(`${API_URL}?activos=${!mostrarInactivos}`)
+    const params = new URLSearchParams({
+      activos: (!mostrarInactivos).toString(),
+      ...(searchTerm && { search: searchTerm })
+    });
+    fetch(`${API_URL}?${params}`)
       .then(res => res.json())
       .then(data => setClientes(Array.isArray(data) ? data.filter(c => c && typeof c === 'object' && 'idCliente' in c && c.idCliente != null) : []))
       .catch(() => setMensaje("Error al cargar clientes"));
@@ -51,7 +55,7 @@ export default function Clientes() {
     fetchClientes();
     fetchTiposDocumento();
     // eslint-disable-next-line
-  }, [mostrarInactivos]);
+  }, [mostrarInactivos, searchTerm]);
 
   // Close dropdown menu when clicking outside or pressing Escape
   useEffect(() => {
@@ -70,9 +74,9 @@ export default function Clientes() {
   }, []);
 
   const handleChange = e => {
-    const value = e.target.name === "activo" ? parseInt(e.target.value) : e.target.value;
-    setForm({ ...form, [e.target.name]: value });
-    setFormErrors(validarCliente({ ...form, [e.target.name]: value }));
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+    setFormErrors(validarCliente({ ...form, [name]: value }));
   };
 
   // Mostrar modal para alta o modificación
@@ -105,7 +109,6 @@ export default function Clientes() {
       apellido: cliente.apellido || "",
       telefono: cliente.telefono || "",
       mail: cliente.mail || "",
-      activo: cliente.activo ?? 1,
     });
     setModalModo("modificar");
     setModalVisible(true);
@@ -118,7 +121,6 @@ export default function Clientes() {
       apellido: cliente.apellido || "",
       telefono: cliente.telefono || "",
       mail: cliente.mail || "",
-      activo: cliente.activo ?? 1,
     });
   };
 
@@ -137,7 +139,6 @@ export default function Clientes() {
     if (!form.apellido || form.apellido.trim().length < 2 || !/^[a-zA-Z\s]+$/.test(form.apellido.trim())) errors.apellido = "El apellido es obligatorio, debe contener solo letras y espacios, y tener al menos 2 caracteres.";
     if (!form.telefono || form.telefono.trim().length < 6 || !/^\d{6,}$/.test(form.telefono.trim())) errors.telefono = "El teléfono es obligatorio, debe contener solo números y tener al menos 6 dígitos.";
     if (!form.mail || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.mail)) errors.mail = "El email no es válido.";
-    if (form.activo !== 0 && form.activo !== 1 && form.activo !== "0" && form.activo !== "1") errors.activo = "El estado es obligatorio.";
     return errors;
   }
 
@@ -164,7 +165,6 @@ export default function Clientes() {
       apellido: "",
       telefono: "",
       mail: "",
-      activo: 1,
     });
     fetchClientes();
   };
@@ -194,12 +194,8 @@ export default function Clientes() {
           apellido: "",
           telefono: "",
           mail: "",
-          activo: 1,
         });
         setEditId(null);
-        if (form.activo === 1) {
-          setMostrarInactivos(false);
-        }
         fetchClientes();
       } else {
         setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido del servidor");
@@ -288,6 +284,25 @@ export default function Clientes() {
     }
   };
 
+  // Agregar función handleReactivar
+  const handleReactivar = async (idCliente) => {
+    try {
+      const res = await fetch(`${API_URL}/${idCliente}`, {
+        method: 'PUT',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activo: 1 })
+      });
+      if (res.ok) {
+        setMensaje("Cliente reactivado exitosamente");
+        fetchClientes();
+      } else {
+        setMensaje("Error al reactivar cliente");
+      }
+    } catch (error) {
+      setMensaje("Error de conexión");
+    }
+  };
+
   return (
     <div className="container-fluid main-background" style={{ minHeight: '100vh' }}>
       <div className="row flex-nowrap">
@@ -312,7 +327,16 @@ export default function Clientes() {
               </div>
             </div>
             <div className="card-body">
-              <div className="table-responsive">
+              <div className="mb-3">
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Buscar por nombre o DNI..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
@@ -336,7 +360,7 @@ export default function Clientes() {
                         <td>{c.telefono}</td>
                         <td>{c.mail}</td>
                         <td>{c.activo === 1 ? "Activo" : "Inactivo"}</td>
-                        <td>
+                        <td style={{ position: 'relative', overflow: 'visible' }}>
                           <div className="d-flex align-items-center gap-2">
                             <button
                               className="btn btn-sm btn-verdeAgua fw-bold"
@@ -371,10 +395,14 @@ export default function Clientes() {
                                 <i className="bi bi-three-dots-vertical"></i>
                               </button>
                               {openMenuFor === c.idCliente && (
-                                <div className="card position-absolute" style={{ right: 0, top: '110%', zIndex: 2000, minWidth: 140 }}>
+                                <div className="card position-absolute" style={{ right: 0, top: '110%', zIndex: 9999, minWidth: 140 }}>
                                   <ul className="list-group list-group-flush p-2">
-                                    <li className="list-group-item border-0 p-0 mb-1"><button className="btn btn-sm btn-dorado w-100" onClick={() => { setOpenMenuFor(null); handleModificar(c); }}>Modificar</button></li>
-                                    <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={() => { setOpenMenuFor(null); c.idCliente && handleEliminar(c.idCliente); }}>Eliminar</button></li>
+                                    <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${c.activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => { setOpenMenuFor(null); c.activo && handleModificar(c); }} disabled={!c.activo}>Modificar</button></li>
+                                    {c.activo ? (
+                                      <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={() => { setOpenMenuFor(null); c.idCliente && handleEliminar(c.idCliente); }}>Eliminar</button></li>
+                                    ) : (
+                                      <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100" onClick={() => { setOpenMenuFor(null); c.idCliente && handleReactivar(c.idCliente); }}>Reactivar</button></li>
+                                    )}
                                   </ul>
                                 </div>
                               )}
@@ -565,35 +593,6 @@ export default function Clientes() {
                             style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                           />
                           {formErrors.mail && <div className="input-error-message">{formErrors.mail}</div>}
-                        </div>
-                      </div>
-                    </div>
-                    {/* División: Estado */}
-                    <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
-                      <i className="bi bi-check2-circle me-2"></i>Estado
-                    </h6>
-                    <div className="row g-4">
-                      <div className="col-12 col-md-6">
-                        <div className="mb-3">
-                          <label>
-                            <i className="bi bi-check2-circle me-2"></i>Estado
-                          </label>
-                          <select
-                            name="activo"
-                            value={
-                              modalModo === "consultar"
-                                ? clienteActual?.activo ?? 1
-                                : form.activo
-                            }
-                            onChange={handleChange}
-                            className="form-control"
-                            disabled={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          >
-                            <option value={1}>Activo</option>
-                            <option value={0}>Inactivo</option>
-                          </select>
-                          {formErrors.activo && <div className="input-error-message">{formErrors.activo}</div>}
                         </div>
                       </div>
                     </div>

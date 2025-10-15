@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from ABMC_db import (
     alta_proveedor, modificar_proveedor, mostrar_proveedores, baja_proveedor,
-    buscar_proveedor_por_cuil
+    buscar_proveedor_por_cuil, reactivar_proveedor
 )
 
 bp = Blueprint('proveedores', __name__)
@@ -34,10 +34,11 @@ def registrar_proveedor():
 @bp.route('/proveedores', methods=['GET'])
 def listar_proveedores():
     activos = request.args.get('activos', 'true')
+    search = request.args.get('search', None)
     if activos == 'true':
-        proveedores = mostrar_proveedores(activos_only=True)
+        proveedores = mostrar_proveedores(activos_only=True, search=search)
     else:
-        proveedores = mostrar_proveedores(activos_only=False)
+        proveedores = mostrar_proveedores(activos_only=False, search=search)
     return jsonify([
         {
             'idProveedor': p.idProveedor,
@@ -73,4 +74,12 @@ def eliminar_proveedor(cuil):
     if not proveedor:
         return jsonify({'error': 'Proveedor no encontrado'}), 404
     baja_proveedor(proveedor.idProveedor)
+    return jsonify({'success': True})
+
+@bp.route('/proveedores/<string:cuil>/reactivar', methods=['PUT'])
+def reactivar_proveedor_endpoint(cuil):
+    proveedor = buscar_proveedor_por_cuil(cuil)
+    if not proveedor:
+        return jsonify({'error': 'Proveedor no encontrado'}), 404
+    reactivar_proveedor(proveedor.idProveedor)
     return jsonify({'success': True})

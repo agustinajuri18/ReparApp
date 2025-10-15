@@ -2,7 +2,8 @@ import traceback
 from flask import Blueprint, request, jsonify
 from ABMC_db import (
     alta_dispositivo, modificar_dispositivo, mostrar_dispositivos,
-    baja_dispositivo, buscar_dispositivo_por_nroSerie, dispositivos_por_cliente
+    baja_dispositivo, buscar_dispositivo_por_nroSerie, dispositivos_por_cliente,
+    reactivar_dispositivo
 )
 from ABMC_db import obtener_ordenes, buscar_cliente_por_id
 
@@ -41,6 +42,8 @@ def listar_dispositivos():
         dispositivos = dispositivos_por_cliente(int(id_cliente))
         if activos:
             dispositivos = [d for d in dispositivos if d.activo == 1]
+        else:
+            dispositivos = [d for d in dispositivos if d.activo == 0]
     else:
         dispositivos = mostrar_dispositivos(activos_only=activos)
         
@@ -77,6 +80,12 @@ def baja_logica_dispositivo(idDispositivo):
         return jsonify({'success': True})
     return jsonify({'error': 'Dispositivo no encontrado'}), 404
 
+@bp.route('/dispositivos/<int:idDispositivo>/reactivar', methods=['PUT'])
+def reactivar_dispositivo_endpoint(idDispositivo):
+    dispositivo = reactivar_dispositivo(idDispositivo)
+    if dispositivo:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Dispositivo no encontrado'}), 404
 
 @bp.route('/dispositivos/<int:idDispositivo>/historial-ordenes', methods=['GET'])
 def historial_ordenes_por_dispositivo(idDispositivo):

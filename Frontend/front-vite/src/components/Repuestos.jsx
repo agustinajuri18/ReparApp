@@ -19,8 +19,7 @@ function Repuestos() {
     codigo: "",
     marca: "",
     modelo: "",
-    activo: 1,
-    proveedores: []
+    proveedores: [],
   });
 
   const [modalTodosRepuestos, setModalTodosRepuestos] = useState({ open: false, lista: [] });
@@ -103,7 +102,7 @@ function Repuestos() {
 
   const handleAgregarClick = () => {
     setModalModo('alta');
-    setForm({ codigo: "", marca: "", modelo: "", activo: 1, proveedores: [] });
+    setForm({ codigo: "", marca: "", modelo: "", proveedores: [] });
     setFormErrors({});
     setMensaje("");
     setModalVisible(true);
@@ -119,7 +118,6 @@ function Repuestos() {
           idRepuesto: data.idRepuesto,
           marca: data.marca,
           modelo: data.modelo,
-          activo: data.activo,
           proveedores: proveedoresData
         });
         setOriginalProveedores(proveedoresData);
@@ -143,7 +141,7 @@ function Repuestos() {
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: name === 'activo' ? Number(value) : value }));
+    setForm(prev => ({ ...prev, [name]: value }));
   };
 
   const handleProveedorChange = (idx, field, value) => {
@@ -176,6 +174,16 @@ function Repuestos() {
           fetchRepuestos();
         })
         .catch(err => setMensaje(err.message));
+    }
+  };
+
+  const handleReactivar = async (idRepuesto) => {
+    try {
+      const res = await fetch(`${API_URL}/${idRepuesto}/reactivar`, { method: "PUT" });
+      if (!res.ok) throw new Error("Error al reactivar el repuesto.");
+      fetchRepuestos();
+    } catch (err) {
+      setMensaje(err.message);
     }
   };
 
@@ -217,7 +225,7 @@ function Repuestos() {
     }
 
     if (modalModo === 'modificar') {
-      const repuestoUpdateData = { marca: form.marca, modelo: form.modelo, activo: form.activo };
+      const repuestoUpdateData = { marca: form.marca, modelo: form.modelo };
       fetch(`${API_URL}/${form.idRepuesto}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -294,13 +302,13 @@ function Repuestos() {
                   onClick={() => {
                     const newMostrar = !mostrarInactivos;
                     setMostrarInactivos(newMostrar);
-                    fetch(`${API_URL}?activos=${newMostrar ? 'true' : 'false'}`)
+                    fetch(`${API_URL}?activos=${newMostrar ? 'false' : 'true'}`)
                       .then(res => res.json())
                       .then(data => setRepuestos(data))
                       .catch(() => setMensaje("Error al cargar repuestos"));
                   }}
                 >
-                  {mostrarInactivos ? "Ver todos" : "Ver activos"}
+                  {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                 </button>
                 <button className="btn btn-verdeAgua" onClick={handleAgregarClick}>
                   <i className="bi bi-plus-lg"></i> Agregar repuesto
@@ -311,7 +319,7 @@ function Repuestos() {
               </div>
             </div>
             <div className="card-body">
-              <div className="table-responsive">
+              <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-hover align-middle">
                   <thead>
                     <tr>
@@ -333,12 +341,18 @@ function Repuestos() {
                           <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(r)}>
                             <i className="bi bi-search me-1"></i>Consultar
                           </button>
-                          <button className="btn btn-sm btn-dorado fw-bold me-1" onClick={() => handleModificar(r)}>
+                          <button className={`btn btn-sm fw-bold me-1 ${r.activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => r.activo && handleModificar(r)} disabled={!r.activo}>
                             <i className="bi bi-pencil-square me-1"></i>Modificar
                           </button>
-                          <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleDelete(r.idRepuesto)}>
-                            <i className="bi bi-trash me-1"></i>Eliminar
-                          </button>
+                          {r.activo ? (
+                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleDelete(r.idRepuesto)}>
+                              <i className="bi bi-trash me-1"></i>Eliminar
+                            </button>
+                          ) : (
+                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(r.idRepuesto)}>
+                              <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -431,28 +445,6 @@ function Repuestos() {
                               style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
                             />
                             {formErrors.modelo && <div className="input-error-message">{formErrors.modelo}</div>}
-                          </div>
-                        </div>
-                        {/* División: Estado */}
-                        <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
-                          <i className="bi bi-check2-circle me-2"></i>Estado
-                        </h6>
-                        <div className="col-12">
-                          <div className="mb-3">
-                            <label>
-                              <i className="bi bi-check2-circle me-2"></i>Estado
-                            </label>
-                            <select
-                              name="activo"
-                              value={form.activo}
-                              onChange={handleFormChange}
-                              className="form-control"
-                              disabled={modalModo === 'consultar'}
-                              style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                            >
-                              <option value={1}>Activo</option>
-                              <option value={0}>Inactivo</option>
-                            </select>
                           </div>
                         </div>
                       </div>
@@ -562,7 +554,7 @@ function Repuestos() {
                 <button type="button" className="btn-close" onClick={() => setModalTodosRepuestos({ open: false, lista: [] })} style={{ filter: 'invert(0.5) grayscale(100%) brightness(200%)' }}></button>
               </div>
               <div className="modal-body">
-                <div className="table-responsive">
+                <div className="table-responsive" style={{ overflow: 'visible' }}>
                   <table className="table table-striped table-bordered align-middle">
                     <thead>
                       <tr>
