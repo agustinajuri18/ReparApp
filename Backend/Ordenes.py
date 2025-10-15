@@ -16,6 +16,39 @@ from ABMC_db import (
     mostrar_historial_arreglos, alta_historial_arreglos, buscar_por_id
 )
 
+import unicodedata
+
+
+def _normalize_name(s):
+    if not s:
+        return ''
+    # remove accents, lower, remove non-alphanumeric
+    s = unicodedata.normalize('NFKD', s)
+    s = ''.join(c for c in s if not unicodedata.combining(c))
+    s = ''.join(ch for ch in s if ch.isalnum())
+    return s.lower()
+
+
+def encontrar_estado_id(nombre_clave):
+    """Busca idEstado por una clave tentativa (p. ej. 'EnDiagnostico' o 'EnReparacion').
+    Realiza comparación normalizada para tolerar espacios y acentos.
+    """
+    estados = mostrar_estados() or []
+    clave_norm = _normalize_name(nombre_clave)
+    # 1) intentar coincidencia exacta por nombre tal cual
+    for e in estados:
+        if getattr(e, 'nombre', None) == nombre_clave:
+            return getattr(e, 'idEstado', None), getattr(e, 'nombre', None)
+    # 2) intentar coincidencia normalizada
+    for e in estados:
+        if _normalize_name(getattr(e, 'nombre', None)) == clave_norm:
+            return getattr(e, 'idEstado', None), getattr(e, 'nombre', None)
+    # 3) intentar contains (clave dentro del nombre) tras normalizar
+    for e in estados:
+        if clave_norm and clave_norm in _normalize_name(getattr(e, 'nombre', None)):
+            return getattr(e, 'idEstado', None), getattr(e, 'nombre', None)
+    return None, None
+
 bp = Blueprint('ordenes', __name__)
 
 @bp.route('/ordenes', methods=['POST'])
@@ -54,15 +87,14 @@ def registrar_orden():
                 idEmpleado=data.get('idEmpleado')
             )
 
-        # Asignar estado inicial "EnDiagnostico" si existe en la tabla Estado
-        estados = {e.nombre: e.idEstado for e in mostrar_estados()}
-        id_estado_diagnostico = estados.get('EnDiagnostico')
+        # Asignar estado inicial "EnDiagnostico" (buscando robustamente por nombre)
+        id_estado_diagnostico, nombre_estado_real = encontrar_estado_id('EnDiagnostico')
         if id_estado_diagnostico:
             asignar_estado_orden(
                 nroDeOrden=orden.nroDeOrden,
                 idEstado=id_estado_diagnostico,
                 fechaCambio=datetime.now(),
-                observaciones="Estado inicial: En Diagnóstico"
+                observaciones=f"Estado inicial: {nombre_estado_real or 'En Diagnóstico'}"
             )
 
         return jsonify({
@@ -185,11 +217,10 @@ def confirmar_presupuesto(nroDeOrden):
     usuario = data.get('usuario', 'SinUsuario')
     fecha = datetime.now()
 
-    estados = {e.nombre: e.idEstado for e in mostrar_estados()}
-    if aceptado:
-        nuevo_estado = estados.get('EnReparacion')
-    else:
-        nuevo_estado = estados.get('Desestimada')
+    # Buscar ids robustamente
+    id_en_reparacion, nombre_reparacion = encontrar_estado_id('EnReparacion')
+    id_desestimada, nombre_desestimada = encontrar_estado_id('Desestimada')
+    nuevo_estado = id_en_reparacion if aceptado else id_desestimada
     if not nuevo_estado:
         return jsonify({'error': 'Estados no configurados correctamente'}), 500
 
@@ -200,7 +231,7 @@ def confirmar_presupuesto(nroDeOrden):
         observaciones=f"Presupuesto {'aceptado' if aceptado else 'rechazado'} por {usuario} en {fecha.strftime('%Y-%m-%d %H:%M')}"
     )
 
-    return jsonify({'success': True, 'nuevoEstado': 'EnReparacion' if aceptado else 'Desestimada'})
+    return jsonify({'success': True, 'nuevoEstado': nombre_reparacion if aceptado else nombre_desestimada})
 
 @bp.route('/ordenes/<int:nroDeOrden>/actualizaciones', methods=['POST'])
 def registrar_actualizacion_orden(nroDeOrden):

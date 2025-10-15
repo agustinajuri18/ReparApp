@@ -301,6 +301,7 @@ function Ordenes() {
       fecha: orden.fecha,
       descripcionDanos: orden.descripcionDanos || "",
       diagnostico: orden.diagnostico || "",
+      estado: orden.estado || "",
       presupuesto: orden.presupuesto || 0,
       idEmpleado: orden.idEmpleado || ""
     });
