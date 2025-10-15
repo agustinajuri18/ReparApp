@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from 'react-router-dom';
 import ReactDOM from 'react-dom';
 import MenuLateral from './MenuLateral';
 import PiePagina from './PiePagina';
@@ -29,6 +30,45 @@ export default function Dispositivos() {
     const [historialOrdenes, setHistorialOrdenes] = useState([]);
     const [openMenuFor, setOpenMenuFor] = useState(null);
     const menuAnchorRefs = React.useRef({});
+    const navigate = useNavigate();
+    const [showAddClienteModal, setShowAddClienteModal] = useState(false);
+    const [nuevoCliente, setNuevoCliente] = useState({ idTipoDoc: "", numeroDoc: "", nombre: "", apellido: "", telefono: "", mail: "" });
+    const [nuevoClienteErrors, setNuevoClienteErrors] = useState({});
+    const [nuevoClienteErrorMessage, setNuevoClienteErrorMessage] = useState("");
+    const [dupChecking, setDupChecking] = useState(false);
+    const [duplicateExists, setDuplicateExists] = useState(false);
+    const [duplicateMsg, setDuplicateMsg] = useState("");
+    const [nuevoClienteSaving, setNuevoClienteSaving] = useState(false);
+    const clienteCheckTimer = React.useRef(null);
+
+    // Debounced duplicate check (idTipoDoc + numeroDoc)
+    useEffect(() => {
+        // reset duplicate state when inputs change
+        setDuplicateExists(false);
+        setDuplicateMsg("");
+        if (clienteCheckTimer.current) clearTimeout(clienteCheckTimer.current);
+        if (!nuevoCliente.idTipoDoc || !nuevoCliente.numeroDoc) return;
+        clienteCheckTimer.current = setTimeout(async () => {
+            setDupChecking(true);
+            setDuplicateExists(false);
+            setDuplicateMsg("");
+            try {
+                const res = await fetch(`${CLIENTES_URL}/existe?idTipoDoc=${encodeURIComponent(nuevoCliente.idTipoDoc)}&numeroDoc=${encodeURIComponent(nuevoCliente.numeroDoc)}`);
+                if (res.ok) {
+                    const j = await res.json();
+                    if (j.exists) {
+                        setDuplicateExists(true);
+                        setDuplicateMsg('Ya existe un cliente con ese tipo y número de documento.');
+                    }
+                }
+            } catch (err) {
+                console.warn('Error verificando duplicado', err);
+            } finally {
+                setDupChecking(false);
+            }
+        }, 500);
+        return () => { if (clienteCheckTimer.current) clearTimeout(clienteCheckTimer.current); };
+    }, [nuevoCliente.idTipoDoc, nuevoCliente.numeroDoc]);
 
     // Cargar dispositivos
     const fetchDispositivos = () => {
@@ -416,27 +456,147 @@ export default function Dispositivos() {
                                                             );
                                                         })()
                                                     ) : (
-                                                        <select
-                                                            name="idCliente"
-                                                            className="form-control"
-                                                            value={dispositivoActual?.idCliente || ""}
-                                                            onChange={e => setDispositivoActual({ ...dispositivoActual, idCliente: e.target.value })}
-                                                            disabled={modalModo === 'consultar'}
-                                                        >
-                                                            <option value="">Seleccione un cliente...</option>
-                                                            {clientes.map(c => (
-                                                                <option key={c.idCliente} value={c.idCliente}>
-                                                                    {(tiposDocumento.find(td => td.idTipoDoc === c.idTipoDoc)?.nombre || c.idTipoDoc)}
-                                                                    {" - "}{c.numeroDoc} ({c.nombre} {c.apellido})
-                                                                </option>
-                                                            ))}
-                                                        </select>
+                                                        <div className="d-flex gap-2">
+                                                            <select
+                                                                name="idCliente"
+                                                                className="form-control flex-grow-1"
+                                                                value={dispositivoActual?.idCliente || ""}
+                                                                onChange={e => setDispositivoActual({ ...dispositivoActual, idCliente: e.target.value })}
+                                                                disabled={modalModo === 'consultar'}
+                                                            >
+                                                                <option value="">Seleccione un cliente...</option>
+                                                                {clientes.map(c => (
+                                                                    <option key={c.idCliente} value={c.idCliente}>
+                                                                        {(tiposDocumento.find(td => td.idTipoDoc === c.idTipoDoc)?.nombre || c.idTipoDoc)}
+                                                                        {" - "}{c.numeroDoc} ({c.nombre} {c.apellido})
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-verdeAgua"
+                                                                title="Registrar nuevo cliente"
+                                                                onClick={() => {
+                                                                    // open inline modal to add cliente
+                                                                    setShowAddClienteModal(true);
+                                                                }}
+                                                            >
+                                                                <i className="bi bi-plus-lg me-1"></i>Nuevo cliente
+                                                            </button>
+                                                        </div>
                                                     )}
                                                     {formErrors.idCliente && <div className="input-error-message">{formErrors.idCliente}</div>}
                                                 </div>
                                             </div>
                                         </div>
                                     </fieldset>
+                                    {/* Modal para agregar cliente desde Dispositivos */}
+                                    {showAddClienteModal && (
+                                        <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1060 }}>
+                                            <div className="modal-dialog modal-md modal-dialog-centered">
+                                                <div className="modal-content" style={{ width: '100%', maxWidth: '680px' }}>
+                                                    <div className="modal-header" style={{ background: '#1f3345', color: '#f0ede5' }}>
+                                                        <h5 className="modal-title"><i className="bi bi-plus-lg me-2"></i>Nuevo cliente</h5>
+                                                        <button type="button" className="btn-close btn-close-white" onClick={() => setShowAddClienteModal(false)}></button>
+                                                    </div>
+                                                    <div className="modal-body" style={{ padding: 0 }}>
+                                                        <div className="form-container">
+                                                            {nuevoClienteErrorMessage && <div className="alert alert-danger">{nuevoClienteErrorMessage}</div>}
+                                                            <fieldset style={{ border: 'none' }}>
+                                                                <legend><i className="bi bi-person-vcard me-2"></i>Datos del cliente</legend>
+                                                                <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1"><i className="bi bi-person-lines-fill me-2"></i>Datos personales</h6>
+                                                                <div className="row g-4">
+                                                                    <div className="col-12 col-md-6">
+                                                                        <div className="mb-3">
+                                                                            <label><i className="bi bi-card-list me-2"></i>Tipo de documento</label>
+                                                                            <select className="form-control" value={nuevoCliente.idTipoDoc} onChange={e => setNuevoCliente(prev => ({ ...prev, idTipoDoc: e.target.value }))}>
+                                                                                <option value="">Seleccione tipo de documento</option>
+                                                                                {tiposDocumento.map(td => <option key={td.idTipoDoc} value={td.idTipoDoc}>{td.nombre}</option>)}
+                                                                            </select>
+                                                                            {nuevoClienteErrors.idTipoDoc && <div className="input-error-message">{nuevoClienteErrors.idTipoDoc}</div>}
+                                                                        </div>
+                                                                        <div className="mb-3">
+                                                                            <label><i className="bi bi-hash me-2"></i>Número de documento</label>
+                                                                            <input className="form-control" value={nuevoCliente.numeroDoc} onChange={e => setNuevoCliente(prev => ({ ...prev, numeroDoc: e.target.value }))} />
+                                                                            {nuevoClienteErrors.numeroDoc && <div className="input-error-message">{nuevoClienteErrors.numeroDoc}</div>}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="col-12 col-md-6">
+                                                                        <div className="mb-3">
+                                                                            <label><i className="bi bi-person me-2"></i>Nombre</label>
+                                                                            <input className="form-control" value={nuevoCliente.nombre} onChange={e => setNuevoCliente(prev => ({ ...prev, nombre: e.target.value }))} />
+                                                                            {nuevoClienteErrors.nombre && <div className="input-error-message">{nuevoClienteErrors.nombre}</div>}
+                                                                        </div>
+                                                                        <div className="mb-3">
+                                                                            <label><i className="bi bi-person me-2"></i>Apellido</label>
+                                                                            <input className="form-control" value={nuevoCliente.apellido} onChange={e => setNuevoCliente(prev => ({ ...prev, apellido: e.target.value }))} />
+                                                                            {nuevoClienteErrors.apellido && <div className="input-error-message">{nuevoClienteErrors.apellido}</div>}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1"><i className="bi bi-telephone me-2"></i>Datos de contacto</h6>
+                                                                <div className="row g-4">
+                                                                    <div className="col-12 col-md-6">
+                                                                        <div className="mb-3">
+                                                                            <label><i className="bi bi-telephone me-2"></i>Teléfono</label>
+                                                                            <input className="form-control" value={nuevoCliente.telefono} onChange={e => setNuevoCliente(prev => ({ ...prev, telefono: e.target.value }))} />
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="col-12 col-md-6">
+                                                                        <div className="mb-3">
+                                                                            <label><i className="bi bi-envelope me-2"></i>Email</label>
+                                                                            <input className="form-control" value={nuevoCliente.mail} onChange={e => setNuevoCliente(prev => ({ ...prev, mail: e.target.value }))} />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </fieldset>
+                                                        </div>
+                                                    </div>
+                                                    <div className="modal-footer">
+                                                                <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-0 w-100">
+                                                            <button type="button" className="btn btn-azul fw-bold" disabled={dupChecking || duplicateExists || nuevoClienteSaving} onClick={async () => {
+                                                                setNuevoClienteErrorMessage("");
+                                                                const errors = {};
+                                                                if (!nuevoCliente.idTipoDoc) errors.idTipoDoc = 'Seleccione un tipo de documento.';
+                                                                if (!nuevoCliente.numeroDoc || nuevoCliente.numeroDoc.trim().length === 0) errors.numeroDoc = 'Número de documento obligatorio.';
+                                                                if (!nuevoCliente.nombre || nuevoCliente.nombre.trim().length < 2) errors.nombre = 'Nombre obligatorio.';
+                                                                if (!nuevoCliente.apellido || nuevoCliente.apellido.trim().length < 2) errors.apellido = 'Apellido obligatorio.';
+                                                                setNuevoClienteErrors(errors);
+                                                                if (Object.keys(errors).length > 0) return;
+                                                                setNuevoClienteSaving(true);
+                                                                try {
+                                                                    const res = await fetch(CLIENTES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nuevoCliente) });
+                                                                    const resultado = await res.json().catch(() => ({}));
+                                                                    if (res.ok) {
+                                                                        const createdId = resultado.idCliente || resultado.id || (resultado.data && resultado.data.idCliente);
+                                                                        if (createdId) setDispositivoActual(prev => ({ ...prev, idCliente: String(createdId) }));
+                                                                        setShowAddClienteModal(false);
+                                                                        setNuevoCliente({ idTipoDoc: "", numeroDoc: "", nombre: "", apellido: "", telefono: "", mail: "" });
+                                                                        setNuevoClienteErrors({});
+                                                                        setDuplicateExists(false);
+                                                                        setDuplicateMsg("");
+                                                                        fetchClientes();
+                                                                    } else {
+                                                                        setNuevoClienteErrorMessage(resultado.error || resultado.mensaje || 'Error al crear cliente');
+                                                                    }
+                                                                } catch (err) {
+                                                                    console.error('Error creando cliente', err);
+                                                                    setNuevoClienteErrorMessage('Error de conexión al crear cliente');
+                                                                } finally {
+                                                                    setNuevoClienteSaving(false);
+                                                                }
+                                                            }}>
+                                                                <i className="bi bi-save me-1"></i>Guardar
+                                                            </button>
+                                                            <button type="button" className="btn btn-dorado fw-bold" onClick={() => setShowAddClienteModal(false)}>
+                                                                <i className="bi bi-x-circle me-1"></i>Cancelar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                     {mensaje && (
                                         <div className="alert alert-danger">{mensaje}</div>
                                     )}

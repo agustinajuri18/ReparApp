@@ -74,7 +74,16 @@ function Ordenes() {
   const fetchOrdenes = () => {
     fetch(API_URL)
       .then(res => res.json())
-      .then(data => setOrdenes(Array.isArray(data) ? data : []))
+      .then(data => {
+        if (!Array.isArray(data)) return setOrdenes([]);
+        // sort by nroDeOrden ascending (numeric)
+        const sorted = data.slice().sort((a, b) => {
+          const na = Number(a?.nroDeOrden ?? 0);
+          const nb = Number(b?.nroDeOrden ?? 0);
+          return na - nb;
+        });
+        setOrdenes(sorted);
+      })
       .catch(() => setMensaje("Error al cargar órdenes"));
   };
 
@@ -903,7 +912,7 @@ function Ordenes() {
                             <i className="bi bi-search me-1"></i>Consultar
                           </button>
                           <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarPDF(o.nroDeOrden)}>
-                            <i className="bi bi-file-earmark-pdf me-1"></i>PDF
+                            <i className="bi bi-file-earmark-pdf me-1"></i>Emitir
                           </button>
                           <button className="btn btn-sm btn-dorado fw-bold" onClick={() => handleModificar(o)}>
                             <i className="bi bi-pencil-square me-1"></i>Modificar
