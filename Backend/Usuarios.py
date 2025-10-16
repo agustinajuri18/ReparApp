@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_cors import cross_origin
 from ABMC_db import (
     alta_usuario, modificar_usuario as modificar_usuario_db, mostrar_usuarios, baja_usuario, 
-    alta_sesion, cerrar_sesion, mostrar_usuario_por_id
+    alta_sesion, cerrar_sesion, mostrar_usuario_por_id, mostrar_sesion_por_id
 )
 from datetime import datetime
 
@@ -90,6 +90,31 @@ def iniciar_sesion():
         'horaInicio': sesion.horaInicio.isoformat(),
         'fecha': sesion.fecha.isoformat()
     }), 201
+
+
+@bp.route('/auth', methods=['POST'])
+def auth_usuario():
+    """Login with username + password, returns user id if ok"""
+    data = request.json
+    if not all(k in data for k in ['nombreUsuario', 'contraseña']):
+        return jsonify({'error': 'Falta información (nombreUsuario, contraseña)'}), 400
+    usuarios = mostrar_usuarios(activos_only=True)
+    user = next((u for u in usuarios if u.nombreUsuario == data['nombreUsuario'] and u.contraseña == data['contraseña']), None)
+    if not user:
+        return jsonify({'error': 'Credenciales inválidas'}), 401
+    # create a session
+    sesion = alta_sesion(idUsuario=user.idUsuario, horaInicio=datetime.now(), fecha=datetime.now().date())
+    return jsonify({'idSesion': sesion.idSesion, 'idUsuario': user.idUsuario}), 200
+
+
+@bp.route('/session/<int:idSesion>', methods=['GET'])
+def check_session(idSesion):
+    ses = mostrar_sesion_por_id(idSesion)
+    if not ses:
+        return jsonify({'active': False}), 404
+    # active if horaFin is null
+    active = ses.horaFin is None
+    return jsonify({'active': active, 'idUsuario': ses.idUsuario}), 200
 
 @bp.route('/logout/<int:idSesion>', methods=['POST'])
 def cerrar_sesion_usuario(idSesion):

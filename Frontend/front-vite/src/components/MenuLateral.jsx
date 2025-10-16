@@ -1,6 +1,7 @@
-import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
+import ConfirmModal from './ConfirmModal';
 
 const menuOptions = [
   { path: "/ordenes", label: "Órdenes" },
@@ -24,6 +25,27 @@ const colores = {
 
 const MenuLateral = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [confirmLogout, setConfirmLogout] = useState({ open: false });
+
+  const openConfirmLogout = () => setConfirmLogout({ open: true });
+
+  const confirmLogoutCancel = () => setConfirmLogout({ open: false });
+
+  const confirmLogoutConfirm = async () => {
+    const idSesion = localStorage.getItem('idSesion');
+    if (idSesion) {
+      try {
+        await fetch(`http://localhost:5000/logout/${idSesion}`, { method: 'POST' });
+      } catch (e) {
+        // ignore network errors, still clear local storage
+      }
+    }
+    localStorage.removeItem('idSesion');
+    localStorage.removeItem('idUsuario');
+    setConfirmLogout({ open: false });
+    navigate('/login');
+  };
   return (
     <nav
       className="col-12 col-md-2 d-flex flex-md-column flex-row align-items-center align-items-md-start py-3 px-2 px-md-3"
@@ -77,6 +99,24 @@ const MenuLateral = () => {
           </li>
         ))}
       </ul>
+      {/* Logout button at the bottom */}
+      <div className="w-100 d-flex justify-content-center justify-content-md-start" style={{ marginTop: 'auto' }}>
+        <button
+          className="btn btn-rojo fw-bold ms-3 mb-3"
+          onClick={openConfirmLogout}
+          title="Cerrar sesión"
+        >
+          <i className="bi bi-box-arrow-right me-1"></i>Cerrar sesión
+        </button>
+      </div>
+
+      <ConfirmModal
+        open={confirmLogout.open}
+        title="Confirmar cierre de sesión"
+        message="¿Estás seguro de que querés cerrar sesión?"
+        onCancel={confirmLogoutCancel}
+        onConfirm={confirmLogoutConfirm}
+      />
     </nav>
   );
 };

@@ -9,6 +9,8 @@ import Usuarios from "./components/Usuarios.jsx"
 import Home from "./components/Home.jsx"
 import Dispositivos from "./components/Dispositivos.jsx"
 import Reportes from "./components/Reportes.jsx"
+import Login from "./components/Login.jsx"
+import ProtectedRoute from "./components/ProtectedRoute.jsx"
 
 // Import de los componentes reutilizables
 import PiePagina from './components/PiePagina.jsx' // <-- Importa el componente PiePagina
@@ -23,16 +25,17 @@ function App() {
         <div className="main-background">
           <main>
             <Routes>
-              <Route path='/' element={<Home />} />
-              <Route path='/clientes' element={<Clientes />} />
-              <Route path='/empleados' element={<Empleados />} />
-              <Route path='/repuestos' element={<Repuestos />} />
-              <Route path='/ordenes' element={<Ordenes />} />
-              <Route path='/usuarios' element={<Usuarios />} />
-              <Route path='/servicios' element={<Servicios />} />
-              <Route path='/proveedores' element={<Proveedores />} />
-              <Route path='/dispositivos' element={<Dispositivos />} />
-              <Route path='/reportes' element={<Reportes />} />
+              <Route path='/login' element={<Login />} />
+              <Route path='/' element={<ProtectedRoute><Home /></ProtectedRoute>} />
+              <Route path='/clientes' element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
+              <Route path='/empleados' element={<ProtectedRoute><Empleados /></ProtectedRoute>} />
+              <Route path='/repuestos' element={<ProtectedRoute><Repuestos /></ProtectedRoute>} />
+              <Route path='/ordenes' element={<ProtectedRoute><Ordenes /></ProtectedRoute>} />
+              <Route path='/usuarios' element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
+              <Route path='/servicios' element={<ProtectedRoute><Servicios /></ProtectedRoute>} />
+              <Route path='/proveedores' element={<ProtectedRoute><Proveedores /></ProtectedRoute>} />
+              <Route path='/dispositivos' element={<ProtectedRoute><Dispositivos /></ProtectedRoute>} />
+              <Route path='/reportes' element={<ProtectedRoute><Reportes /></ProtectedRoute>} />
             </Routes>
           </main>
         </div>

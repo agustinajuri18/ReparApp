@@ -101,6 +101,10 @@ def cerrar_sesion(idSesion, horaFin):
         s.commit()
         return ses
 
+def mostrar_sesion_por_id(idSesion):
+    with session_scope() as s:
+        return s.get(Sesion, idSesion)
+
 
 # ----------- Cliente -----------
 def alta_cliente(idTipoDoc, numeroDoc, nombre=None, apellido=None, telefono=None, mail=None, activo=1):
