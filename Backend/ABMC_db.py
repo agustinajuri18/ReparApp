@@ -246,15 +246,23 @@ def buscar_dispositivo_por_nroSerie(nroSerie):
 
 
 # ----------- Proveedor -----------
-def alta_proveedor(cuil, razonSocial=None, telefono=None, activo=1):
+def alta_proveedor(cuil, razonSocial=None, telefono=None, activo=1, direccion=None, nombreResponsable=None, mailResponsable=None):
     with session_scope() as s:
-        p = Proveedor(cuil=cuil, razonSocial=razonSocial, telefono=telefono, activo=activo)
+        p = Proveedor(
+            cuil=cuil,
+            razonSocial=razonSocial,
+            telefonoResponsable=telefono,
+            activo=activo,
+            direccion=direccion,
+            nombreResponsable=nombreResponsable,
+            mailResponsable=mailResponsable
+        )
         s.add(p)
         s.commit()
         s.refresh(p)
         return p
 
-def modificar_proveedor(idProveedor, cuil=None, razonSocial=None, telefono=None, activo=None):
+def modificar_proveedor(idProveedor, cuil=None, razonSocial=None, telefono=None, activo=None, direccion=None, nombreResponsable=None, mailResponsable=None):
     with session_scope() as s:
         p = s.get(Proveedor, idProveedor)
         if not p:
@@ -264,7 +272,13 @@ def modificar_proveedor(idProveedor, cuil=None, razonSocial=None, telefono=None,
         if razonSocial is not None:
             p.razonSocial = razonSocial
         if telefono is not None:
-            p.telefono = telefono
+            p.telefonoResponsable = telefono
+        if direccion is not None:
+            p.direccion = direccion
+        if nombreResponsable is not None:
+            p.nombreResponsable = nombreResponsable
+        if mailResponsable is not None:
+            p.mailResponsable = mailResponsable
         if activo is not None:
             p.activo = activo
         s.commit()
@@ -307,15 +321,15 @@ def buscar_proveedor_por_cuil(cuil):
 
 
 # ----------- Empleado -----------
-def alta_empleado(nombre, apellido, idCargo=None, idUsuario=None, activo=1):
+def alta_empleado(nombre, apellido, idCargo=None, idUsuario=None, activo=1, mail=None, telefono=None):
     with session_scope() as s:
-        e = Empleado(nombre=nombre, apellido=apellido, idCargo=idCargo, idUsuario=idUsuario, activo=activo)
+        e = Empleado(nombre=nombre, apellido=apellido, idCargo=idCargo, idUsuario=idUsuario, activo=activo, mail=mail, telefono=telefono)
         s.add(e)
         s.commit()
         s.refresh(e)
         return e
 
-def modificar_empleado(idEmpleado, nombre=None, apellido=None, idCargo=None, idUsuario=None, activo=None):
+def modificar_empleado(idEmpleado, nombre=None, apellido=None, idCargo=None, idUsuario=None, activo=None, mail=None, telefono=None):
     with session_scope() as s:
         e = s.get(Empleado, idEmpleado)
         if e:
@@ -329,6 +343,10 @@ def modificar_empleado(idEmpleado, nombre=None, apellido=None, idCargo=None, idU
                 e.idUsuario = idUsuario
             if activo is not None:
                 e.activo = activo
+            if mail is not None:
+                e.mail = mail
+            if telefono is not None:
+                e.telefono = telefono
             s.commit()
         return e
 
@@ -505,13 +523,23 @@ def reactivar_repuesto(idRepuesto):
             s.commit()
         return r
 
-def mostrar_repuestos(activos_only=True):
+def mostrar_repuestos(activos_only=True, search=None):
+    """
+    Devuelve la lista de repuestos. Si `activos_only` es True devuelve activos,
+    si es False devuelve inactivos. Si `search` está presente, filtra por marca
+    o modelo (case-insensitive, partial match).
+    """
     with session_scope() as s:
         q = s.query(Repuesto)
-        if activos_only:
+        if activos_only is True:
             q = q.filter_by(activo=1)
         elif activos_only is False:
             q = q.filter_by(activo=0)
+        if search:
+            q = q.filter(
+                (Repuesto.marca.ilike(f'%{search}%')) |
+                (Repuesto.modelo.ilike(f'%{search}%'))
+            )
         return q.all()
 
 

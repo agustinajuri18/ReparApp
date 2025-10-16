@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import MenuLateral from './MenuLateral';
 import SearchableSelect from './SearchableSelect';
+import ConfirmModal from './ConfirmModal';
 
 const API_URL = "http://localhost:5000/ordenes";
 const DISPOSITIVOS_URL = "http://localhost:5000/dispositivos";
@@ -728,11 +729,19 @@ function Ordenes() {
   };
 
 
+  const [confirmRemoveDetalle, setConfirmRemoveDetalle] = useState({ open: false, id: null });
+
   const handleRemoveDetalleLocal = (idDetalle) => {
-    if (!window.confirm('¿Seguro que desea eliminar este detalle?')) return;
-    // Simplemente filtramos el detalle del estado local
-    setDetalles(prev => prev.filter(d => d.idDetalle !== idDetalle));
+    setConfirmRemoveDetalle({ open: true, id: idDetalle });
+  };
+
+  const confirmRemoveDetalleCancel = () => setConfirmRemoveDetalle({ open: false, id: null });
+
+  const confirmRemoveDetalleConfirm = () => {
+    const id = confirmRemoveDetalle.id;
+    setDetalles(prev => prev.filter(d => d.idDetalle !== id));
     setMensaje('Detalle eliminado localmente.');
+    setConfirmRemoveDetalle({ open: false, id: null });
   };
 
   const handleEditarDetalleClick = (detalle) => {
@@ -1171,6 +1180,13 @@ function Ordenes() {
                             </button>
                           )}
                         </div>
+                        <ConfirmModal
+                          open={confirmRemoveDetalle.open}
+                          title="Confirmar eliminación"
+                          message="¿Seguro que desea eliminar este detalle?"
+                          onCancel={confirmRemoveDetalleCancel}
+                          onConfirm={confirmRemoveDetalleConfirm}
+                        />
                       </div>
                     )}
                   </fieldset>

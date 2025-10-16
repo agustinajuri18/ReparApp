@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from 'react-dom';
 import MenuLateral from './MenuLateral';
+import ConfirmModal from './ConfirmModal';
 
 const API_URL = "http://localhost:5000/clientes";
 const TIPOS_DOC_URL = "http://localhost:5000/tipos-documento";
@@ -359,10 +360,18 @@ export default function Clientes() {
   };
 
   // Agregar función handleEliminar
+  const [confirmDeleteCliente, setConfirmDeleteCliente] = useState({ open: false, id: null });
+
   const handleEliminar = async (idCliente) => {
-    if (!window.confirm("¿Estás seguro de eliminar este cliente?")) return;
+    setConfirmDeleteCliente({ open: true, id: idCliente });
+  };
+
+  const confirmDeleteClienteCancel = () => setConfirmDeleteCliente({ open: false, id: null });
+
+  const confirmDeleteClienteConfirm = async () => {
+    const id = confirmDeleteCliente.id;
     try {
-      const res = await fetch(`${API_URL}/${idCliente}`, { method: 'DELETE' });
+      const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setMensaje("Cliente eliminado");
         fetchClientes();
@@ -371,6 +380,8 @@ export default function Clientes() {
       }
     } catch (error) {
       setMensaje("Error de conexión");
+    } finally {
+      setConfirmDeleteCliente({ open: false, id: null });
     }
   };
 
@@ -459,7 +470,7 @@ export default function Clientes() {
                               <i className="bi bi-search me-1"></i>Consultar
                             </button>
                             <button
-                              className="btn btn-sm btn-primario fw-bold"
+                              className="btn btn-sm btn-azul fw-bold"
                               onClick={async () => {
                                 // fetch historial for this cliente
                                 try {
@@ -717,6 +728,7 @@ export default function Clientes() {
               )}
             </div>
           </div>
+                  {/* moved ConfirmModal rendering to component root so it can open from table actions */}
         </div>
       )}
       {historialVisible && (
@@ -764,6 +776,13 @@ export default function Clientes() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        open={confirmDeleteCliente.open}
+        title="Confirmar eliminación"
+        message="¿Estás seguro de eliminar este cliente?"
+        onCancel={confirmDeleteClienteCancel}
+        onConfirm={confirmDeleteClienteConfirm}
+      />
     </div>
   );
 }
@@ -809,9 +828,9 @@ function ActionMenuPortal({ anchorEl, onClose, onModificar, onEliminar, onReacti
         <ul className="list-group list-group-flush p-2">
           <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar} disabled={!activo}>Modificar</button></li>
           {activo ? (
-            <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={onEliminar}>Eliminar</button></li>
+            <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100 fw-bold" onClick={onEliminar}>Eliminar</button></li>
           ) : (
-            <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100" onClick={onReactivar}>Reactivar</button></li>
+            <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100 fw-bold" onClick={onReactivar}>Reactivar</button></li>
           )}
         </ul>
       </div>
@@ -819,4 +838,7 @@ function ActionMenuPortal({ anchorEl, onClose, onModificar, onEliminar, onReacti
     document.body
   );
 }
+
+// Render ConfirmModal at module root level inside component so it can be triggered from action menu
+// (This is appended to the end of the file but still within the component scope.)
 

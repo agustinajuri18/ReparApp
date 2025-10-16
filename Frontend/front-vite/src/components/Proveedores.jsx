@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
+import ConfirmModal from './ConfirmModal';
 
 const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5', mentaSuave: '#c6e8e8' };
 const API_URL = "http://localhost:5000/proveedores";
@@ -9,10 +10,31 @@ function Proveedores() {
   const [form, setForm] = useState({
     cuil: "",
     razonSocial: "",
-    telefono: "",
+    telefonoResponsable: "",
+    direccion: "",
+    nombreResponsable: "",
+    mailResponsable: "",
   });
   const [formErrors, setFormErrors] = useState({});
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  // Modal to show full list of active providers
+  const [activeModalOpen, setActiveModalOpen] = useState(false);
+  const [activeProveedores, setActiveProveedores] = useState([]);
+
+  const openActiveProvidersModal = async () => {
+    setActiveModalOpen(true);
+    try {
+      // Fetch all providers (no activos filter) so the modal shows the complete list
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      setActiveProveedores(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setMensaje("Error al cargar proveedores");
+    }
+  };
+
+  const closeActiveProvidersModal = () => setActiveModalOpen(false);
+  
   const [mensaje, setMensaje] = useState("");
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -26,6 +48,7 @@ function Proveedores() {
   const [duplicateExists, setDuplicateExists] = useState(false);
   const [duplicateMsg, setDuplicateMsg] = useState("");
   const checkTimer = React.useRef(null);
+  const [confirmDeleteProveedor, setConfirmDeleteProveedor] = useState({ open: false, cuil: null });
 
   // Cargar proveedores
   useEffect(() => {
@@ -40,8 +63,15 @@ function Proveedores() {
 
   const handleChange = e => {
     const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
-    setFormErrors(validarProveedor({ ...form, [name]: value }));
+    // If modal is open and we're editing/consulting proveedorActual, update that object instead
+    if (modalVisible && (modalModo === 'modificar' || modalModo === 'consultar' || modalModo === 'alta')) {
+      // keep form in sync for alta/modificar flows
+      setForm(prev => ({ ...prev, [name]: value }));
+      setFormErrors(validarProveedor({ ...form, [name]: value }));
+    } else {
+      setForm({ ...form, [name]: value });
+      setFormErrors(validarProveedor({ ...form, [name]: value }));
+    }
     // if editing CUIL, debounce a duplicate check
     if (name === 'cuil') {
       setDuplicateExists(false);
@@ -66,7 +96,8 @@ function Proveedores() {
     const errors = {};
     if (!obj.cuil || !/^\d{11}$/.test(obj.cuil)) errors.cuil = "El CUIL/CUIT debe tener 11 dígitos numéricos.";
     if (!obj.razonSocial || obj.razonSocial.trim().length < 2) errors.razonSocial = "La razón social es obligatoria y debe tener al menos 2 caracteres.";
-    if (!obj.telefono || obj.telefono.trim().length < 6 || !/^\d{6,}$/.test(obj.telefono.trim())) errors.telefono = "El teléfono es obligatorio, debe contener solo números y tener al menos 6 dígitos.";
+    if (!obj.telefonoResponsable || obj.telefonoResponsable.trim().length < 6 || !/^\d{6,}$/.test(obj.telefonoResponsable.trim())) errors.telefonoResponsable = "El teléfono del responsable es obligatorio, debe contener solo números y tener al menos 6 dígitos.";
+    if (obj.mailResponsable && !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(obj.mailResponsable)) errors.mailResponsable = "El email del responsable no es válido.";
     return errors;
   }
 
@@ -95,6 +126,7 @@ function Proveedores() {
       })
       .then(() => {
         setForm({ cuil: "", razonSocial: "", telefono: "" });
+        setForm({ cuil: "", razonSocial: "", telefonoResponsable: "", direccion: "", nombreResponsable: "", mailResponsable: "" });
         setMostrarFormulario(false);
         setMensaje("");
         fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`)
@@ -105,13 +137,22 @@ function Proveedores() {
   }
 
   function handleDelete(cuil) {
+    // open confirm modal
+    setConfirmDeleteProveedor({ open: true, cuil });
+  }
+
+  const confirmDeleteProveedorCancel = () => setConfirmDeleteProveedor({ open: false, cuil: null });
+
+  const confirmDeleteProveedorConfirm = () => {
+    const cuil = confirmDeleteProveedor.cuil;
     fetch(`${API_URL}/${cuil}`, { method: "DELETE" })
       .then(() => {
         fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`)
           .then(res => res.json())
           .then(data => setProveedores(data));
-      });
-  }
+      })
+      .finally(() => setConfirmDeleteProveedor({ open: false, cuil: null }));
+  };
 
   function handleReactivar(cuil) {
     fetch(`${API_URL}/${cuil}`, {
@@ -136,7 +177,10 @@ function Proveedores() {
     setForm({
       cuil: "",
       razonSocial: "",
-      telefono: "",
+      telefonoResponsable: "",
+      direccion: "",
+      nombreResponsable: "",
+      mailResponsable: "",
     });
   };
 
@@ -147,7 +191,10 @@ function Proveedores() {
       ...prov,
       cuil: prov.cuil || "",
       razonSocial: prov.razonSocial || "",
-      telefono: prov.telefono || "",
+      telefonoResponsable: prov.telefonoResponsable || prov.telefono || "",
+      direccion: prov.direccion || "",
+      nombreResponsable: prov.nombreResponsable || "",
+      mailResponsable: prov.mailResponsable || "",
     });
     setModalModo("modificar");
     setModalVisible(true);
@@ -156,7 +203,10 @@ function Proveedores() {
     setForm({
       cuil: prov.cuil || "",
       razonSocial: prov.razonSocial || "",
-      telefono: prov.telefono || "",
+      telefonoResponsable: prov.telefonoResponsable || prov.telefono || "",
+      direccion: prov.direccion || "",
+      nombreResponsable: prov.nombreResponsable || "",
+      mailResponsable: prov.mailResponsable || "",
     });
   };
 
@@ -165,7 +215,10 @@ function Proveedores() {
       ...prov,
       cuil: prov.cuil || "",
       razonSocial: prov.razonSocial || "",
-      telefono: prov.telefono || "",
+      telefonoResponsable: prov.telefonoResponsable || prov.telefono || "",
+      direccion: prov.direccion || "",
+      nombreResponsable: prov.nombreResponsable || "",
+      mailResponsable: prov.mailResponsable || "",
     });
     setModalModo('consultar');
     setModalVisible(true);
@@ -183,7 +236,9 @@ function Proveedores() {
     const { name, value } = e.target;
     const nuevo = { ...proveedorActual, [name]: name === "activo" ? Number(value) : value };
     setProveedorActual(nuevo);
-    setModalErrors(validarProveedor({ ...nuevo, cuil: proveedorActual.cuil }));
+    // Keep form in sync for validations that rely on formErrors
+    setForm(prev => ({ ...prev, [name]: value }));
+    setModalErrors(validarProveedor({ ...nuevo, cuil: proveedorActual?.cuil }));
     setMensaje("");
     // debounce check when changing cuil in modal
     if (name === 'cuil') {
@@ -202,9 +257,13 @@ function Proveedores() {
   function handleModalSave(e) {
     e.preventDefault();
     // No enviar cuil en el body, solo los campos editables
-    const { cuil, ...rest } = proveedorActual;
+    const { cuil, telefono, ...rest } = proveedorActual;
     const proveedorParaEnviar = {
       ...rest,
+      telefonoResponsable: proveedorActual.telefonoResponsable ?? proveedorActual.telefono ?? null,
+      direccion: proveedorActual.direccion ?? null,
+      nombreResponsable: proveedorActual.nombreResponsable ?? null,
+      mailResponsable: proveedorActual.mailResponsable ?? null,
       activo: Number(proveedorActual.activo)
     };
     const errors = validarProveedor({ ...proveedorActual, cuil: proveedorActual.cuil });
@@ -275,7 +334,10 @@ function Proveedores() {
     setForm({
       cuil: "",
       razonSocial: "",
-      telefono: "",
+      telefonoResponsable: "",
+      direccion: "",
+      nombreResponsable: "",
+      mailResponsable: "",
       activo: 1,
     });
     setFormMode("alta");
@@ -302,7 +364,10 @@ function Proveedores() {
         setForm({
           cuil: "",
           razonSocial: "",
-          telefono: "",
+          telefonoResponsable: "",
+          direccion: "",
+          nombreResponsable: "",
+          mailResponsable: "",
         });
         setEditId(null);
         fetchProveedores();
@@ -331,6 +396,13 @@ function Proveedores() {
                 </button>
                 <button
                   className="btn btn-verdeAgua"
+                  onClick={openActiveProvidersModal}
+                >
+                  <i className="bi bi-list-ul me-1"></i>Ver todos los proveedores
+                </button>
+                
+                <button
+                  className="btn btn-verdeAgua"
                   onClick={handleAgregarClick}
                 >
                   <i className="bi bi-plus-lg"></i> Agregar proveedor
@@ -346,6 +418,7 @@ function Proveedores() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
+                
               </div>
               <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-striped table-hover align-middle">
@@ -353,7 +426,7 @@ function Proveedores() {
                     <tr>
                       <th>CUIL/CUIT</th>
                       <th>Razón Social</th>
-                      <th>Teléfono</th>
+                        <th>Teléfono Responsable</th>
                       <th>Activo</th>
                       <th>Acciones</th>
                     </tr>
@@ -363,7 +436,7 @@ function Proveedores() {
                       <tr key={prov.cuil}>
                         <td>{prov.cuil}</td>
                         <td>{prov.razonSocial}</td>
-                        <td>{prov.telefono}</td>
+                        <td>{prov.telefonoResponsable || prov.telefono}</td>
                         <td>{prov.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
                           <button
@@ -437,89 +510,138 @@ function Proveedores() {
                     <legend>
                       <i className="bi bi-person-badge me-2"></i>Datos del proveedor
                     </legend>
-                    {/* División: Datos de identificación */}
-                    <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
-                      <i className="bi bi-credit-card-2-front me-2"></i>Datos de identificación
-                    </h6>
+                    {/* Two-column responsive layout: left = identificación, right = responsable */}
                     <div className="row g-4">
                       <div className="col-12 col-md-6">
-                        <div className="row g-4">
-                          <div className="col-12">
-                            <div className="mb-3">
-                              <label>
-                                <i className="bi bi-credit-card-2-front me-2"></i>CUIL/CUIT
-                              </label>
-                              <input
-                                type="text"
-                                name="cuil"
-                                value={
-                                  modalModo === "consultar"
-                                    ? proveedorActual?.cuil ?? ""
-                                    : form.cuil
-                                }
-                                onChange={handleChange}
-                                required
-                                className="form-control"
-                                disabled={modalModo === "consultar"}
-                                style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                              />
-                              {formErrors.cuil && <div className="input-error-message">{formErrors.cuil}</div>}
-                              {dupChecking && <div className="small text-muted">Verificando CUIL...</div>}
-                              {duplicateExists && <div className="input-error-message">{duplicateMsg}</div>}
-                            </div>
-                          </div>
-                          <div className="col-12">
-                            <div className="mb-3">
-                              <label>
-                                <i className="bi bi-building me-2"></i>Razón Social
-                              </label>
-                              <input
-                                type="text"
-                                name="razonSocial"
-                                value={
-                                  modalModo === "consultar"
-                                    ? proveedorActual?.razonSocial ?? ""
-                                    : form.razonSocial
-                                }
-                                onChange={handleChange}
-                                required
-                                className="form-control"
-                                readOnly={modalModo === "consultar"}
-                                style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                              />
-                              {formErrors.razonSocial && <div className="input-error-message">{formErrors.razonSocial}</div>}
-                            </div>
-                          </div>
+                        <h6 className="fw-bold mt-1 mb-2 border-bottom pb-1">
+                          <i className="bi bi-credit-card-2-front me-2"></i>Datos de identificación
+                        </h6>
+                        <div className="mb-3">
+                          <label className="form-label">
+                            <i className="bi bi-credit-card-2-front me-2"></i>CUIL/CUIT
+                          </label>
+                          <input
+                            type="text"
+                            name="cuil"
+                            value={
+                              modalModo === "consultar"
+                                ? proveedorActual?.cuil ?? ""
+                                : form.cuil
+                            }
+                            onChange={handleChange}
+                            required
+                            className="form-control"
+                            disabled={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
+                          />
+                          {formErrors.cuil && <div className="input-error-message">{formErrors.cuil}</div>}
+                          {dupChecking && <div className="small text-muted">Verificando CUIL...</div>}
+                          {duplicateExists && <div className="input-error-message">{duplicateMsg}</div>}
+                        </div>
+
+                        <div className="mb-3">
+                          <label className="form-label">
+                            <i className="bi bi-building me-2"></i>Razón Social
+                          </label>
+                          <input
+                            type="text"
+                            name="razonSocial"
+                            value={
+                              modalModo === "consultar"
+                                ? proveedorActual?.razonSocial ?? ""
+                                : form.razonSocial
+                            }
+                            onChange={handleChange}
+                            required
+                            className="form-control"
+                            readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
+                          />
+                          {formErrors.razonSocial && <div className="input-error-message">{formErrors.razonSocial}</div>}
+                        </div>
+
+                        <div className="mb-3">
+                          <label className="form-label">
+                            <i className="bi bi-geo-alt me-2"></i>Dirección
+                          </label>
+                          <input
+                            type="text"
+                            name="direccion"
+                            value={
+                              modalModo === "consultar"
+                                ? proveedorActual?.direccion ?? ""
+                                : form.direccion
+                            }
+                            onChange={handleChange}
+                            className="form-control"
+                            readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
+                          />
                         </div>
                       </div>
+
                       <div className="col-12 col-md-6">
-                        <div className="row g-4">
-                          {/* División: Datos de contacto */}
-                          <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
-                            <i className="bi bi-telephone me-2"></i>Datos de contacto
-                          </h6>
-                          <div className="col-12">
-                            <div className="mb-3">
-                              <label>
-                                <i className="bi bi-telephone me-2"></i>Teléfono
-                              </label>
-                              <input
-                                type="text"
-                                name="telefono"
-                                value={
-                                  modalModo === "consultar"
-                                    ? proveedorActual?.telefono ?? ""
-                                    : form.telefono
-                                }
-                                onChange={handleChange}
-                                required
-                                className="form-control"
-                                readOnly={modalModo === "consultar"}
-                                style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                              />
-                              {formErrors.telefono && <div className="input-error-message">{formErrors.telefono}</div>}
-                            </div>
-                          </div>
+                        <h6 className="fw-bold mt-1 mb-2 border-bottom pb-1">
+                          <i className="bi bi-person-lines-fill me-2"></i>Datos del responsable
+                        </h6>
+                        <div className="mb-3">
+                          <label className="form-label">
+                            <i className="bi bi-person me-2"></i>Nombre del responsable
+                          </label>
+                          <input
+                            type="text"
+                            name="nombreResponsable"
+                            value={
+                              modalModo === "consultar"
+                                ? proveedorActual?.nombreResponsable ?? ""
+                                : form.nombreResponsable
+                            }
+                            onChange={handleChange}
+                            className="form-control"
+                            readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
+                          />
+                        </div>
+
+                        <div className="mb-3">
+                          <label className="form-label">
+                            <i className="bi bi-telephone me-2"></i>Teléfono del responsable
+                          </label>
+                          <input
+                            type="text"
+                            name="telefonoResponsable"
+                            value={
+                              modalModo === "consultar"
+                                ? proveedorActual?.telefonoResponsable ?? proveedorActual?.telefono ?? ""
+                                : form.telefonoResponsable
+                            }
+                            onChange={handleChange}
+                            required
+                            className="form-control"
+                            readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
+                          />
+                          {formErrors.telefonoResponsable && <div className="input-error-message">{formErrors.telefonoResponsable}</div>}
+                        </div>
+
+                        <div className="mb-3">
+                          <label className="form-label">
+                            <i className="bi bi-envelope me-2"></i>Email del responsable
+                          </label>
+                          <input
+                            type="email"
+                            name="mailResponsable"
+                            value={
+                              modalModo === "consultar"
+                                ? proveedorActual?.mailResponsable ?? ""
+                                : form.mailResponsable
+                            }
+                            onChange={handleChange}
+                            className="form-control"
+                            readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
+                          />
+                          {formErrors.mailResponsable && <div className="input-error-message">{formErrors.mailResponsable}</div>}
                         </div>
                       </div>
                     </div>
@@ -555,6 +677,57 @@ function Proveedores() {
           </div>
         </div>
       )}
+      {/* Modal: listado completo de proveedores activos */}
+      {activeModalOpen && (
+        <div className="modal" style={{ display: 'block' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Todos los proveedores</h5>
+                <button type="button" className="btn-close" aria-label="Cerrar" onClick={closeActiveProvidersModal}></button>
+              </div>
+              <div className="modal-body">
+                <div className="table-responsive">
+                  <table className="table table-striped table-hover align-middle">
+                    <thead>
+                      <tr>
+                        <th>CUIL</th>
+                        <th>Razón social</th>
+                        <th>Teléfono</th>
+                        <th>Responsable</th>
+                        <th>Email</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeProveedores.map(p => (
+                        <tr key={p.cuil}>
+                          <td>{p.cuil}</td>
+                          <td>{p.razonSocial}</td>
+                          <td>{p.telefonoResponsable || p.telefono}</td>
+                          <td>{p.nombreResponsable}</td>
+                          <td>{p.mailResponsable}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {activeProveedores.length === 0 && <div className="text-center py-3 text-muted">No hay proveedores activos.</div>}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-dorado fw-bold" onClick={closeActiveProvidersModal}><i className="bi bi-x-circle me-1"></i>Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <ConfirmModal
+        open={confirmDeleteProveedor.open}
+        title="Confirmar eliminación"
+        message="¿Está seguro de que desea eliminar este proveedor? Esta acción también removerá sus relaciones asociadas."
+        onCancel={confirmDeleteProveedorCancel}
+        onConfirm={confirmDeleteProveedorConfirm}
+      />
     </div>
   );
 }

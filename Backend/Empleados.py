@@ -18,13 +18,27 @@ def registrar_empleado():
     # Validamos datos obligatorios
     if not data.get('nombre') or not data.get('apellido') or not data.get('idCargo') or not data.get('idUsuario'):
         return jsonify({'error': 'Falta información obligatoria'}), 400
-    
+
+    # Validaciones opcionales: email y telefono
+    email = data.get('mail')
+    telefono = data.get('telefono')
+    if email:
+        # simple regex para validar email
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+            return jsonify({'error': 'Formato de email inválido'}), 400
+    if telefono:
+        # permitir dígitos, espacios, +, -, y paréntesis; longitud 6-20
+        if not re.match(r"^[0-9\s+\-()]{6,20}$", telefono):
+            return jsonify({'error': 'Formato de teléfono inválido'}), 400
+
     empleado = alta_empleado(
         nombre=data['nombre'],
         apellido=data['apellido'],
         idCargo=int(data['idCargo']),
         idUsuario=int(data['idUsuario']),
-        activo=data.get('activo', 1)
+        activo=data.get('activo', 1),
+        mail=email,
+        telefono=telefono
     )
     return jsonify({
         'idEmpleado': empleado.idEmpleado,
@@ -32,7 +46,9 @@ def registrar_empleado():
         'apellido': empleado.apellido,
         'idCargo': empleado.idCargo,
         'idUsuario': empleado.idUsuario,
-        'activo': empleado.activo
+        'activo': empleado.activo,
+        'mail': empleado.mail,
+        'telefono': empleado.telefono
     }), 201
 
 @bp.route('/empleados', methods=['GET'])
@@ -61,7 +77,9 @@ def modificar_empleado(idEmpleado):
         apellido=data.get('apellido'),
         idCargo=int(data.get('idCargo')) if data.get('idCargo') is not None else None,
         idUsuario=int(data.get('idUsuario')) if data.get('idUsuario') is not None else None,
-        activo=data.get('activo')
+        activo=data.get('activo'),
+        mail=data.get('mail'),
+        telefono=data.get('telefono')
     )
     if empleado:
         return jsonify({'success': True})

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
+import ConfirmModal from './ConfirmModal';
 import SearchableSelect from './SearchableSelect';
 
 const colores = {
@@ -21,6 +22,8 @@ export default function Empleados() {
     apellido: "",
     idCargo: "",
     idUsuario: "",
+    mail: "",
+    telefono: "",
   });
   const [editId, setEditId] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -76,6 +79,10 @@ export default function Empleados() {
     if (!form.apellido || form.apellido.trim().length < 2 || !/^[a-zA-Z\s]+$/.test(form.apellido.trim())) errors.apellido = "El apellido es obligatorio, debe contener solo letras y espacios, y tener al menos 2 caracteres.";
     if (!form.idCargo) errors.idCargo = "Debe seleccionar un cargo.";
     if (!form.idUsuario) errors.idUsuario = "Debe seleccionar un usuario.";
+    // mail opcional pero si se ingresa debe ser válido
+    if (form.mail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.mail)) errors.mail = "El email tiene un formato inválido.";
+    // telefono opcional pero si se ingresa debe tener entre 6 y 20 caracteres y solo caracteres permitidos
+    if (form.telefono && !/^[0-9\s+\-()]{6,20}$/.test(form.telefono)) errors.telefono = "El teléfono tiene un formato inválido.";
     return errors;
   }
 
@@ -134,12 +141,18 @@ export default function Empleados() {
   };
 
   const handleDelete = idEmpleado => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar este empleado?")) {
-      fetch(`${API_URL}/${idEmpleado}`, { method: "DELETE" })
-        .then(() => {
-          fetchEmpleados();
-        });
-    }
+    setConfirmDeleteEmpleado({ open: true, id: idEmpleado });
+  };
+
+  const [confirmDeleteEmpleado, setConfirmDeleteEmpleado] = useState({ open: false, id: null });
+
+  const confirmDeleteEmpleadoCancel = () => setConfirmDeleteEmpleado({ open: false, id: null });
+
+  const confirmDeleteEmpleadoConfirm = () => {
+    const id = confirmDeleteEmpleado.id;
+    fetch(`${API_URL}/${id}`, { method: "DELETE" })
+      .then(() => fetchEmpleados())
+      .finally(() => setConfirmDeleteEmpleado({ open: false, id: null }));
   };
 
   const handleReactivar = idEmpleado => {
@@ -232,6 +245,8 @@ export default function Empleados() {
                       <th>Apellido</th>
                       <th>Cargo</th>
                       <th>Usuario</th>
+                      <th>Mail</th>
+                      <th>Teléfono</th>
                       <th>Activo</th>
                       <th>Acciones</th>
                     </tr>
@@ -243,6 +258,8 @@ export default function Empleados() {
                         <td>{e.apellido}</td>
                         <td>{cargos.find(c => c.idCargo === e.idCargo)?.descripcion || 'N/A'}</td>
                         <td>{allUsers.find(u => u.idUsuario === e.idUsuario)?.nombreUsuario || 'N/A'}</td>
+                        <td>{e.mail || ''}</td>
+                        <td>{e.telefono || ''}</td>
                         <td>{e.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
                           <button
@@ -422,6 +439,40 @@ export default function Empleados() {
                           {formErrors.idUsuario && <div className="input-error-message">{formErrors.idUsuario}</div>}
                         </div>
                       </div>
+                      <div className="col-12 col-md-6">
+                        <div className="mb-3">
+                          <label>
+                            <i className="bi bi-envelope me-2"></i>Mail
+                          </label>
+                          <input
+                            type="email"
+                            name="mail"
+                            value={modalModo === "consultar" ? clienteActual?.mail ?? "" : form.mail}
+                            onChange={handleChange}
+                            className="form-control"
+                            readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
+                          />
+                          {formErrors.mail && <div className="input-error-message">{formErrors.mail}</div>}
+                        </div>
+                      </div>
+                      <div className="col-12 col-md-6">
+                        <div className="mb-3">
+                          <label>
+                            <i className="bi bi-telephone me-2"></i>Teléfono
+                          </label>
+                          <input
+                            type="text"
+                            name="telefono"
+                            value={modalModo === "consultar" ? clienteActual?.telefono ?? "" : form.telefono}
+                            onChange={handleChange}
+                            className="form-control"
+                            readOnly={modalModo === "consultar"}
+                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
+                          />
+                          {formErrors.telefono && <div className="input-error-message">{formErrors.telefono}</div>}
+                        </div>
+                      </div>
                     </div>
                   </fieldset>
                   {mensaje && (
@@ -455,6 +506,13 @@ export default function Empleados() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        open={confirmDeleteEmpleado.open}
+        title="Confirmar eliminación"
+        message="¿Estás seguro de que deseas eliminar este empleado?"
+        onCancel={confirmDeleteEmpleadoCancel}
+        onConfirm={confirmDeleteEmpleadoConfirm}
+      />
     </div>
   );
 }

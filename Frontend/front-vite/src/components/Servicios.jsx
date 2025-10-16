@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
+import ConfirmModal from './ConfirmModal';
 
 const API_URL = "http://localhost:5000/servicios";
 const REPUESTOS_URL = "http://localhost:5000/repuestos";
@@ -27,6 +28,22 @@ export default function Servicios() {
   const [originalRepuestos, setOriginalRepuestos] = useState([]);
   const [mensaje, setMensaje] = useState("");
   const [formErrors, setFormErrors] = useState({});
+  // Services catalog modal (moved from Proveedores.jsx)
+  const [servicesModalOpen, setServicesModalOpen] = useState(false);
+  const [serviciosCatalogo, setServiciosCatalogo] = useState([]);
+
+  const openServicesCatalogModal = async () => {
+    setServicesModalOpen(true);
+    try {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      setServiciosCatalogo(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setMensaje('Error al cargar catálogo de servicios');
+    }
+  };
+
+  const closeServicesCatalogModal = () => setServicesModalOpen(false);
 
   // Cargar servicios
   const fetchServicios = () => {
@@ -49,6 +66,7 @@ export default function Servicios() {
     fetchRepuestos();
     // eslint-disable-next-line
   }, [mostrarInactivos]);
+
 
   // Modal handlers
   const handleAgregarClick = () => {
@@ -73,8 +91,8 @@ export default function Servicios() {
       })
       .then(res => res.json())
       .then(reps => {
-        setServicioActual(prev => ({ ...prev, repuestos: reps.map(r => ({ idRepuesto: r.idRepuesto, cantidad: r.cantidad })) }));
-        setOriginalRepuestos(reps.map(r => ({ idRepuesto: r.idRepuesto, cantidad: r.cantidad })));
+        setServicioActual(prev => ({ ...prev, repuestos: reps.map(r => ({ idRepuesto: r.idRepuesto, cantidad: r.cantidad ?? 1 })) }));
+        setOriginalRepuestos(reps.map(r => ({ idRepuesto: r.idRepuesto, cantidad: r.cantidad ?? 1 })));
         setModalModo('modificar');
         setModalVisible(true);
         setMensaje("");
@@ -90,18 +108,41 @@ export default function Servicios() {
       })
       .then(res => res.json())
       .then(reps => {
-        setServicioActual(prev => ({ ...prev, repuestos: reps.map(r => ({ idRepuesto: r.idRepuesto, cantidad: r.cantidad })) }));
+        setServicioActual(prev => ({ ...prev, repuestos: reps.map(r => ({ idRepuesto: r.idRepuesto, cantidad: r.cantidad ?? 1 })) }));
         setModalModo('consultar');
         setModalVisible(true);
         setMensaje("");
       });
   };
 
+  const [confirmDeleteServicio, setConfirmDeleteServicio] = useState({ open: false, id: null });
+  const [confirmDeleteRepuesto, setConfirmDeleteRepuesto] = useState({ open: false, index: null });
+
   const handleEliminar = async (idServicio) => {
-    if (window.confirm("¿Seguro que desea eliminar este servicio?")) {
-      await fetch(`${API_URL}/${idServicio}`, { method: "DELETE" });
-      fetchServicios();
-    }
+    setConfirmDeleteServicio({ open: true, id: idServicio });
+  };
+
+  const confirmDeleteServicioCancel = () => setConfirmDeleteServicio({ open: false, id: null });
+
+  const confirmDeleteServicioConfirm = async () => {
+    const id = confirmDeleteServicio.id;
+    await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+    fetchServicios();
+    setConfirmDeleteServicio({ open: false, id: null });
+  };
+
+  const handleEliminarRepuestoClick = (idx) => {
+    // open confirm modal for the repuesto row
+    setConfirmDeleteRepuesto({ open: true, index: idx });
+  };
+
+  const confirmDeleteRepuestoCancel = () => setConfirmDeleteRepuesto({ open: false, index: null });
+
+  const confirmDeleteRepuestoConfirm = () => {
+    const idx = confirmDeleteRepuesto.index;
+    if (idx === null || idx === undefined) return confirmDeleteRepuestoCancel();
+    setServicioActual(prev => ({ ...prev, repuestos: prev.repuestos.filter((_, i) => i !== idx) }));
+    setConfirmDeleteRepuesto({ open: false, index: null });
   };
 
   const handleReactivar = async (idServicio) => {
@@ -131,7 +172,7 @@ export default function Servicios() {
         if (new Set(ids).size !== ids.length) errors.repuestos = "No puede haber repuestos repetidos.";
         for (const r of form.repuestos) {
           if (!r.idRepuesto) errors.repuestoDetalle = "El repuesto es obligatorio.";
-          if (r.cantidad === "" || isNaN(r.cantidad) || !Number.isInteger(Number(r.cantidad)) || r.cantidad < 1) errors.repuestoDetalle = "La cantidad debe ser un número entero mayor a 0.";
+          // cantidad is not editable in the modal (defaults to 1), so skip validation here
         }
       }
     }
@@ -232,19 +273,20 @@ export default function Servicios() {
 
   // Repuestos handlers
   const handleAgregarRepuesto = () => {
-    setServicioActual(prev => ({ ...prev, repuestos: [...prev.repuestos, { idRepuesto: '', cantidad: null }] }));
+    setServicioActual(prev => ({ ...prev, repuestos: [...prev.repuestos, { idRepuesto: '', cantidad: 1 }] }));
   };
 
+  // Remove repuesto from the servicio after confirmation (confirmation handled by confirmDeleteRepuesto state)
+  // Note: the actual confirmation modal is rendered at the component root (see bottom of return)
   const handleEliminarRepuesto = (idx) => {
-    setServicioActual(prev => ({ ...prev, repuestos: prev.repuestos.filter((_, i) => i !== idx) }));
+    // Open the repuesto-confirm modal for the given index
+    setConfirmDeleteRepuesto({ open: true, index: idx });
   };
 
   const handleRepuestoChange = (idx, field, value) => {
     const updated = [...servicioActual.repuestos];
     if (field === 'idRepuesto') {
       updated[idx][field] = Number(value);
-    } else if (field === 'cantidad') {
-      updated[idx][field] = value === '' ? null : Number(value);
     } else {
       updated[idx][field] = value;
     }
@@ -272,6 +314,12 @@ export default function Servicios() {
                   onClick={() => setMostrarInactivos(!mostrarInactivos)}
                 >
                   {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
+                </button>
+                <button
+                  className="btn btn-azul"
+                  onClick={openServicesCatalogModal}
+                >
+                  <i className="bi bi-journal-bookmark me-1"></i>Catálogo de servicios
                 </button>
                 <button
                   className="btn btn-verdeAgua"
@@ -319,7 +367,7 @@ export default function Servicios() {
                               className="btn btn-sm btn-rojo fw-bold"
                               onClick={() => handleEliminar(s.idServicio)}
                             >
-                              <i className="bi bi-trash me-1"></i>Eliminar
+                                <i className="bi bi-trash me-1"></i>Eliminar
                             </button>
                           ) : (
                             <button
@@ -382,22 +430,7 @@ export default function Servicios() {
                       <i className="bi bi-info-circle me-2"></i>Información básica
                     </h6>
                     <div className="row g-4">
-                      <div className="col-12 col-md-6">
-                        <div className="mb-3">
-                          <label className="fw-semibold"><i className="bi bi-hash me-2"></i>ID Servicio</label>
-                          <input
-                            className="form-control"
-                            name="idServicio"
-                            type="number"
-                            value={servicioActual?.idServicio || ""}
-                            onChange={handleChange}
-                            required
-                            disabled={modalModo === "consultar" || modalModo === "modificar" || modalModo === "alta"}
-                            readOnly={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          />
-                          {formErrors.idServicio && <div className="input-error-message">{formErrors.idServicio}</div>}
-                        </div>
+                        <div className="col-12 col-md-6">
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-gear me-2"></i>Descripción</label>
                           <input
@@ -414,10 +447,6 @@ export default function Servicios() {
                         </div>
                       </div>
                       <div className="col-12 col-md-6">
-                        {/* División: Precio */}
-                        <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
-                          <i className="bi bi-currency-dollar me-2"></i>Precio
-                        </h6>
                         <div className="mb-3">
                           <label className="fw-semibold"><i className="bi bi-currency-dollar me-2"></i>Precio Base</label>
                           <input
@@ -456,22 +485,11 @@ export default function Servicios() {
                             {getAvailableRepuestosForRow(idx).map(rep => <option key={rep.idRepuesto} value={rep.idRepuesto}>{rep.marca} {rep.modelo}</option>)}
                           </select>
                         </div>
-                        <div className="col-12 col-md-4">
-                          <label>Cantidad</label>
-                          <input 
-                            type="number" 
-                            className="form-control" 
-                            value={r.cantidad ?? ''} 
-                            onChange={e => handleRepuestoChange(idx, "cantidad", e.target.value)} 
-                            required 
-                            min="1" 
-                            disabled={modalModo === "consultar"}
-                          />
-                        </div>
+                        {/* cantidad removed from modal UI; defaults to 1 */}
                         {(modalModo === "modificar" || modalModo === "alta") && (
                           <div className="col-12 col-md-3">
-                            <button type="button" className="btn btn-rojo btn-sm" onClick={() => handleEliminarRepuesto(idx)}>
-                              <i className="bi bi-trash"></i> Eliminar
+                            <button type="button" className="btn btn-sm btn-rojo fw-bold" onClick={() => handleEliminarRepuesto(idx)}>
+                                <i className="bi bi-trash me-1"></i>Eliminar
                             </button>
                           </div>
                         )}
@@ -514,6 +532,62 @@ export default function Servicios() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Confirm modals rendered at component root to avoid duplicate/misplaced instances */}
+      <ConfirmModal
+        open={confirmDeleteServicio.open}
+        title="Confirmar eliminación"
+        message="¿Seguro que desea eliminar este servicio?"
+        onCancel={confirmDeleteServicioCancel}
+        onConfirm={confirmDeleteServicioConfirm}
+      />
+      <ConfirmModal
+        open={confirmDeleteRepuesto.open}
+        title="Confirmar eliminación"
+        message="¿Seguro que desea eliminar este repuesto del servicio?"
+        onCancel={confirmDeleteRepuestoCancel}
+        onConfirm={confirmDeleteRepuestoConfirm}
+      />
+      {/* Modal: catálogo de servicios */}
+      {servicesModalOpen && (
+        <div className="modal" style={{ display: 'block' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Catálogo de servicios</h5>
+                <button type="button" className="btn-close" aria-label="Cerrar" onClick={closeServicesCatalogModal}></button>
+              </div>
+              <div className="modal-body">
+                <div className="table-responsive">
+                  <table className="table table-striped table-hover align-middle">
+                    <thead>
+                      <tr>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th>Precio Base</th>
+                        <th>Activo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {serviciosCatalogo.map(s => (
+                        <tr key={s.idServicio}>
+                          <td>{s.idServicio}</td>
+                          <td>{s.descripcion}</td>
+                          <td>${Number(s.precioBase).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                          <td>{s.activo === 1 ? 'Activo' : 'Inactivo'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {serviciosCatalogo.length === 0 && <div className="text-center py-3 text-muted">No hay servicios disponibles.</div>}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-dorado fw-bold" onClick={closeServicesCatalogModal}><i className="bi bi-x-circle me-1"></i>Cerrar</button>
+              </div>
             </div>
           </div>
         </div>

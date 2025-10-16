@@ -22,13 +22,19 @@ def registrar_proveedor():
     proveedor = alta_proveedor(
         cuil=data['cuil'],
         razonSocial=data.get('razonSocial'),
-        telefono=data.get('telefono')
+        telefono=data.get('telefonoResponsable'),
+        direccion=data.get('direccion'),
+        nombreResponsable=data.get('nombreResponsable'),
+        mailResponsable=data.get('mailResponsable')
     )
     return jsonify({
         'idProveedor': proveedor.idProveedor,
         'cuil': proveedor.cuil,
         'razonSocial': proveedor.razonSocial,
-        'telefono': proveedor.telefono
+        'telefonoResponsable': proveedor.telefonoResponsable,
+        'direccion': proveedor.direccion,
+        'nombreResponsable': proveedor.nombreResponsable,
+        'mailResponsable': proveedor.mailResponsable
     }), 201
 
 @bp.route('/proveedores', methods=['GET'])
@@ -44,7 +50,10 @@ def listar_proveedores():
             'idProveedor': p.idProveedor,
             'cuil': p.cuil,
             'razonSocial': p.razonSocial,
-            'telefono': p.telefono,
+            'telefonoResponsable': p.telefonoResponsable,
+            'direccion': p.direccion,
+            'nombreResponsable': p.nombreResponsable,
+            'mailResponsable': p.mailResponsable,
             'activo': p.activo
         } for p in proveedores
     ])
@@ -66,9 +75,12 @@ def modificar_datos_proveedor(cuil):
     proveedor_modificado = modificar_proveedor(
         idProveedor=proveedor.idProveedor,
         razonSocial=data.get('razonSocial'),
-        telefono=data.get('telefono'),
+        telefono=data.get('telefonoResponsable'),
         activo=data.get('activo'),
-        cuil=new_cuil or proveedor.cuil
+        cuil=new_cuil or proveedor.cuil,
+        direccion=data.get('direccion'),
+        nombreResponsable=data.get('nombreResponsable'),
+        mailResponsable=data.get('mailResponsable')
     )
     if proveedor_modificado:
         return jsonify({'success': True})

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
+import ConfirmModal from './ConfirmModal';
 
 const API_URL = "http://localhost:5000/repuestos";
 const REPUESTOS_PROVEEDORES_URL = "http://localhost:5000/repuestos-proveedores";
@@ -9,6 +10,7 @@ function Repuestos() {
   const [repuestos, setRepuestos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [formErrors, setFormErrors] = useState({});
 
@@ -25,9 +27,14 @@ function Repuestos() {
   const [modalTodosRepuestos, setModalTodosRepuestos] = useState({ open: false, lista: [] });
   const [originalProveedores, setOriginalProveedores] = useState([]);
   const [repuestosProveedores, setRepuestosProveedores] = useState([]);
+  const [confirmRemoveProveedor, setConfirmRemoveProveedor] = useState({ open: false, idx: null });
 
-  const fetchRepuestos = () => {
-    fetch(`${API_URL}?activos=false`)
+  const fetchRepuestos = (search = searchTerm) => {
+    // Use current mostrarInactivos state to fetch correct set
+    const activosParam = mostrarInactivos ? 'false' : 'true';
+    const params = new URLSearchParams({ activos: activosParam });
+    if (search && search.trim().length > 0) params.set('search', search.trim());
+    fetch(`${API_URL}?${params.toString()}`)
       .then(res => res.json())
       .then(data => setRepuestos(data))
       .catch(() => setMensaje("Error al cargar repuestos"));
@@ -47,8 +54,14 @@ function Repuestos() {
       .catch(() => setMensaje("Error al cargar proveedores"));
   };
 
+  // Fetch repuestos whenever mostrarInactivos or searchTerm changes (debounced) so toggle works on first click
   useEffect(() => {
-    fetchRepuestos();
+    const t = setTimeout(() => fetchRepuestos(searchTerm), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line
+  }, [mostrarInactivos, searchTerm]);
+
+  useEffect(() => {
     fetchProveedores();
     fetchRepuestosProveedores();
   }, []);
@@ -99,7 +112,7 @@ function Repuestos() {
 
   const handleAgregarClick = () => {
     setModalModo('alta');
-    setForm({ codigo: "", marca: "", modelo: "", proveedores: [] });
+    setForm({ idRepuesto: "", marca: "", modelo: "", proveedores: [] });
     setFormErrors({});
     setMensaje("");
     setModalVisible(true);
@@ -158,20 +171,37 @@ function Repuestos() {
   };
 
   const handleRemoveProveedor = (idx) => {
+    // open confirm modal
+    setConfirmRemoveProveedor({ open: true, idx });
+  };
+
+  const confirmRemoveProveedorCancel = () => setConfirmRemoveProveedor({ open: false, idx: null });
+
+  const confirmRemoveProveedorConfirm = () => {
+    const idx = confirmRemoveProveedor.idx;
     const updatedProveedores = [...form.proveedores];
     updatedProveedores.splice(idx, 1);
     setForm(prev => ({ ...prev, proveedores: updatedProveedores }));
+    setConfirmRemoveProveedor({ open: false, idx: null });
   };
 
+  const [confirmDeleteRepuesto, setConfirmDeleteRepuesto] = useState({ open: false, id: null });
+
   const handleDelete = (idRepuesto) => {
-    if (window.confirm("¿Está seguro de que desea eliminar este repuesto? Se eliminarán también sus asociaciones con proveedores.")) {
-      fetch(`${API_URL}/${idRepuesto}`, { method: "DELETE" })
-        .then(res => {
-          if (!res.ok) throw new Error("Error al eliminar el repuesto.");
-          fetchRepuestos();
-        })
-        .catch(err => setMensaje(err.message));
-    }
+    setConfirmDeleteRepuesto({ open: true, id: idRepuesto });
+  };
+
+  const confirmDeleteRepuestoCancel = () => setConfirmDeleteRepuesto({ open: false, id: null });
+
+  const confirmDeleteRepuestoConfirm = () => {
+    const idRepuesto = confirmDeleteRepuesto.id;
+    fetch(`${API_URL}/${idRepuesto}`, { method: "DELETE" })
+      .then(res => {
+        if (!res.ok) throw new Error("Error al eliminar el repuesto.");
+        fetchRepuestos();
+      })
+      .catch(err => setMensaje(err.message))
+      .finally(() => setConfirmDeleteRepuesto({ open: false, id: null }));
   };
 
   const handleReactivar = async (idRepuesto) => {
@@ -270,7 +300,7 @@ function Repuestos() {
           const id = rel.idRepuesto;
           if (!acc[id]) {
             const rep = repMap[id];
-            acc[id] = { codigo: id, marca: rep?.marca || '', modelo: rep?.modelo || '', proveedores: [] };
+            acc[id] = { idRepuesto: id, marca: rep?.marca || '', modelo: rep?.modelo || '', proveedores: [] };
           }
           acc[id].proveedores.push({
             razonSocial: provMap[rel.idProveedor]?.razonSocial || '',
@@ -296,14 +326,7 @@ function Repuestos() {
               <div className="d-flex gap-2">
                 <button
                   className="btn btn-dorado"
-                  onClick={() => {
-                    const newMostrar = !mostrarInactivos;
-                    setMostrarInactivos(newMostrar);
-                    fetch(`${API_URL}?activos=${newMostrar ? 'false' : 'true'}`)
-                      .then(res => res.json())
-                      .then(data => setRepuestos(data))
-                      .catch(() => setMensaje("Error al cargar repuestos"));
-                  }}
+                  onClick={() => setMostrarInactivos(prev => !prev)}
                 >
                   {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                 </button>
@@ -316,6 +339,15 @@ function Repuestos() {
               </div>
             </div>
             <div className="card-body">
+              <div className="mb-3">
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Buscar por marca o modelo..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
               <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-hover align-middle">
                   <thead>
@@ -328,7 +360,9 @@ function Repuestos() {
                     </tr>
                   </thead>
                   <tbody>
-                    {repuestos.map((r) => (
+                    {repuestos
+                      .filter(r => Number(r.activo) === (mostrarInactivos ? 0 : 1))
+                      .map((r) => (
                       <tr key={r.idRepuesto} style={Number(r.activo) === 0 ? { opacity: 0.6 } : {}}>
                         <td>{r.idRepuesto}</td>
                         <td>{r.marca}</td>
@@ -381,30 +415,8 @@ function Repuestos() {
                 >
                     <fieldset style={{ border: 'none' }}>
                       <legend><i className="bi bi-gear me-2"></i>Datos del Repuesto</legend>
-                      {/* División: Identificación */}
-                      <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
-                        <i className="bi bi-hash me-2"></i>Identificación
-                      </h6>
                       <div className="row g-4">
-                        <div className="col-12">
-                          <div className="mb-3">
-                            <label>
-                              <i className="bi bi-hash me-2"></i>Código
-                            </label>
-                            {modalModo === 'alta' ? (
-                              <div className="form-text text-muted">El código se asignará automáticamente al crear el repuesto.</div>
-                            ) : (
-                              <input
-                                type="text"
-                                name="idRepuesto"
-                                value={form.idRepuesto}
-                                readOnly
-                                className="form-control"
-                                style={{ backgroundColor: '#dee2e6' }}
-                              />
-                            )}
-                          </div>
-                        </div>
+                        
                         {/* División: Especificaciones */}
                         <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
                           <i className="bi bi-pc me-2"></i>Especificaciones
@@ -556,7 +568,6 @@ function Repuestos() {
                   <table className="table table-striped table-bordered align-middle">
                     <thead>
                       <tr>
-                        <th>Código Rep.</th>
                         <th>Repuesto</th>
                         <th>Proveedor</th>
                         <th>Costo</th>
@@ -566,16 +577,14 @@ function Repuestos() {
                     <tbody>
                       {modalTodosRepuestos.lista.flatMap(r =>
                         r.proveedores.length > 0 ? r.proveedores.map((p, i) => (
-                          <tr key={`${r.codigo}-${i}`}>
-                            {i === 0 && <td rowSpan={r.proveedores.length}>{r.codigo}</td>}
+                          <tr key={`${r.idRepuesto}-${i}`}>
                             {i === 0 && <td rowSpan={r.proveedores.length}>{r.marca} {r.modelo}</td>}
                             <td>{p.razonSocial} ({p.cuilProveedor})</td>
                             <td>${p.costo}</td>
                             <td>{p.cantidad}</td>
                           </tr>
                         )) : (
-                          <tr key={r.codigo}>
-                            <td>{r.codigo}</td>
+                          <tr key={r.idRepuesto}>
                             <td>{r.marca} {r.modelo}</td>
                             <td colSpan="3" className="text-center text-muted">Sin proveedores asignados</td>
                           </tr>
@@ -592,6 +601,21 @@ function Repuestos() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmRemoveProveedor.open}
+        title="Confirmar eliminación"
+        message="¿Está seguro que desea quitar este proveedor del repuesto?"
+        onCancel={confirmRemoveProveedorCancel}
+        onConfirm={confirmRemoveProveedorConfirm}
+      />
+      <ConfirmModal
+        open={confirmDeleteRepuesto.open}
+        title="Confirmar eliminación"
+        message="¿Está seguro de que desea eliminar este repuesto? Se eliminarán también sus asociaciones con proveedores."
+        onCancel={confirmDeleteRepuestoCancel}
+        onConfirm={confirmDeleteRepuestoConfirm}
+      />
     </div>
   )
 };

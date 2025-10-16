@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
+import ConfirmModal from './ConfirmModal';
 
 const API_URL = "http://localhost:5000/usuarios";
 
@@ -151,18 +152,38 @@ export default function Usuarios() {
   }
 
   function handleDelete(idUsuario) {
-    const confirmar = window.confirm(
-      "Se realizará una baja lógica del usuario. ¿Desea continuar?"
-    );
-    if (!confirmar) return;
-    fetch(`${API_URL}/${idUsuario}`, { method: "DELETE" })
+    setConfirmDeleteUsuario({ open: true, id: idUsuario });
+  }
+
+  const [confirmDeleteUsuario, setConfirmDeleteUsuario] = useState({ open: false, id: null });
+
+  const confirmDeleteUsuarioCancel = () => setConfirmDeleteUsuario({ open: false, id: null });
+
+  const confirmDeleteUsuarioConfirm = () => {
+    const id = confirmDeleteUsuario.id;
+    fetch(`${API_URL}/${id}`, { method: "DELETE" })
       .then(() => {
         fetchUsuarios();
         setMensaje("Usuario dado de baja correctamente.");
       })
       .catch(err => {
         setMensaje("Error al dar de baja usuario: " + err.message);
-      });
+      })
+      .finally(() => setConfirmDeleteUsuario({ open: false, id: null }));
+  };
+
+  // Reactivar usuario (cuando está inactivo)
+  function handleReactivar(idUsuario) {
+    fetch(`${API_URL}/${idUsuario}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activo: 1 })
+    })
+      .then(() => {
+        fetchUsuarios();
+        setMensaje("Usuario reactivado correctamente.");
+      })
+      .catch(err => setMensaje("Error al reactivar usuario: " + (err.message || String(err))));
   }
 
   function handleCancelar() {
@@ -212,7 +233,7 @@ export default function Usuarios() {
                       <tr key={u.idUsuario}>
                         <td>{u.idUsuario}</td>
                         <td>{u.nombreUsuario}</td>
-                        <td>{u.activo ? "Sí" : "No"}</td>
+                        <td>{u.activo === 1 || u.activo === true ? "Activo" : "Inactivo"}</td>
                         <td>
                           <button className="btn btn-sm btn-verdeAgua fw-bold me-1"
                             onClick={() => handleConsultar(u)}>
@@ -222,10 +243,15 @@ export default function Usuarios() {
                             onClick={() => u.activo === 1 && handleEdit(u)} disabled={u.activo !== 1}>
                             <i className="bi bi-pencil-square"></i> Modificar
                           </button>
-                          {u.activo === 1 && (
+                          {u.activo === 1 ? (
                             <button className="btn btn-sm btn-rojo fw-bold"
                               onClick={() => handleDelete(u.idUsuario)}>
-                              <i className="bi bi-x-circle"></i> Eliminar
+                                <i className="bi bi-trash me-1"></i>Eliminar
+                            </button>
+                          ) : (
+                            <button className="btn btn-sm btn-verdeAgua fw-bold"
+                              onClick={() => handleReactivar(u.idUsuario)}>
+                                <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
                             </button>
                           )}
                         </td>
@@ -243,9 +269,9 @@ export default function Usuarios() {
       </div>
       {/* Modal para alta, modificar y consultar */}
       {modalVisible && (
-        <div className="modal" style={{ display: "block" }}>
-          <div className="modal-dialog" style={{ maxWidth: "100vw" }}>
-            <div className="modal-content" style={{ width: "100vw", maxWidth: "100vw" }}>
+        <div className="modal show" style={{ display: "block", backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title fw-bold">
                   {modalModo === 'consultar'
@@ -261,7 +287,7 @@ export default function Usuarios() {
                   onClick={handleCancelar}
                 ></button>
               </div>
-              <div className="modal-body" style={{ padding: 0 }}>
+              <div className="modal-body">
                 <form
                   className="form-container"
                   onSubmit={
@@ -278,12 +304,7 @@ export default function Usuarios() {
                     </legend>
                     <div className="row g-4">
                       <div className="col-12 col-md-6">
-                        {editId && (
-                          <div className="mb-3">
-                            <label className="fw-semibold"><i className="bi bi-person me-2"></i>ID Usuario</label>
-                            <input value={editId} className="form-control" disabled readOnly />
-                          </div>
-                        )}
+                        {/* ID Usuario removed from consult/modify modal per request */}
                         {/* División: Credenciales de acceso */}
                         <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
                           <i className="bi bi-shield-lock me-2"></i>Credenciales de acceso
@@ -358,6 +379,13 @@ export default function Usuarios() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        open={confirmDeleteUsuario.open}
+        title="Confirmar baja"
+        message="Se realizará una baja lógica del usuario. ¿Desea continuar?"
+        onCancel={confirmDeleteUsuarioCancel}
+        onConfirm={confirmDeleteUsuarioConfirm}
+      />
     </div>
   );
 }

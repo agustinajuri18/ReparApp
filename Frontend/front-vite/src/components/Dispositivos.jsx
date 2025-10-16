@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import ReactDOM from 'react-dom';
 import MenuLateral from './MenuLateral';
+import ConfirmModal from './ConfirmModal';
 import PiePagina from './PiePagina';
 
 const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5' };
@@ -138,11 +139,19 @@ export default function Dispositivos() {
         setMensaje("");
     };
 
+    const [confirmDeleteDispositivo, setConfirmDeleteDispositivo] = useState({ open: false, id: null });
+
     const handleEliminar = async (idDispositivo) => {
-        if (window.confirm("¿Seguro que desea eliminar este dispositivo?")) {
-            await fetch(`${API_URL}/${idDispositivo}`, { method: "DELETE" });
-            fetchDispositivos();
-        }
+        setConfirmDeleteDispositivo({ open: true, id: idDispositivo });
+    };
+
+    const confirmDeleteDispositivoCancel = () => setConfirmDeleteDispositivo({ open: false, id: null });
+
+    const confirmDeleteDispositivoConfirm = async () => {
+        const id = confirmDeleteDispositivo.id;
+        await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+        fetchDispositivos();
+        setConfirmDeleteDispositivo({ open: false, id: null });
     };
 
     const handleReactivar = async (idDispositivo) => {
@@ -297,7 +306,7 @@ export default function Dispositivos() {
                                                             <i className="bi bi-search me-1"></i>Consultar
                                                         </button>
                                                         <button
-                                                            className="btn btn-sm btn-primario fw-bold"
+                                                            className="btn btn-sm btn-azul fw-bold"
                                                             onClick={async () => {
                                                                 try {
                                                                     const res = await fetch(`${API_URL}/${d.idDispositivo}/historial-ordenes`);
@@ -677,6 +686,13 @@ export default function Dispositivos() {
                 </div>
             )}
             <PiePagina />
+            <ConfirmModal
+                open={confirmDeleteDispositivo.open}
+                title="Confirmar eliminación"
+                message="¿Seguro que desea eliminar este dispositivo?"
+                onCancel={confirmDeleteDispositivoCancel}
+                onConfirm={confirmDeleteDispositivoConfirm}
+            />
         </div>
     );
 }

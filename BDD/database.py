@@ -70,6 +70,8 @@ class Empleado(Base):
     idEmpleado = Column(Integer, primary_key=True, autoincrement=True)
     nombre = Column(String)
     apellido = Column(String)
+    mail = Column(String(100), unique=True)
+    telefono = Column(String(20))
     idCargo = Column(Integer, ForeignKey("Cargo.idCargo"))
     idUsuario = Column(Integer, ForeignKey("Usuario.idUsuario"), unique=True)
     activo = Column(Integer, nullable=False, default=1)
@@ -192,9 +194,12 @@ class Proveedor(Base):
     __tablename__ = "Proveedor"
     idProveedor = Column(Integer, primary_key=True, autoincrement=True)
     cuil = Column(String, nullable=False, unique=True)
-    telefono = Column(String)
+    telefonoResponsable = Column(String)
     razonSocial = Column(String)
     activo = Column(Integer, nullable=False, default=1)
+    direccion = Column(String)
+    nombreResponsable = Column(String)
+    mailResponsable = Column(String, unique=True)
     
     repuestos = relationship("RepuestoxProveedor", back_populates="proveedor")
 

@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from ABMC_db import (
     alta_repuesto, modificar_repuesto, mostrar_repuestos, baja_repuesto,
+    buscar_repuesto,
     alta_repuestoxproveedor, baja_repuestoxproveedor, mostrar_repuestoxproveedor
 )
 
@@ -22,11 +23,17 @@ def registrar_repuesto():
 
 @bp.route('/repuestos', methods=['GET'])
 def listar_repuestos():
-    activos = request.args.get('activos', 'false')
+    # Por defecto devolvemos repuestos activos
+    activos = request.args.get('activos', 'true')
+    search = request.args.get('search')
     if activos == 'true':
         repuestos = mostrar_repuestos(activos_only=True)
     else:
         repuestos = mostrar_repuestos(activos_only=False)
+    # If search provided, mostrar_repuestos now supports it
+    if search:
+        # Call again with search to ensure filtering (preserves activos_only)
+        repuestos = mostrar_repuestos(activos_only=(activos == 'true'), search=search)
     return jsonify([
         {
             'idRepuesto': r.idRepuesto,
@@ -117,9 +124,8 @@ def eliminar_repuestoxproveedor():
 
 @bp.route('/repuestos/<int:idRepuesto>', methods=['GET'])
 def obtener_repuesto(idRepuesto):
-    # Find repuesto by idRepuesto
-    repuestos = mostrar_repuestos(activos_only=False)
-    repuesto = next((r for r in repuestos if r.idRepuesto == idRepuesto), None)
+    # Buscar repuesto directamente por id (independiente de activo)
+    repuesto = buscar_repuesto(idRepuesto)
     if not repuesto:
         return jsonify({'error': 'Repuesto no encontrado'}), 404
     # Find proveedores for this repuesto
