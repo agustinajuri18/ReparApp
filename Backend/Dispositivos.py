@@ -95,7 +95,8 @@ def historial_ordenes_por_dispositivo(idDispositivo):
     """
     try:
         # Obtener el dispositivo (entre los dispositivos existentes)
-        dispositivos = mostrar_dispositivos(activos_only=False) or []
+        # Antes se filtraba por activos_only=False (solo inactivos), eso causaba 404 para dispositivos activos.
+        dispositivos = mostrar_dispositivos() or []
         dispositivo = next((d for d in dispositivos if getattr(d, 'idDispositivo', None) == idDispositivo), None)
         if not dispositivo:
             return jsonify({'error': 'Dispositivo no encontrado'}), 404

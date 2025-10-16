@@ -309,12 +309,27 @@ export default function Dispositivos() {
                                                             className="btn btn-sm btn-azul fw-bold"
                                                             onClick={async () => {
                                                                 try {
+                                                                    setMensaje('');
                                                                     const res = await fetch(`${API_URL}/${d.idDispositivo}/historial-ordenes`);
-                                                                    const data = await res.json().catch(() => []);
-                                                                    setHistorialOrdenes(Array.isArray(data) ? data : []);
+                                                                    // Try to parse JSON but don't throw on parse error
+                                                                    let data = null;
+                                                                    try { data = await res.json(); } catch (e) { data = null; }
+
+                                                                    if (!res.ok) {
+                                                                        // backend returned an error object
+                                                                        const errMsg = data && (data.error || data.mensaje || data.detail) ? (data.error || data.mensaje || data.detail) : `Error ${res.status}`;
+                                                                        setMensaje(`Error al cargar historial: ${errMsg}`);
+                                                                        setHistorialOrdenes([]);
+                                                                    } else {
+                                                                        setHistorialOrdenes(Array.isArray(data) ? data : []);
+                                                                    }
+
+                                                                    // show modal either way so user sees message or results
                                                                     setHistorialVisible(true);
                                                                 } catch (err) {
-                                                                    setMensaje('Error al cargar historial');
+                                                                    setMensaje('Error de red al cargar historial: ' + (err.message || String(err)));
+                                                                    setHistorialOrdenes([]);
+                                                                    setHistorialVisible(true);
                                                                 }
                                                             }}
                                                         >
