@@ -62,7 +62,9 @@ def listar_empleados():
             'apellido': e.apellido,
             'idCargo': e.idCargo,
             'idUsuario': e.idUsuario,
-            'activo': e.activo
+            'activo': e.activo,
+            'mail': e.mail,
+            'telefono': e.telefono
         } for e in empleados
     ])
 
@@ -122,6 +124,8 @@ def listar_tecnicos():
             'apellido': e.apellido,
             'idCargo': e.idCargo,
             'idUsuario': e.idUsuario,
-            'activo': e.activo
+            'activo': e.activo,
+            'mail': e.mail,
+            'telefono': e.telefono
         } for e in empleados
     ])

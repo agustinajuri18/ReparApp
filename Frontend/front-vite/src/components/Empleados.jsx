@@ -79,8 +79,8 @@ export default function Empleados() {
     if (!form.apellido || form.apellido.trim().length < 2 || !/^[a-zA-Z\s]+$/.test(form.apellido.trim())) errors.apellido = "El apellido es obligatorio, debe contener solo letras y espacios, y tener al menos 2 caracteres.";
     if (!form.idCargo) errors.idCargo = "Debe seleccionar un cargo.";
     if (!form.idUsuario) errors.idUsuario = "Debe seleccionar un usuario.";
-    // mail opcional pero si se ingresa debe ser válido
-    if (form.mail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.mail)) errors.mail = "El email tiene un formato inválido.";
+  // mail required and must be valid (same validation as Clientes)
+  if (!form.mail || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.mail)) errors.mail = "El email no es válido.";
     // telefono opcional pero si se ingresa debe tener entre 6 y 20 caracteres y solo caracteres permitidos
     if (form.telefono && !/^[0-9\s+\-()]{6,20}$/.test(form.telefono)) errors.telefono = "El teléfono tiene un formato inválido.";
     return errors;
@@ -102,7 +102,7 @@ export default function Empleados() {
       });
       if (res.ok) {
         setModalVisible(false);
-        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "" });
+        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", mail: "", telefono: "" });
         fetchEmpleados();
       } else {
         const resultado = await res.json();
@@ -129,7 +129,7 @@ export default function Empleados() {
       });
       if (res.ok) {
         setModalVisible(false);
-        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "" });
+        setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", mail: "", telefono: "" });
         fetchEmpleados();
       } else {
         const resultado = await res.json();
@@ -197,7 +197,7 @@ export default function Empleados() {
 
   function handleAgregar() {
     setClienteActual(null);
-    setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "" });
+    setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", mail: "", telefono: "" });
     setEditId(null);
     setModalModo("alta");
     setModalVisible(true);
@@ -209,7 +209,7 @@ export default function Empleados() {
   function handleCancelar() {
     setModalVisible(false);
     setClienteActual(null);
-    setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "" });
+    setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", mail: "", telefono: "" });
     setMensaje("");
   }
 
