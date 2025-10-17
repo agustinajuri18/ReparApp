@@ -4,6 +4,10 @@ from ABMC_db import (
     alta_usuario, modificar_usuario as modificar_usuario_db, mostrar_usuarios, baja_usuario, 
     alta_sesion, cerrar_sesion, mostrar_usuario_por_id, mostrar_sesion_por_id
 )
+import ABMC_db as db
+from sqlalchemy.exc import OperationalError
+import logging
+import os
 from datetime import datetime
 
 bp = Blueprint('usuarios', __name__)
@@ -79,11 +83,21 @@ def iniciar_sesion():
     if not all(k in data for k in ['idUsuario']):
         return jsonify({'error': 'Falta información obligatoria (idUsuario)'}), 400
     
-    sesion = alta_sesion(
-        idUsuario=data['idUsuario'],
-        horaInicio=datetime.now(),
-        fecha=datetime.now().date()
-    )
+    # Development shortcut: if environment variable DEV_SKIP_SESSION_WRITE is set,
+    # skip writing a session to the DB and return a fake session id. Useful when
+    # the sqlite file is locked and you need to test frontend flows.
+    if os.getenv('DEV_SKIP_SESSION_WRITE') == '1':
+        fake_id = 1
+        return jsonify({'idSesion': fake_id, 'idUsuario': data['idUsuario'], 'horaInicio': datetime.now().isoformat(), 'fecha': datetime.now().date().isoformat()}), 201
+    try:
+        sesion = alta_sesion(
+            idUsuario=data['idUsuario'],
+            horaInicio=datetime.now(),
+            fecha=datetime.now().date()
+        )
+    except Exception as e:
+        logging.exception("Error creando sesión en iniciar_sesion")
+        return jsonify({'error': 'Servicio temporalmente no disponible, intente nuevamente'}), 503
     return jsonify({
         'idSesion': sesion.idSesion,
         'idUsuario': sesion.idUsuario,
@@ -103,7 +117,15 @@ def auth_usuario():
     if not user:
         return jsonify({'error': 'Credenciales inválidas'}), 401
     # create a session
-    sesion = alta_sesion(idUsuario=user.idUsuario, horaInicio=datetime.now(), fecha=datetime.now().date())
+    if os.getenv('DEV_SKIP_SESSION_WRITE') == '1':
+        fake_id = 1
+        return jsonify({'idSesion': fake_id, 'idUsuario': user.idUsuario}), 200
+    try:
+        sesion = alta_sesion(idUsuario=user.idUsuario, horaInicio=datetime.now(), fecha=datetime.now().date())
+    except Exception:
+        logging.exception("Error creando sesión en auth_usuario")
+        # Database is temporarily unavailable/locked; inform client to retry
+        return jsonify({'error': 'Servicio temporalmente no disponible, intente nuevamente'}), 503
     return jsonify({'idSesion': sesion.idSesion, 'idUsuario': user.idUsuario}), 200
 
 
@@ -114,7 +136,29 @@ def check_session(idSesion):
         return jsonify({'active': False}), 404
     # active if horaFin is null
     active = ses.horaFin is None
-    return jsonify({'active': active, 'idUsuario': ses.idUsuario}), 200
+    # try to get employee and cargo + permisos using DB helpers (if available)
+    idCargo = None
+    permisos = []
+    empleado = None
+    if hasattr(db, 'obtener_empleado_por_usuario'):
+        try:
+            empleado = db.obtener_empleado_por_usuario(ses.idUsuario)
+        except Exception:
+            empleado = None
+    if empleado and getattr(empleado, 'idCargo', None) is not None:
+        idCargo = empleado.idCargo
+        if hasattr(db, 'obtener_permisos_por_cargo'):
+            try:
+                permisos = db.obtener_permisos_por_cargo(idCargo) or []
+            except Exception:
+                permisos = []
+    # Development debug: log cargo and permisos to help frontend troubleshooting
+    try:
+        if os.getenv('FLASK_ENV') == 'development' or os.getenv('DEV_LOG_PERMISOS') == '1':
+            logging.getLogger('usuarios').debug(f"check_session: idSesion={idSesion} idCargo={idCargo} permisos={permisos}")
+    except Exception:
+        pass
+    return jsonify({'active': active, 'idUsuario': ses.idUsuario, 'idCargo': idCargo, 'permisos': permisos}), 200
 
 @bp.route('/logout/<int:idSesion>', methods=['POST'])
 def cerrar_sesion_usuario(idSesion):

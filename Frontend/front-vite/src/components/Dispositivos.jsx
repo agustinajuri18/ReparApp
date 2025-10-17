@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from 'react-router-dom';
+// navigate not used here
 import ReactDOM from 'react-dom';
 import MenuLateral from './MenuLateral';
 import ConfirmModal from './ConfirmModal';
 import PiePagina from './PiePagina';
+import { usePermission } from '../auth/PermissionContext';
+import { hasPermission } from '../utils/permissions';
 
 const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5' };
 
@@ -31,14 +33,21 @@ export default function Dispositivos() {
     const [historialOrdenes, setHistorialOrdenes] = useState([]);
     const [openMenuFor, setOpenMenuFor] = useState(null);
     const menuAnchorRefs = React.useRef({});
-    const navigate = useNavigate();
+    // navigate intentionally unused in this component
+    const permCtx = usePermission();
+    const identity = permCtx ? permCtx.identity : null;
+    // Assumption: permiso 40 = ver/listar dispositivos, 41 = crear, 42 = modificar, 43 = eliminar/reactivar
+    const canView = hasPermission(identity, 40);
+    const canCreate = hasPermission(identity, 41);
+    const canModify = hasPermission(identity, 42);
+    const canDelete = hasPermission(identity, 43);
     const [showAddClienteModal, setShowAddClienteModal] = useState(false);
     const [nuevoCliente, setNuevoCliente] = useState({ idTipoDoc: "", numeroDoc: "", nombre: "", apellido: "", telefono: "", mail: "" });
     const [nuevoClienteErrors, setNuevoClienteErrors] = useState({});
     const [nuevoClienteErrorMessage, setNuevoClienteErrorMessage] = useState("");
     const [dupChecking, setDupChecking] = useState(false);
     const [duplicateExists, setDuplicateExists] = useState(false);
-    const [duplicateMsg, setDuplicateMsg] = useState("");
+    const [_duplicateMsg, setDuplicateMsg] = useState("");
     const [nuevoClienteSaving, setNuevoClienteSaving] = useState(false);
     const clienteCheckTimer = React.useRef(null);
 
@@ -76,7 +85,7 @@ export default function Dispositivos() {
         fetch(`${API_URL}?activos=${!mostrarInactivos}`)
             .then(res => res.json())
             .then(data => setDispositivos(Array.isArray(data) ? data.filter(c => c && typeof c === 'object' && 'idDispositivo' in c && c.idDispositivo != null) : []))
-            .catch(() => setMensaje("Error al cargar dispositivos"));
+            .catch(err => { console.warn('Dispositivos: fetch dispositivos error', err); setMensaje("Error al cargar dispositivos"); });
     };
 
     // Cargar clientes
@@ -84,7 +93,7 @@ export default function Dispositivos() {
         fetch(CLIENTES_URL + "?activos=true")
             .then(res => res.json())
             .then(data => setClientes(Array.isArray(data) ? data : []))
-            .catch(() => setMensaje("Error al cargar clientes"));
+            .catch(err => { console.warn('Dispositivos: fetch clientes error', err); setMensaje("Error al cargar clientes"); });
     };
 
     // Cargar tipos de documento
@@ -92,7 +101,7 @@ export default function Dispositivos() {
         fetch(TIPOS_DOC_URL)
             .then(res => res.json())
             .then(data => setTiposDocumento(Array.isArray(data) ? data : []))
-            .catch(() => setMensaje("Error al cargar tipos de documento"));
+            .catch(err => { console.warn('Dispositivos: fetch tipos documento error', err); setMensaje("Error al cargar tipos de documento"); });
     };
 
     useEffect(() => {
@@ -113,6 +122,7 @@ export default function Dispositivos() {
 
     // Modal handlers
     const handleAgregarClick = () => {
+        if (!canCreate) { setMensaje('No tenés permiso para crear dispositivos.'); return; }
         setDispositivoActual({
             idDispositivo: "",
             nroSerie: "",
@@ -127,12 +137,14 @@ export default function Dispositivos() {
 
     const handleModificar = (dispositivo) => {
         setDispositivoActual({ ...dispositivo });
+        if (!canModify) { setModalModo('consultar'); setModalVisible(true); setMensaje('No tenés permiso para modificar dispositivos. Abriendo en modo consulta.'); return; }
         setModalModo('modificar');
         setModalVisible(true);
         setMensaje("");
     };
 
     const handleConsultar = (dispositivo) => {
+        if (!canView) { setMensaje('No tenés permiso para ver dispositivos.'); return; }
         setDispositivoActual({ ...dispositivo });
         setModalModo('consultar');
         setModalVisible(true);
@@ -149,17 +161,15 @@ export default function Dispositivos() {
 
     const confirmDeleteDispositivoConfirm = async () => {
         const id = confirmDeleteDispositivo.id;
+        if (!canDelete) { setMensaje('No tenés permiso para eliminar dispositivos.'); setConfirmDeleteDispositivo({ open: false, id: null }); return; }
         await fetch(`${API_URL}/${id}`, { method: "DELETE" });
         fetchDispositivos();
         setConfirmDeleteDispositivo({ open: false, id: null });
     };
 
     const handleReactivar = async (idDispositivo) => {
-        await fetch(`${API_URL}/${idDispositivo}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ activo: 1 })
-        });
+        if (!canDelete) { setMensaje('No tenés permiso para reactivar dispositivos.'); return; }
+        await fetch(`${API_URL}/${idDispositivo}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activo: 1 }) });
         fetchDispositivos();
     };
 
@@ -181,6 +191,7 @@ export default function Dispositivos() {
     // Guardar alta
     const handleSubmit = async e => {
         e.preventDefault();
+        if (!canCreate) { setMensaje('No tenés permiso para crear dispositivos.'); return; }
         const errors = validarDispositivo(dispositivoActual);
         setFormErrors(errors);
         if (Object.keys(errors).length > 0) {
@@ -217,6 +228,7 @@ export default function Dispositivos() {
     // Guardar modificación
     const handleGuardarModificacion = async (e) => {
         if (e) e.preventDefault();
+        if (!canModify) { setMensaje('No tenés permiso para modificar dispositivos.'); return; }
         const errors = validarDispositivo(dispositivoActual);
         setFormErrors(errors);
         if (Object.keys(errors).length > 0) {
@@ -263,12 +275,11 @@ export default function Dispositivos() {
                                 >
                                     {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                                 </button>
-                                <button
-                                    className="btn btn-verdeAgua"
-                                    onClick={handleAgregarClick}
-                                >
-                                    <i className="bi bi-plus-lg"></i> Agregar dispositivo
-                                </button>
+                                {canCreate ? (
+                                    <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar dispositivo</button>
+                                ) : (
+                                    <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear dispositivos"><i className="bi bi-plus-lg"></i> Agregar dispositivo</button>
+                                )}
                             </div>
                         </div>
                         <div className="card-body">
@@ -299,12 +310,7 @@ export default function Dispositivos() {
                                                 <td>{d.activo ? "Activo" : "Inactivo"}</td>
                                                 <td style={{ position: 'relative', overflow: 'visible' }}>
                                                     <div className="d-flex align-items-center gap-2">
-                                                        <button
-                                                            className="btn btn-sm btn-verdeAgua fw-bold"
-                                                            onClick={() => handleConsultar(d)}
-                                                        >
-                                                            <i className="bi bi-search me-1"></i>Consultar
-                                                        </button>
+                                                        <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleConsultar(d)} disabled={!canView} title={!canView ? 'No tenés permiso para ver dispositivos' : ''}><i className="bi bi-search me-1"></i>Consultar</button>
                                                         <button
                                                             className="btn btn-sm btn-azul fw-bold"
                                                             onClick={async () => {
@@ -313,7 +319,7 @@ export default function Dispositivos() {
                                                                     const res = await fetch(`${API_URL}/${d.idDispositivo}/historial-ordenes`);
                                                                     // Try to parse JSON but don't throw on parse error
                                                                     let data = null;
-                                                                    try { data = await res.json(); } catch (e) { data = null; }
+                                                                    try { data = await res.json(); } catch { data = null; }
 
                                                                     if (!res.ok) {
                                                                         // backend returned an error object
@@ -346,16 +352,9 @@ export default function Dispositivos() {
                                                             >
                                                                 <i className="bi bi-three-dots-vertical"></i>
                                                             </button>
-                                                            {openMenuFor === d.idDispositivo && (
-                                                                <ActionMenuPortal
-                                                                    anchorEl={menuAnchorRefs.current[d.idDispositivo]}
-                                                                    onClose={() => setOpenMenuFor(null)}
-                                                                    onModificar={() => { setOpenMenuFor(null); d.activo && handleModificar(d); }}
-                                                                    onEliminar={() => { setOpenMenuFor(null); d.idDispositivo && handleEliminar(d.idDispositivo); }}
-                                                                    onReactivar={() => { setOpenMenuFor(null); d.idDispositivo && handleReactivar(d.idDispositivo); }}
-                                                                    activo={d.activo}
-                                                                />
-                                                            )}
+                                                                                                            {openMenuFor === d.idDispositivo && (
+                                                                                                                <ActionMenuPortal anchorEl={menuAnchorRefs.current[d.idDispositivo]} onClose={() => setOpenMenuFor(null)} onModificar={() => { setOpenMenuFor(null); d.activo && (canModify ? handleModificar(d) : setMensaje('No tenés permiso para modificar dispositivos.')) }} onEliminar={() => { setOpenMenuFor(null); d.idDispositivo && (canDelete ? handleEliminar(d.idDispositivo) : setMensaje('No tenés permiso para eliminar dispositivos.')) }} onReactivar={() => { setOpenMenuFor(null); d.idDispositivo && (canDelete ? handleReactivar(d.idDispositivo) : setMensaje('No tenés permiso para reactivar dispositivos.')) }} activo={d.activo} canModify={canModify} canDelete={canDelete} />
+                                                                                                            )}
                                                         </div>
                                                     </div>
                                                 </td>
@@ -713,7 +712,7 @@ export default function Dispositivos() {
 }
 
         // Portal component for action menu (copied from Clientes.jsx)
-        function ActionMenuPortal({ anchorEl, onClose, onModificar, onEliminar, onReactivar, activo }) {
+        function ActionMenuPortal({ anchorEl, onClose, onModificar, onEliminar, onReactivar, activo, canModify = true, canDelete = true }) {
             const [pos, setPos] = React.useState({ left: 0, top: 0, transformOrigin: 'top right' });
 
             useEffect(() => {
@@ -750,14 +749,14 @@ export default function Dispositivos() {
             return ReactDOM.createPortal(
                 <div id="action-menu-portal" style={{ position: 'absolute', left: pos.left, top: pos.top, zIndex: 2147483647, minWidth: 140 }}>
                     <div className="card" style={{ overflow: 'visible' }}>
-                        <ul className="list-group list-group-flush p-2">
-                            <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar} disabled={!activo}>Modificar</button></li>
-                            {activo ? (
-                                <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={onEliminar}>Eliminar</button></li>
-                            ) : (
-                                <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100" onClick={onReactivar}>Reactivar</button></li>
-                            )}
-                        </ul>
+                                                                <ul className="list-group list-group-flush p-2">
+                                                                    <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar} disabled={!activo || !canModify}>{/* fallback - will be set by parent */}Modificar</button></li>
+                                                                    {activo ? (
+                                                                        <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={onEliminar} disabled={!canDelete}>Eliminar</button></li>
+                                                                    ) : (
+                                                                        <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100" onClick={onReactivar} disabled={!canDelete}>Reactivar</button></li>
+                                                                    )}
+                                                                </ul>
                     </div>
                 </div>,
                 document.body

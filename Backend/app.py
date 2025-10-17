@@ -34,4 +34,6 @@ def ping():
     return jsonify({"message": "pong"})
 
 if __name__ == "__main__":
-    app_server.run(debug=True)
+    # Run without the auto-reloader and without the debugger to avoid the interactive
+    # Werkzeug console holding the sqlite file open.
+    app_server.run(debug=False, use_reloader=False)

@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import MenuLateral from './MenuLateral';
+import { usePermission } from '../auth/PermissionContext';
+import { hasPermission } from '../utils/permissions';
 import ConfirmModal from './ConfirmModal';
 
 const API_URL = "http://localhost:5000/usuarios";
@@ -13,6 +15,8 @@ const colores = {
 };
 
 export default function Usuarios() {
+  const permCtx = usePermission();
+  const identity = permCtx ? permCtx.identity : null;
   const [usuarios, setUsuarios] = useState([]);
   const [form, setForm] = useState({
     idUsuario: "",
@@ -26,16 +30,16 @@ export default function Usuarios() {
   const [modalModo, setModalModo] = useState("alta"); // "alta" | "modificar" | "consultar"
   const [formErrors, setFormErrors] = useState({});
 
-  const fetchUsuarios = () => {
+  const fetchUsuarios = useCallback(() => {
     fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`)
       .then(res => res.json())
       .then(data => setUsuarios(data))
-      .catch(() => setMensaje("Error al cargar usuarios"));
-  };
+      .catch(_err => { console.warn('Usuarios: fetch usuarios error', _err); setMensaje("Error al cargar usuarios"); });
+  }, [mostrarInactivos]);
 
   useEffect(() => {
     fetchUsuarios();
-  }, [mostrarInactivos]);
+  }, [fetchUsuarios]);
 
   const handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -96,7 +100,7 @@ export default function Usuarios() {
         try {
           data = text ? JSON.parse(text) : {};
         } catch (err) {
-          throw new Error("Respuesta del servidor no es JSON válido");
+            throw new Error("Respuesta del servidor no es JSON válido: " + err.message);
         }
         if (!res.ok) {
           throw new Error(data.error || "Error al crear usuario");
@@ -111,9 +115,10 @@ export default function Usuarios() {
         fetchUsuarios();
         setMensaje("Usuario agregado correctamente.");
       })
-      .catch(err => {
-        setMensaje(err.message);
-      });
+        .catch(_error => {
+          console.warn('Usuarios: handleSubmit error', _error);
+          setMensaje(_error.message);
+        });
   }
 
   const handleUpdate = async (e) => {
@@ -147,7 +152,7 @@ export default function Usuarios() {
         setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido");
       }
     } catch (error) {
-      setMensaje("Error de conexión");
+      setMensaje("Error de conexión: " + error.message);
     }
   }
 
@@ -209,12 +214,15 @@ export default function Usuarios() {
                 >
                   {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                 </button>
-                <button
-                  className="btn btn-verdeAgua"
-                  onClick={handleAgregar}
-                >
-                  <i className="bi bi-plus-lg"></i> Agregar usuario
-                </button>
+                {/* Only show add button if user has permiso 8 (Registrar usuario) */}
+                {hasPermission(identity, 8) ? (
+                  <button
+                    className="btn btn-verdeAgua"
+                    onClick={handleAgregar}
+                  >
+                    <i className="bi bi-plus-lg"></i> Agregar usuario
+                  </button>
+                ) : null}
               </div>
             </div>
             <div className="card-body">
@@ -235,24 +243,37 @@ export default function Usuarios() {
                         <td>{u.nombreUsuario}</td>
                         <td>{u.activo === 1 || u.activo === true ? "Activo" : "Inactivo"}</td>
                         <td>
-                          <button className="btn btn-sm btn-verdeAgua fw-bold me-1"
-                            onClick={() => handleConsultar(u)}>
-                            <i className="bi bi-search"></i> Consultar
-                          </button>
-                          <button className={`btn btn-sm fw-bold me-1 ${u.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`}
-                            onClick={() => u.activo === 1 && handleEdit(u)} disabled={u.activo !== 1}>
-                            <i className="bi bi-pencil-square"></i> Modificar
-                          </button>
+                          {/* Consultar: permiso 11 */}
+                          {hasPermission(identity, 11) ? (
+                            <button className="btn btn-sm btn-verdeAgua fw-bold me-1"
+                              onClick={() => handleConsultar(u)}>
+                              <i className="bi bi-search"></i> Consultar
+                            </button>
+                          ) : null}
+
+                          {/* Modificar: permiso 10 */}
+                          {hasPermission(identity, 10) ? (
+                            <button className={`btn btn-sm fw-bold me-1 ${u.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`}
+                              onClick={() => u.activo === 1 && handleEdit(u)} disabled={u.activo !== 1}>
+                              <i className="bi bi-pencil-square"></i> Modificar
+                            </button>
+                          ) : null}
+
+                          {/* Eliminar (dar de baja): permiso 9 */}
                           {u.activo === 1 ? (
-                            <button className="btn btn-sm btn-rojo fw-bold"
-                              onClick={() => handleDelete(u.idUsuario)}>
-                                <i className="bi bi-trash me-1"></i>Eliminar
-                            </button>
+                            hasPermission(identity, 9) ? (
+                              <button className="btn btn-sm btn-rojo fw-bold"
+                                onClick={() => handleDelete(u.idUsuario)}>
+                                  <i className="bi bi-trash me-1"></i>Eliminar
+                              </button>
+                            ) : null
                           ) : (
-                            <button className="btn btn-sm btn-verdeAgua fw-bold"
-                              onClick={() => handleReactivar(u.idUsuario)}>
-                                <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
-                            </button>
+                            hasPermission(identity, 8) ? (
+                              <button className="btn btn-sm btn-verdeAgua fw-bold"
+                                onClick={() => handleReactivar(u.idUsuario)}>
+                                  <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
+                              </button>
+                            ) : null
                           )}
                         </td>
                       </tr>

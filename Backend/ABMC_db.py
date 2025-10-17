@@ -1,7 +1,9 @@
 import os
 import sys
+import time
 from contextlib import contextmanager
 from sqlalchemy.orm import joinedload, aliased  # Agregar esta importación al inicio
+from sqlalchemy.exc import OperationalError
 
 # agregar la raíz del proyecto al path para poder importar el paquete BDD (carpeta hermana)
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -83,12 +85,24 @@ def mostrar_usuario_por_id(idUsuario):
 
 def alta_sesion(idUsuario, horaInicio, fecha, horaFin=None):
     """Crea una nueva sesión (inicio de sesión)."""
-    with session_scope() as s:
-        ses = Sesion(idUsuario=idUsuario, horaInicio=horaInicio, fecha=fecha, horaFin=horaFin)
-        s.add(ses)
-        s.commit()
-        s.refresh(ses)
-        return ses
+    # Try a few times if the DB is locked (sqlite can be briefly locked under concurrency)
+    attempts = 6
+    delay = 0.05
+    for attempt in range(1, attempts + 1):
+        try:
+            with session_scope() as s:
+                ses = Sesion(idUsuario=idUsuario, horaInicio=horaInicio, fecha=fecha, horaFin=horaFin)
+                s.add(ses)
+                s.commit()
+                s.refresh(ses)
+                return ses
+        except OperationalError as e:
+            # If sqlite reports 'database is locked', retry a few times
+            msg = str(e).lower()
+            if 'database is locked' in msg and attempt < attempts:
+                time.sleep(delay * (attempt ** 1.5))
+                continue
+            raise
 
 
 def cerrar_sesion(idSesion, horaFin):
@@ -1062,8 +1076,20 @@ def buscar_repuesto_proveedor_id(idRepuesto, cuilProveedor):
         if not proveedor:
             print(f"Proveedor con CUIL {cuilProveedor} no encontrado")
             return None
-        
-        # Luego, buscar la relación RepuestoxProveedor
+
+
+# --------- Helpers for permisos and cargos ----------
+def obtener_empleado_por_usuario(idUsuario):
+    """Retorna el empleado asociado a un idUsuario, o None."""
+    with session_scope() as s:
+        return s.query(Empleado).filter(Empleado.idUsuario == idUsuario).first()
+
+
+def obtener_permisos_por_cargo(idCargo):
+    """Retorna una lista de idPermiso asociados al cargo (puede estar vacía)."""
+    with session_scope() as s:
+        rels = s.query(CargoxPermiso).filter(CargoxPermiso.idCargo == idCargo).all()
+        return [r.idPermiso for r in rels]
         relacion = s.query(RepuestoxProveedor).filter(
             RepuestoxProveedor.idRepuesto == idRepuesto,
             RepuestoxProveedor.idProveedor == proveedor.idProveedor

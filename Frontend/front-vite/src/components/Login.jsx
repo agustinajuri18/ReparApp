@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/logo.png';
+import { usePermission } from '../auth/PermissionContext';
 
 const API_AUTH = 'http://localhost:5000/auth';
 
@@ -16,6 +17,7 @@ export default function Login() {
   const [contraseña, setContraseña] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const permCtx = usePermission();
 
   const submit = async (e) => {
     e.preventDefault();
@@ -34,8 +36,19 @@ export default function Login() {
       // store session id and redirect
       localStorage.setItem('idSesion', j.idSesion);
       localStorage.setItem('idUsuario', j.idUsuario);
+      // If backend returned cargo/permisos in login response, save them to context
+      try {
+        if (permCtx && typeof permCtx.setIdentity === 'function') {
+          const identity = { idCargo: j.idCargo ?? j.cargoId ?? null, permisos: j.permisos ?? j.permisosIds ?? [] };
+          // persist identity in PermissionContext (also saved to localStorage there)
+          permCtx.setIdentity(identity);
+        }
+      } catch (err) {
+        console.warn('Login: failed to persist identity to context', err);
+      }
       navigate('/');
-    } catch (err) {
+    } catch (_err) {
+      console.warn('Login: connection error', _err);
       setError('Error de conexión');
     }
   };

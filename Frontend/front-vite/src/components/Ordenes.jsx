@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo } from "react";
 import MenuLateral from './MenuLateral';
 import SearchableSelect from './SearchableSelect';
 import ConfirmModal from './ConfirmModal';
+import { usePermission } from '../auth/PermissionContext';
+import { hasPermission } from '../utils/permissions';
 
 const API_URL = "http://localhost:5000/ordenes";
 const DISPOSITIVOS_URL = "http://localhost:5000/dispositivos";
@@ -13,6 +15,13 @@ const REPUESTOS_PROVEEDORES_URL = "http://localhost:5000/repuestos-proveedores";
 const SERVICIOS_URL = "http://localhost:5000/servicios";
 
 function Ordenes() {
+  const permCtx = usePermission();
+  const identity = permCtx ? permCtx.identity : null;
+  // permiso 29 = ver/listar ordenes (route); reserve 30..32 for create/modify/delete
+  const canView = hasPermission(identity, 29);
+  const canCreate = hasPermission(identity, 30);
+  const canModify = hasPermission(identity, 31);
+  const _canDelete = hasPermission(identity, 32);
   const [ordenes, setOrdenes] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [empleados, setEmpleados] = useState([]);
@@ -21,7 +30,7 @@ function Ordenes() {
   const [servicios, setServicios] = useState([]);
   const [repuestosProveedores, setRepuestosProveedores] = useState([]);
 
-  const [mensaje, setMensaje] = useState("");
+  const [_mensaje, setMensaje] = useState("");
   const [formErrors, setFormErrors] = useState({});
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -85,7 +94,7 @@ function Ordenes() {
         });
         setOrdenes(sorted);
       })
-      .catch(() => setMensaje("Error al cargar órdenes"));
+  .catch(err => { console.warn('Ordenes: fetchOrdenes error', err); setMensaje("Error al cargar órdenes"); });
   };
 
   // Cargar tipos de documento (igual que en Clientes.jsx)
@@ -93,32 +102,32 @@ function Ordenes() {
     fetch(TIPOS_DOC_URL)
       .then(res => res.json())
       .then(data => setTiposDoc(Array.isArray(data) ? data : []))
-      .catch(() => setMensaje("Error al cargar tipos de documento"));
+  .catch(err => { console.warn('Ordenes: fetchTiposDocumento error', err); setMensaje("Error al cargar tipos de documento"); });
   };
 
   const fetchServicios = () => {
     fetch(SERVICIOS_URL)
       .then(res => res.json())
       .then(data => setServicios(Array.isArray(data) ? data : []))
-      .catch(() => setMensaje("Error al cargar servicios"));
+  .catch(err => { console.warn('Ordenes: fetchServicios error', err); setMensaje("Error al cargar servicios"); });
   };
 
   const fetchRepuestosProveedores = () => {
     fetch(REPUESTOS_PROVEEDORES_URL)
       .then(res => res.json())
       .then(data => setRepuestosProveedores(Array.isArray(data) ? data : []))
-      .catch(() => setMensaje("Error al cargar repuestos"));
+  .catch(err => { console.warn('Ordenes: fetchRepuestos error', err); setMensaje("Error al cargar repuestos"); });
   };
 
   useEffect(() => {
-    fetchOrdenes();
+    if (canView) fetchOrdenes();
     fetchClientes();
     fetchTecnicos();
     fetchDispositivos();
     fetchTiposDocumento();
     fetchServicios();
     fetchRepuestosProveedores();
-  }, []);
+  }, [canView]);
 
   const fetchClientes = () => {
     fetch(CLIENTES_URL)
@@ -154,7 +163,8 @@ function Ordenes() {
 
 
   // --- Validaciones ---
-  const handleChange = e => {
+  // handleChange is used by some inputs; keep definition
+  const _handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
     setFormErrors(validarOrden({ ...form, [e.target.name]: e.target.value }));
   };
@@ -227,6 +237,7 @@ function Ordenes() {
   const handleModalClose = () => setModalVisible(false);
 
   const handleAgregarClick = () => {
+    if (!canCreate) { setMensaje('No tenés permiso para crear órdenes.'); return; }
     setModalModo('alta');
     setForm({
       nroDeOrden: null,
@@ -251,6 +262,7 @@ function Ordenes() {
 
   // En handleModificar, cambiar setShowAddDetalle(false) a setShowAddDetalle(true) para permitir añadir detalles en modificar
   const handleModificar = (orden) => {
+    if (!canModify) { setModalModo('consultar'); setModalVisible(true); setForm({ ...orden }); setMensaje('No tenés permiso para modificar órdenes. Abriendo en modo consulta.'); return; }
     // Configura el modal en modo modificar y carga detalles
     setModalModo('modificar');
     setForm({
@@ -299,11 +311,13 @@ function Ordenes() {
   };
 
   const handleGenerarPDF = (nroDeOrden) => {
+    if (!canView) { setMensaje('No tenés permiso para generar PDF de órdenes.'); return; }
     // Abrir la página de previsualización en una nueva ventana
     window.open(`${API_URL}/${nroDeOrden}/preview`, '_blank', 'width=1000,height=800');
   };
 
   const handleConsultar = (orden) => {
+    if (!canView) { setMensaje('No tenés permiso para ver órdenes.'); return; }
     setModalModo('consultar');
     setForm({
       nroDeOrden: orden.nroDeOrden,
@@ -343,7 +357,7 @@ function Ordenes() {
     fetch(`${API_URL}/${orden.nroDeOrden}/actualizaciones`)
       .then(res => res.json())
       .then(setAvances)
-      .catch(() => setAvances([]));
+  .catch(err => { console.warn('Ordenes: fetch avances error', err); setAvances([]); });
 
     setFormErrors({});
     setMensaje("");
@@ -357,6 +371,7 @@ function Ordenes() {
   // --- Confirmación de Presupuesto ---
   // Reemplaza la función confirmarPresupuesto existente por esta
   const confirmarPresupuesto = (aceptado) => {
+    if (!canModify) { setModalMensaje({ tipo: 'warning', texto: 'No tenés permiso para confirmar presupuestos.' }); return; }
     fetch(`http://localhost:5000/ordenes/${form.nroDeOrden}/confirmacion-presupuesto`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -391,7 +406,7 @@ function Ordenes() {
   };
 
   // --- Registro de avances técnicos ---
-  const registrarAvance = (e) => {
+  const _registrarAvance = (e) => {
     e.preventDefault();
 
     // Validación básica
@@ -405,6 +420,7 @@ function Ordenes() {
 
     console.log("Enviando avance:", nuevoAvance); // Debug
 
+    if (!canModify) { setModalMensaje({ tipo: 'warning', texto: 'No tenés permiso para registrar avances.' }); return; }
     fetch(`http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -468,7 +484,7 @@ function Ordenes() {
       });
   };
   // Función para cargar avances
-  const cargarAvances = () => {
+  const _cargarAvances = () => {
     const url = `http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`;
 
     // Mostrar indicador de carga (opcional)
@@ -819,7 +835,7 @@ function Ordenes() {
       body: JSON.stringify(nuevoCliente)
     })
     .then(res => res.json())
-    .then(data => {
+    .then(() => {
       fetchClientes();
       if (preservedFormData && redirectAfterAdd === 'cliente') {
         setForm(preservedFormData);
@@ -865,7 +881,7 @@ function Ordenes() {
 
   // Al crear o modificar un detalle, debes enviar el campo repuesto_proveedor_id (no cuitProveedor/codigoRepuesto) al backend.
   // Para eso, busca el repuesto_proveedor_id antes de hacer el POST o PUT.
-  async function getRepuestoProveedorId(codRepuestos, cuitProveedor) {
+  async function _getRepuestoProveedorId(codRepuestos, cuitProveedor) {
     // Busca el objeto repuesto_proveedor en repuestosProveedores
     const rel = repuestosProveedores.find(
       r =>
@@ -883,9 +899,7 @@ function Ordenes() {
           <div className="card shadow-sm mb-4" style={{ border: `1.5px solid #1f3345`, borderRadius: 16, background: "var(--color-beige)" }}>
             <div className="card-header d-flex justify-content-between align-items-center" style={{ background: '#1f3345', color: '#f0ede5', borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
               <h4 className="mb-0"><i className="bi bi-clipboard-data me-2"></i>Gestión de Órdenes</h4>
-              <button className="btn btn-verdeAgua" onClick={handleAgregarClick}>
-                <i className="bi bi-plus-lg"></i> Agregar Orden
-              </button>
+                {canCreate ? <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar Orden</button> : <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear órdenes"><i className="bi bi-plus-lg"></i> Agregar Orden</button>}
             </div>
             <div className="card-body">
               {/* quitar el alert de mensaje general */}
@@ -1297,11 +1311,11 @@ function Ordenes() {
                               if (!res.ok) throw new Error("Error al cargar historial");
                               return res.json();
                             })
-                            .then(data => {
-                              setAvances(Array.isArray(data) ? data : []);
+                            .then(_data => {
+                              setAvances(Array.isArray(_data) ? _data : []);
                               setModalMensaje({
                                 tipo: 'info',
-                                texto: `Se ${data.length > 0 ? `encontraron ${data.length} avances` : 'cargó el historial de avances'}`
+                                texto: `Se ${_data && _data.length > 0 ? `encontraron ${_data.length} avances` : 'cargó el historial de avances'}`
                               });
                             })
                             .catch(err => {

@@ -17,7 +17,8 @@ try {
     window.location.replace('/login');
   }
 } catch (e) {
-  // in environments where localStorage isn't available, do nothing
+  // in environments where localStorage isn't available, do nothing but log
+  console.warn('main.jsx: localStorage check failed', e);
 }
 
 createRoot(document.getElementById('root')).render(

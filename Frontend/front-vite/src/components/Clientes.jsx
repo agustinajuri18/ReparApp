@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from 'react-dom';
 import MenuLateral from './MenuLateral';
 import ConfirmModal from './ConfirmModal';
+import { usePermission } from '../auth/PermissionContext';
+import { hasPermission } from '../utils/permissions';
 
 const API_URL = "http://localhost:5000/clientes";
 const TIPOS_DOC_URL = "http://localhost:5000/tipos-documento";
@@ -10,27 +12,16 @@ export default function Clientes() {
   const [clientes, setClientes] = useState([]);
   const [tiposDocumento, setTiposDocumento] = useState([]);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [formMode, setFormMode] = useState("alta"); // "alta" | "modificar"
   const [mensaje, setMensaje] = useState("");
-  const [form, setForm] = useState({
-    idTipoDoc: "",
-    numeroDoc: "",
-    nombre: "",
-    apellido: "",
-    telefono: "",
-    mail: "",
-  });
+  const [form, setForm] = useState({ idTipoDoc: "", numeroDoc: "", nombre: "", apellido: "", telefono: "", mail: "", activo: 1 });
   const [formErrors, setFormErrors] = useState({});
   const [modalVisible, setModalVisible] = useState(false);
-  const [modalModo, setModalModo] = useState('consultar'); // 'consultar' | 'modificar'
+  const [modalModo, setModalModo] = useState('consultar'); // 'consultar' | 'modificar' | 'alta'
   const [clienteActual, setClienteActual] = useState(null);
-  const [modalErrors, setModalErrors] = useState({});
   const [historialVisible, setHistorialVisible] = useState(false);
   const [historialOrdenes, setHistorialOrdenes] = useState([]);
-  const [openMenuFor, setOpenMenuFor] = useState(null); // idCliente of open menu
-  const menuAnchorRefs = React.useRef({}); // map idCliente -> button ref
-  // Agregar estado para el ID en edición
+  const [openMenuFor, setOpenMenuFor] = useState(null);
+  const menuAnchorRefs = React.useRef({});
   const [editId, setEditId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [dupChecking, setDupChecking] = useState(false);
@@ -38,371 +29,150 @@ export default function Clientes() {
   const [duplicateMsg, setDuplicateMsg] = useState("");
   const checkTimer = React.useRef(null);
 
-  // Cargar clientes
-  const fetchClientes = () => {
-    const params = new URLSearchParams({
-      activos: (!mostrarInactivos).toString(),
-      ...(searchTerm && { search: searchTerm })
-    });
-    fetch(`${API_URL}?${params}`)
-      .then(res => res.json())
-      .then(data => setClientes(Array.isArray(data) ? data.filter(c => c && typeof c === 'object' && 'idCliente' in c && c.idCliente != null) : []))
-      .catch(() => setMensaje("Error al cargar clientes"));
+  // Permission context and action flags
+  const permCtx = usePermission();
+  const identity = permCtx ? permCtx.identity : null;
+  const canCreate = hasPermission(identity, 30);
+  const canModify = hasPermission(identity, 31);
+  const canView = hasPermission(identity, 32);
+  const canDelete = hasPermission(identity, 33);
+
+  const fetchClientes = async () => {
+    try {
+      const params = new URLSearchParams({ activos: (!mostrarInactivos).toString(), ...(searchTerm ? { search: searchTerm } : {}) });
+      const res = await fetch(`${API_URL}?${params}`);
+      if (!res.ok) throw new Error('network');
+      const data = await res.json();
+      setClientes(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn(err);
+      setMensaje('Error al cargar clientes');
+    }
   };
 
-  // Cargar tipos de documento
-  const fetchTiposDocumento = () => {
-    fetch(TIPOS_DOC_URL)
-      .then(res => res.json())
-      .then(data => setTiposDocumento(Array.isArray(data) ? data : []))
-      .catch(() => setMensaje("Error al cargar tipos de documento"));
+  const fetchTiposDocumento = async () => {
+    try {
+      const res = await fetch(TIPOS_DOC_URL);
+      if (!res.ok) throw new Error('network');
+      const data = await res.json();
+      setTiposDocumento(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn(err);
+      setMensaje('Error al cargar tipos de documento');
+    }
   };
 
-  useEffect(() => {
-    fetchClientes();
-    fetchTiposDocumento();
-    // eslint-disable-next-line
-  }, [mostrarInactivos, searchTerm]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchClientes(); fetchTiposDocumento(); }, [mostrarInactivos, searchTerm]);
 
-  // Close dropdown menu when clicking outside or pressing Escape
+  // close dropdown / escape handlers
   useEffect(() => {
-    const onDocClick = (e) => {
-      setOpenMenuFor(null);
-    };
-    const onEsc = (e) => {
-      if (e.key === 'Escape') setOpenMenuFor(null);
-    };
+    const onDocClick = () => setOpenMenuFor(null);
+    const onEsc = (e) => { if (e.key === 'Escape') setOpenMenuFor(null); };
     document.addEventListener('click', onDocClick);
     document.addEventListener('keydown', onEsc);
-    return () => {
-      document.removeEventListener('click', onDocClick);
-      document.removeEventListener('keydown', onEsc);
-    };
+    return () => { document.removeEventListener('click', onDocClick); document.removeEventListener('keydown', onEsc); };
   }, []);
+
+  const validarDocumento = (tipo, numero) => {
+    if (tipo === 'DNI') return /^\d{7,8}$/.test(numero);
+    if (tipo === 'CUIT' || tipo === 'CUIL') return /^\d{11}$/.test(numero);
+    if (tipo === 'PASAPORTE') return /^[A-Z0-9]{6,9}$/.test(numero);
+    return true;
+  };
+
+  const validarCliente = f => {
+    const errors = {};
+    if (!f.idTipoDoc) errors.idTipoDoc = 'Debe seleccionar el tipo de documento.';
+    if (!f.numeroDoc || !validarDocumento(f.idTipoDoc, f.numeroDoc)) errors.numeroDoc = 'Número de documento inválido para el tipo seleccionado.';
+    if (!f.nombre || f.nombre.trim().length < 2) errors.nombre = 'El nombre es obligatorio y debe tener al menos 2 caracteres.';
+    if (!f.apellido || f.apellido.trim().length < 2) errors.apellido = 'El apellido es obligatorio y debe tener al menos 2 caracteres.';
+    if (!f.telefono || f.telefono.trim().length < 6) errors.telefono = 'El teléfono es obligatorio y debe tener al menos 6 dígitos.';
+    if (!f.mail || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(f.mail)) errors.mail = 'El email no es válido.';
+    return errors;
+  };
+
+  // debounce duplicate check
+  const verificarDuplicado = (idTipoDoc, numeroDoc) => {
+    if (checkTimer.current) clearTimeout(checkTimer.current);
+    checkTimer.current = setTimeout(async () => {
+      setDupChecking(true); setDuplicateExists(false); setDuplicateMsg('');
+      try {
+        const res = await fetch(`${API_URL}/existe?idTipoDoc=${encodeURIComponent(idTipoDoc)}&numeroDoc=${encodeURIComponent(numeroDoc)}`);
+        if (!res.ok) { setDupChecking(false); return; }
+        const j = await res.json();
+        if (j.exists) { setDuplicateExists(true); setDuplicateMsg('Ya existe un cliente con ese tipo y número de documento.'); }
+        else { setDuplicateExists(false); setDuplicateMsg(''); }
+      } catch (e) {
+        console.warn('verificarDuplicado error', e);
+      } finally { setDupChecking(false); }
+    }, 450);
+  };
 
   const handleChange = e => {
     const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
-    setFormErrors(validarCliente({ ...form, [name]: value }));
-    // si el usuario está cambiando tipo o nro de documento, lanzar verificación debounced
+    const updated = { ...form, [name]: value };
+    setForm(updated);
+    setFormErrors(validarCliente(updated));
     if (name === 'idTipoDoc' || name === 'numeroDoc') {
-      // limpiar mensaje previo
-      setDuplicateExists(false);
-      setDuplicateMsg("");
-      if (checkTimer.current) clearTimeout(checkTimer.current);
-      const updated = { ...form, [name]: value };
-      checkTimer.current = setTimeout(() => {
-        // sólo si ambos campos tienen valor
-        if (updated.idTipoDoc && updated.numeroDoc) {
-          verificarDuplicado(updated.idTipoDoc, updated.numeroDoc);
-        }
-      }, 500);
+      setDuplicateExists(false); setDuplicateMsg('');
+      if (updated.idTipoDoc && updated.numeroDoc) verificarDuplicado(updated.idTipoDoc, updated.numeroDoc);
     }
   };
 
-  // limpiar timer on unmount
-  React.useEffect(() => {
-    return () => { if (checkTimer.current) clearTimeout(checkTimer.current); };
-  }, []);
+  useEffect(() => () => { if (checkTimer.current) clearTimeout(checkTimer.current); }, []);
 
-  async function verificarDuplicado(idTipoDoc, numeroDoc) {
-    setDupChecking(true);
-    setDuplicateExists(false);
-    setDuplicateMsg("");
-    try {
-      const res = await fetch(`${API_URL}/existe?idTipoDoc=${encodeURIComponent(idTipoDoc)}&numeroDoc=${encodeURIComponent(numeroDoc)}`);
-      if (!res.ok) {
-        setDupChecking(false);
-        return;
-      }
-      const j = await res.json();
-      if (j.exists) {
-        // comprobar si el cliente encontrado es el mismo que estamos editando
-        const otro = clientes.find(c => String(c.idTipoDoc) === String(idTipoDoc) && String(c.numeroDoc) === String(numeroDoc));
-        if (otro && String(otro.idCliente) === String(editId)) {
-          // es el mismo cliente en edición -> no es duplicado
-          setDuplicateExists(false);
-          setDuplicateMsg("");
-        } else {
-          setDuplicateExists(true);
-          setDuplicateMsg('Ya existe un cliente con ese tipo y número de documento.');
-        }
-      } else {
-        setDuplicateExists(false);
-        setDuplicateMsg("");
-      }
-    } catch (err) {
-      // no bloquear por error de red; apenas loguear
-      console.warn('verificarDuplicado error', err);
-    } finally {
-      setDupChecking(false);
-    }
-  }
-
-  // Mostrar modal para alta o modificación
   const handleAgregarClick = () => {
-    setFormMode("alta");
-    setClienteActual(null);
-    setModalModo("alta");
-    setModalVisible(true);
-    setMensaje("");
-    setFormErrors({});
-    setForm({
-      idTipoDoc: "",
-      numeroDoc: "",
-      nombre: "",
-      apellido: "",
-      telefono: "",
-      mail: "",
-      activo: 1,
-    });
+    if (!canCreate) { setMensaje('No tenés permiso para crear clientes.'); return; }
+    setClienteActual(null); setModalModo('alta'); setModalVisible(true); setMensaje(''); setForm({ idTipoDoc: '', numeroDoc: '', nombre: '', apellido: '', telefono: '', mail: '', activo: 1 });
   };
 
   const handleModificar = (cliente) => {
-    setFormMode("modificar");
-    setEditId(cliente.idCliente);  // Agregar esta línea
-    setClienteActual({
-      ...cliente,
-      idTipoDoc: cliente.idTipoDoc || "",
-      numeroDoc: cliente.numeroDoc || "",
-      nombre: cliente.nombre || "",
-      apellido: cliente.apellido || "",
-      telefono: cliente.telefono || "",
-      mail: cliente.mail || "",
-    });
-    setModalModo("modificar");
-    setModalVisible(true);
-    setMensaje("");
-    setModalErrors({});
-    setForm({
-      idTipoDoc: cliente.idTipoDoc || "",
-      numeroDoc: cliente.numeroDoc || "",
-      nombre: cliente.nombre || "",
-      apellido: cliente.apellido || "",
-      telefono: cliente.telefono || "",
-      mail: cliente.mail || "",
-    });
+    setEditId(cliente.idCliente);
+    setClienteActual({ ...cliente });
+    if (!canModify) { setModalModo('consultar'); setModalVisible(true); setMensaje('No tenés permiso para modificar clientes. Abriendo en modo consulta.'); return; }
+    setForm({ idTipoDoc: cliente.idTipoDoc || '', numeroDoc: cliente.numeroDoc || '', nombre: cliente.nombre || '', apellido: cliente.apellido || '', telefono: cliente.telefono || '', mail: cliente.mail || '', activo: cliente.activo ?? 1 });
+    setModalModo('modificar'); setModalVisible(true); setMensaje('');
   };
 
-  function validarDocumento(tipo, numero) {
-    if (tipo === "DNI") return /^\d{7,8}$/.test(numero);
-    if (tipo === "CUIT" || tipo === "CUIL") return /^\d{11}$/.test(numero);
-    if (tipo === "PASAPORTE") return /^[A-Z0-9]{6,9}$/.test(numero);
-    return true;
-  }
-
-  function validarCliente(form) {
-    const errors = {};
-    if (!form.idTipoDoc) errors.idTipoDoc = "Debe seleccionar el tipo de documento.";
-    if (!form.numeroDoc || !validarDocumento(form.idTipoDoc, form.numeroDoc)) errors.numeroDoc = "Número de documento inválido para el tipo seleccionado.";
-    if (!form.nombre || form.nombre.trim().length < 2 || !/^[a-zA-Z\s]+$/.test(form.nombre.trim())) errors.nombre = "El nombre es obligatorio, debe contener solo letras y espacios, y tener al menos 2 caracteres.";
-    if (!form.apellido || form.apellido.trim().length < 2 || !/^[a-zA-Z\s]+$/.test(form.apellido.trim())) errors.apellido = "El apellido es obligatorio, debe contener solo letras y espacios, y tener al menos 2 caracteres.";
-    if (!form.telefono || form.telefono.trim().length < 6 || !/^\d{6,}$/.test(form.telefono.trim())) errors.telefono = "El teléfono es obligatorio, debe contener solo números y tener al menos 6 dígitos.";
-    if (!form.mail || !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.mail)) errors.mail = "El email no es válido.";
-    return errors;
-  }
+  const handleConsultar = (cliente) => {
+    if (!canView) { setMensaje('No tenés permiso para ver clientes.'); return; }
+    setClienteActual({ ...cliente }); setModalModo('consultar'); setModalVisible(true); setMensaje('');
+  };
 
   const handleSubmit = async e => {
     e.preventDefault();
-    const errors = validarCliente(form);
-    setFormErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      setMensaje("Por favor, corrige los errores antes de continuar.");
-      return;
-    }
-    // Verificar duplicado de documento antes de crear
+    if (!canCreate) { setMensaje('No tenés permiso para crear clientes.'); return; }
+    const errors = validarCliente(form); setFormErrors(errors); if (Object.keys(errors).length) { setMensaje('Por favor, corrige los errores.'); return; }
     try {
-      const existeRes = await fetch(`${API_URL}/existe?idTipoDoc=${encodeURIComponent(form.idTipoDoc)}&numeroDoc=${encodeURIComponent(form.numeroDoc)}`);
-      if (existeRes.ok) {
-        const j = await existeRes.json();
-        if (j.exists) {
-          setMensaje('Ya existe un cliente con ese tipo y número de documento.');
-          return;
-        }
-      }
-    } catch (err) {
-      // si falla la comprobación, no bloqueamos la creación por red (fall back a servidor)
-      console.warn('No se pudo verificar duplicado:', err);
-    }
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    const resultado = await res.json();
-    setMensaje(resultado.mensaje || resultado.detail || resultado.error || "");
-    setModalVisible(false); // Cierra el modal al crear
-    setForm({
-      idTipoDoc: "",
-      numeroDoc: "",
-      nombre: "",
-      apellido: "",
-      telefono: "",
-      mail: "",
-    });
-    fetchClientes();
+      const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const j = await res.json().catch(() => ({}));
+      setMensaje(j.mensaje || j.error || ''); setModalVisible(false); fetchClientes();
+    } catch (err) { console.warn(err); setMensaje('Error de conexión'); }
   };
 
-  // Guardar modificación
   const handleUpdate = async e => {
-    e.preventDefault();
-    const errors = validarCliente(form);
-    setFormErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      setMensaje("Por favor, corrige los errores antes de continuar.");
-      return;
-    }
-    // Verificar duplicado si se cambió documento
+    e.preventDefault(); if (!canModify) { setMensaje('No tenés permiso para modificar clientes.'); return; }
+    const errors = validarCliente(form); setFormErrors(errors); if (Object.keys(errors).length) { setMensaje('Por favor, corrige los errores.'); return; }
     try {
-      const existeRes = await fetch(`${API_URL}/existe?idTipoDoc=${encodeURIComponent(form.idTipoDoc)}&numeroDoc=${encodeURIComponent(form.numeroDoc)}`);
-      if (existeRes.ok) {
-        const j = await existeRes.json();
-        if (j.exists) {
-          // si existe, comprobar si es el mismo cliente en edición
-          const otro = clientes.find(c => String(c.idTipoDoc) === String(form.idTipoDoc) && String(c.numeroDoc) === String(form.numeroDoc));
-          if (otro && String(otro.idCliente) !== String(editId)) {
-            setMensaje('Otro cliente ya tiene ese tipo y número de documento.');
-            return;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('No se pudo verificar duplicado:', err);
-    }
-    try {
-      const res = await fetch(`${API_URL}/${editId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const resultado = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setModalVisible(false);
-        setForm({
-          idTipoDoc: "",
-          numeroDoc: "",
-          nombre: "",
-          apellido: "",
-          telefono: "",
-          mail: "",
-        });
-        setEditId(null);
-        fetchClientes();
-      } else {
-        setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido del servidor");
-      }
-    } catch (err) {
-      setMensaje("Error de red: " + (err.message || String(err)));
-    }
+      const res = await fetch(`${API_URL}/${editId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) { setModalVisible(false); setEditId(null); fetchClientes(); } else { setMensaje(j.error || j.mensaje || 'Error desconocido'); }
+    } catch (err) { console.warn(err); setMensaje('Error de conexión'); }
   };
 
-  // Consultar cliente
-  const handleConsultar = (cliente) => {
-    setClienteActual({
-      ...cliente,
-      idTipoDoc: cliente.idTipoDoc || "",
-      numeroDoc: cliente.numeroDoc || "",
-      nombre: cliente.nombre || "",
-      apellido: cliente.apellido || "",
-      telefono: cliente.telefono || "",
-      mail: cliente.mail || "",
-      activo: cliente.activo ?? 1,
-    });
-    setModalModo('consultar');
-    setModalVisible(true);
-    setMensaje("");
-  };
+  const handleEliminar = (idCliente) => setConfirmDeleteCliente({ open: true, id: idCliente });
 
-  // Modal: guardar modificación
-  const handleGuardarModificacion = async () => {
-    const errors = validarCliente(clienteActual);
-    setModalErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      setMensaje("Por favor, corrige los errores antes de continuar.");
-      return;
-    }
-    if (!clienteActual || !clienteActual.idCliente) {
-      setMensaje("Error: No se seleccionó cliente para modificar.");
-      return;
-    }
-    const [tipoDocumento, numeroDoc] = clienteActual.idCliente.split("-");
-    await fetch(`${API_URL}${tipoDocumento}/${numeroDoc}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(clienteActual),
-    });
-    setModalVisible(false);
-    setMensaje("");
-    fetchClientes();
-  };
-
-  // Modal: actualizar campos
-  const handleModalChange = e => {
-    setClienteActual({ ...clienteActual, [e.target.name]: e.target.value });
-    setModalErrors(validarCliente({ ...clienteActual, [e.target.name]: e.target.value }));
-  };
-
-  // Cancelar formulario
-  const handleCancelar = () => {
-    setMostrarFormulario(false);
-    setMensaje("");
-    setForm({
-      idTipoDoc: "",
-      numeroDoc: "",
-      nombre: "",
-      apellido: "",
-      telefono: "",
-      mail: "",
-      activo: 1,
-    });
-    setFormMode("alta");
-    setFormErrors({});
-  };
-
-  // Agregar función handleEliminar
   const [confirmDeleteCliente, setConfirmDeleteCliente] = useState({ open: false, id: null });
-
-  const handleEliminar = async (idCliente) => {
-    setConfirmDeleteCliente({ open: true, id: idCliente });
-  };
 
   const confirmDeleteClienteCancel = () => setConfirmDeleteCliente({ open: false, id: null });
 
   const confirmDeleteClienteConfirm = async () => {
-    const id = confirmDeleteCliente.id;
-    try {
-      const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setMensaje("Cliente eliminado");
-        fetchClientes();
-      } else {
-        setMensaje("Error al eliminar cliente");
-      }
-    } catch (error) {
-      setMensaje("Error de conexión");
-    } finally {
-      setConfirmDeleteCliente({ open: false, id: null });
-    }
+    const id = confirmDeleteCliente.id; if (!canDelete) { setMensaje('No tenés permiso para eliminar clientes.'); setConfirmDeleteCliente({ open: false, id: null }); return; }
+    try { const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' }); if (res.ok) { setMensaje('Cliente eliminado'); fetchClientes(); } else setMensaje('Error al eliminar cliente'); } catch (err) { console.warn(err); setMensaje('Error de conexión'); } finally { setConfirmDeleteCliente({ open: false, id: null }); }
   };
 
-  // Agregar función handleReactivar
-  const handleReactivar = async (idCliente) => {
-    try {
-      const res = await fetch(`${API_URL}/${idCliente}`, {
-        method: 'PUT',
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activo: 1 })
-      });
-      if (res.ok) {
-        setMensaje("Cliente reactivado exitosamente");
-        fetchClientes();
-      } else {
-        setMensaje("Error al reactivar cliente");
-      }
-    } catch (error) {
-      setMensaje("Error de conexión");
-    }
-  };
+  const handleReactivar = async (idCliente) => { try { const res = await fetch(`${API_URL}/${idCliente}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activo: 1 }) }); if (res.ok) { setMensaje('Cliente reactivado exitosamente'); fetchClientes(); } else setMensaje('Error al reactivar cliente'); } catch (err) { console.warn(err); setMensaje('Error de conexión'); } };
 
   return (
     <div className="container-fluid main-background" style={{ minHeight: '100vh' }}>
@@ -413,44 +183,15 @@ export default function Clientes() {
             <div className="card-header d-flex justify-content-between align-items-center" style={{ background: "#1f3345", color: "#f0ede5", borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
               <h4 className="mb-0"><i className="bi bi-person-badge me-2"></i>Gestión de Clientes</h4>
               <div className="d-flex gap-2">
-                <button
-                  className="btn btn-dorado"
-                  onClick={() => setMostrarInactivos(!mostrarInactivos)}
-                >
-                  {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
-                </button>
-                <button
-                  className="btn btn-verdeAgua"
-                  onClick={handleAgregarClick}
-                >
-                  <i className="bi bi-plus-lg"></i> Agregar cliente
-                </button>
+                <button className="btn btn-dorado" onClick={() => setMostrarInactivos(!mostrarInactivos)}>{mostrarInactivos ? 'Ver activos' : 'Ver inactivos'}</button>
+                {canCreate ? <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar cliente</button> : <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear clientes"><i className="bi bi-plus-lg"></i> Agregar cliente</button>}
               </div>
             </div>
             <div className="card-body">
-              <div className="mb-3">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Buscar por nombre o DNI..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+              <div className="mb-3"><input type="text" className="form-control" placeholder="Buscar por nombre o DNI..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
               <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-striped table-hover align-middle">
-                  <thead>
-                    <tr>
-                      <th>Tipo Doc</th>
-                      <th>Número Doc</th>
-                      <th>Nombre</th>
-                      <th>Apellido</th>
-                      <th>Teléfono</th>
-                      <th>Email</th>
-                      <th>Activo</th>
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>Tipo Doc</th><th>Número Doc</th><th>Nombre</th><th>Apellido</th><th>Teléfono</th><th>Email</th><th>Activo</th><th>Acciones</th></tr></thead>
                   <tbody>
                     {clientes.map(c => (
                       <tr key={c.idCliente}>
@@ -460,51 +201,15 @@ export default function Clientes() {
                         <td>{c.apellido}</td>
                         <td>{c.telefono}</td>
                         <td>{c.mail}</td>
-                        <td>{c.activo === 1 ? "Activo" : "Inactivo"}</td>
+                        <td>{c.activo === 1 ? 'Activo' : 'Inactivo'}</td>
                         <td style={{ position: 'relative', overflow: 'visible' }}>
                           <div className="d-flex align-items-center gap-2" style={{ overflow: 'visible' }}>
-                            <button
-                              className="btn btn-sm btn-verdeAgua fw-bold"
-                              onClick={() => handleConsultar(c)}
-                            >
-                              <i className="bi bi-search me-1"></i>Consultar
-                            </button>
-                            <button
-                              className="btn btn-sm btn-azul fw-bold"
-                              onClick={async () => {
-                                // fetch historial for this cliente
-                                try {
-                                  const res = await fetch(`${API_URL}/${c.idCliente}/historial-ordenes`);
-                                  const data = await res.json().catch(() => []);
-                                  setHistorialOrdenes(Array.isArray(data) ? data : []);
-                                  setHistorialVisible(true);
-                                } catch (err) {
-                                  setMensaje('Error al cargar historial');
-                                }
-                              }}
-                            >
-                              <i className="bi bi-clock-history me-1"></i>Historial
-                            </button>
-
-                            {/* three-dot dropdown for modify/delete */}
+                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleConsultar(c)}><i className="bi bi-search me-1"></i>Consultar</button>
+                            <button className="btn btn-sm btn-azul fw-bold" onClick={async () => { try { const res = await fetch(`${API_URL}/${c.idCliente}/historial-ordenes`); const data = await res.json().catch(()=>[]); setHistorialOrdenes(Array.isArray(data)?data:[]); setHistorialVisible(true);} catch(err){ console.warn(err); setMensaje('Error al cargar historial'); } }}><i className="bi bi-clock-history me-1"></i>Historial</button>
                             <div style={{ position: 'relative', overflow: 'visible' }}>
-                              <button
-                                ref={el => { if (el) menuAnchorRefs.current[c.idCliente] = el }}
-                                className="btn btn-sm btn-outline-secondary"
-                                onClick={(e) => { e.stopPropagation(); setOpenMenuFor(openMenuFor === c.idCliente ? null : c.idCliente); }}
-                                aria-expanded={openMenuFor === c.idCliente}
-                              >
-                                <i className="bi bi-three-dots-vertical"></i>
-                              </button>
+                              <button ref={el => { if (el) menuAnchorRefs.current[c.idCliente] = el }} className="btn btn-sm btn-outline-secondary" onClick={(e) => { e.stopPropagation(); setOpenMenuFor(openMenuFor === c.idCliente ? null : c.idCliente); }} aria-expanded={openMenuFor === c.idCliente}><i className="bi bi-three-dots-vertical"></i></button>
                               {openMenuFor === c.idCliente && (
-                                <ActionMenuPortal
-                                  anchorEl={menuAnchorRefs.current[c.idCliente]}
-                                  onClose={() => setOpenMenuFor(null)}
-                                  onModificar={() => { setOpenMenuFor(null); c.activo && handleModificar(c); }}
-                                  onEliminar={() => { setOpenMenuFor(null); c.idCliente && handleEliminar(c.idCliente); }}
-                                  onReactivar={() => { setOpenMenuFor(null); c.idCliente && handleReactivar(c.idCliente); }}
-                                  activo={c.activo}
-                                />
+                                <ActionMenuPortal anchorEl={menuAnchorRefs.current[c.idCliente]} onClose={() => setOpenMenuFor(null)} onModificar={() => { setOpenMenuFor(null); c.activo && (canModify ? handleModificar(c) : setMensaje('No tenés permiso para modificar clientes.')) }} onEliminar={() => { setOpenMenuFor(null); c.idCliente && (canDelete ? handleEliminar(c.idCliente) : setMensaje('No tenés permiso para eliminar clientes.')) }} onReactivar={() => { setOpenMenuFor(null); c.idCliente && (canDelete ? handleReactivar(c.idCliente) : setMensaje('No tenés permiso para reactivar clientes.')) }} activo={c.activo} canModify={canModify} canDelete={canDelete} />
                               )}
                             </div>
                           </div>
@@ -513,329 +218,87 @@ export default function Clientes() {
                     ))}
                   </tbody>
                 </table>
-                {clientes.length === 0 && (
-                  <div className="text-center text-muted py-4">No hay clientes registrados.</div>
-                )}
+                {clientes.length === 0 && <div className="text-center text-muted py-4">No hay clientes registrados.</div>}
               </div>
             </div>
           </div>
         </main>
       </div>
-      {/* Modal para consultar, modificar o alta */}
+
+      {/* Modal */}
       {modalVisible && (
-        <div className="modal" style={{ display: "block" }}>
-          <div className="modal-dialog" style={{ maxWidth: "100vw" }}>
-            <div className="modal-content" style={{ width: "100vw", maxWidth: "100vw" }}>
-              <div className="modal-header">
-                <h5 className="modal-title">
-                  {modalModo === 'consultar'
-                    ? <><i className="bi bi-search me-2"></i>Consultar cliente</>
-                    : modalModo === 'modificar'
-                    ? <><i className="bi bi-pencil-square me-2"></i>Modificar cliente</>
-                    : <><i className="bi bi-plus-lg me-2"></i>Nuevo cliente</>}
-                </h5>
-              </div>
+        <div className="modal" style={{ display: 'block' }}>
+          <div className="modal-dialog" style={{ maxWidth: '100vw' }}>
+            <div className="modal-content" style={{ width: '100vw', maxWidth: '100vw' }}>
+              <div className="modal-header"><h5 className="modal-title">{modalModo === 'consultar' ? <><i className="bi bi-search me-2"></i>Consultar cliente</> : modalModo === 'modificar' ? <><i className="bi bi-pencil-square me-2"></i>Modificar cliente</> : <><i className="bi bi-plus-lg me-2"></i>Nuevo cliente</>}</h5></div>
               <div className="modal-body" style={{ padding: 0 }}>
-                <form
-                  className="form-container"
-                  onSubmit={
-                    modalModo === "modificar"
-                      ? handleUpdate
-                      : modalModo === "alta"
-                      ? handleSubmit
-                      : undefined
-                  }
-                >
-                  <fieldset style={{ border: "none" }}>
-                    <legend>
-                      <i className="bi bi-person-vcard me-2"></i>Datos del cliente
-                    </legend>
-                    {/* División: Datos personales */}
-                    <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1">
-                      <i className="bi bi-person-lines-fill me-2"></i>Datos personales
-                    </h6>
+                <form className="form-container" onSubmit={modalModo === 'modificar' ? handleUpdate : modalModo === 'alta' ? handleSubmit : undefined}>
+                  <fieldset style={{ border: 'none' }}>
+                    <legend><i className="bi bi-person-vcard me-2"></i>Datos del cliente</legend>
+                    <h6 className="fw-bold mt-3 mb-2 border-bottom pb-1"><i className="bi bi-person-lines-fill me-2"></i>Datos personales</h6>
                     <div className="row g-4">
                       <div className="col-12 col-md-6">
                         <div className="mb-3">
-                          <label>
-                            <i className="bi bi-card-list me-2"></i>Tipo de documento
-                          </label>
-                          <select
-                            name="idTipoDoc"
-                            value={
-                              modalModo === "consultar"
-                                ? clienteActual?.idTipoDoc ?? ""
-                                : form.idTipoDoc
-                            }
-                            onChange={handleChange}
-                            className="form-control"
-                            required
-                            disabled={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          >
-                            <option key="default" value="">Seleccione tipo de documento</option>
-                            {tiposDocumento.map(td => (
-                              <option key={td.idTipoDoc} value={td.idTipoDoc}>
-                                {td.nombre}
-                              </option>
-                            ))}
+                          <label><i className="bi bi-card-list me-2"></i>Tipo de documento</label>
+                          <select name="idTipoDoc" value={modalModo === 'consultar' ? clienteActual?.idTipoDoc ?? '' : form.idTipoDoc} onChange={handleChange} className="form-control" required disabled={modalModo === 'consultar'} style={{ backgroundColor: modalModo === 'consultar' ? '#dee2e6' : 'white' }}>
+                            <option value="">Seleccione tipo de documento</option>
+                            {tiposDocumento.map(td => <option key={td.idTipoDoc} value={td.idTipoDoc}>{td.nombre}</option>)}
                           </select>
                           {formErrors.idTipoDoc && <div className="input-error-message">{formErrors.idTipoDoc}</div>}
                         </div>
                         <div className="mb-3">
-                          <label>
-                            <i className="bi bi-hash me-2"></i>Número de documento
-                          </label>
-                          <input
-                            type="text"
-                            name="numeroDoc"
-                            value={
-                              modalModo === "consultar"
-                                ? clienteActual?.numeroDoc ?? ""
-                                : form.numeroDoc
-                            }
-                            onChange={handleChange}
-                            required
-                            className="form-control"
-                            disabled={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          />
+                          <label><i className="bi bi-hash me-2"></i>Número de documento</label>
+                          <input type="text" name="numeroDoc" value={modalModo === 'consultar' ? clienteActual?.numeroDoc ?? '' : form.numeroDoc} onChange={handleChange} required className="form-control" disabled={modalModo === 'consultar'} style={{ backgroundColor: modalModo === 'consultar' ? '#dee2e6' : 'white' }} />
                           {formErrors.numeroDoc && <div className="input-error-message">{formErrors.numeroDoc}</div>}
                           {dupChecking && <div className="small text-muted">Verificando documento...</div>}
                           {duplicateExists && <div className="input-error-message">{duplicateMsg}</div>}
                         </div>
                       </div>
                       <div className="col-12 col-md-6">
-                        <div className="mb-3">
-                          <label>
-                            <i className="bi bi-person me-2"></i>Nombre
-                          </label>
-                          <input
-                            type="text"
-                            name="nombre"
-                            value={
-                              modalModo === "consultar"
-                                ? clienteActual?.nombre ?? ""
-                                : form.nombre
-                            }
-                            onChange={handleChange}
-                            required
-                            className="form-control"
-                            readOnly={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          />
-                          {formErrors.nombre && <div className="input-error-message">{formErrors.nombre}</div>}
-                        </div>
-                        <div className="mb-3">
-                          <label>
-                            <i className="bi bi-person me-2"></i>Apellido
-                          </label>
-                          <input
-                            type="text"
-                            name="apellido"
-                            value={
-                              modalModo === "consultar"
-                                ? clienteActual?.apellido ?? ""
-                                : form.apellido
-                            }
-                            onChange={handleChange}
-                            required
-                            className="form-control"
-                            readOnly={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          />
-                          {formErrors.apellido && <div className="input-error-message">{formErrors.apellido}</div>}
-                        </div>
+                        <div className="mb-3"><label><i className="bi bi-person me-2"></i>Nombre</label><input type="text" name="nombre" value={modalModo === 'consultar' ? clienteActual?.nombre ?? '' : form.nombre} onChange={handleChange} required className="form-control" readOnly={modalModo === 'consultar'} style={{ backgroundColor: modalModo === 'consultar' ? '#dee2e6' : 'white' }} />{formErrors.nombre && <div className="input-error-message">{formErrors.nombre}</div>}</div>
+                        <div className="mb-3"><label><i className="bi bi-person me-2"></i>Apellido</label><input type="text" name="apellido" value={modalModo === 'consultar' ? clienteActual?.apellido ?? '' : form.apellido} onChange={handleChange} required className="form-control" readOnly={modalModo === 'consultar'} style={{ backgroundColor: modalModo === 'consultar' ? '#dee2e6' : 'white' }} />{formErrors.apellido && <div className="input-error-message">{formErrors.apellido}</div>}</div>
                       </div>
                     </div>
-                    {/* División: Datos de contacto */}
-                    <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1">
-                      <i className="bi bi-telephone me-2"></i>Datos de contacto
-                    </h6>
-                    <div className="row g-4">
-                      <div className="col-12 col-md-6">
-                        <div className="mb-3">
-                          <label>
-                            <i className="bi bi-telephone me-2"></i>Teléfono
-                          </label>
-                          <input
-                            type="text"
-                            name="telefono"
-                            value={
-                              modalModo === "consultar"
-                                ? clienteActual?.telefono ?? ""
-                                : form.telefono
-                            }
-                            onChange={handleChange}
-                            required
-                            className="form-control"
-                            readOnly={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          />
-                          {formErrors.telefono && <div className="input-error-message">{formErrors.telefono}</div>}
-                        </div>
-                      </div>
-                      <div className="col-12 col-md-6">
-                        <div className="mb-3">
-                          <label>
-                            <i className="bi bi-envelope me-2"></i>Email
-                          </label>
-                          <input
-                            type="email"
-                            name="mail"
-                            value={
-                              modalModo === "consultar"
-                                ? clienteActual?.mail ?? ""
-                                : form.mail
-                            }
-                            onChange={handleChange}
-                            required
-                            className="form-control"
-                            readOnly={modalModo === "consultar"}
-                            style={{ backgroundColor: modalModo === "consultar" ? '#dee2e6' : 'white' }}
-                          />
-                          {formErrors.mail && <div className="input-error-message">{formErrors.mail}</div>}
-                        </div>
-                      </div>
-                    </div>
+                    <h6 className="fw-bold mt-4 mb-2 border-bottom pb-1"><i className="bi bi-telephone me-2"></i>Datos de contacto</h6>
+                    <div className="row g-4"><div className="col-12 col-md-6"><div className="mb-3"><label><i className="bi bi-telephone me-2"></i>Teléfono</label><input type="text" name="telefono" value={modalModo === 'consultar' ? clienteActual?.telefono ?? '' : form.telefono} onChange={handleChange} required className="form-control" readOnly={modalModo === 'consultar'} style={{ backgroundColor: modalModo === 'consultar' ? '#dee2e6' : 'white' }} />{formErrors.telefono && <div className="input-error-message">{formErrors.telefono}</div>}</div></div>
+                    <div className="col-12 col-md-6"><div className="mb-3"><label><i className="bi bi-envelope me-2"></i>Email</label><input type="email" name="mail" value={modalModo === 'consultar' ? clienteActual?.mail ?? '' : form.mail} onChange={handleChange} required className="form-control" readOnly={modalModo === 'consultar'} style={{ backgroundColor: modalModo === 'consultar' ? '#dee2e6' : 'white' }} />{formErrors.mail && <div className="input-error-message">{formErrors.mail}</div>}</div></div></div>
                   </fieldset>
-                  {mensaje && (
-                    <div className="alert alert-danger">{mensaje}</div>
-                  )}
-                  {(modalModo === "modificar" || modalModo === "alta") && (
+                  {mensaje && <div className="alert alert-danger">{mensaje}</div>}
+                  {(modalModo === 'modificar' || modalModo === 'alta') && (
                     <div className="d-flex flex-column flex-md-row justify-content-end gap-2 mt-3">
-                      <button type="submit" className="btn btn-azul fw-bold" disabled={dupChecking || duplicateExists}>
-                        <i className="bi bi-save me-1"></i>
-                        {modalModo === "modificar" ? "Guardar cambios" : "Guardar"}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-dorado fw-bold"
-                        onClick={() => setModalVisible(false)}
-                      >
-                        <i className="bi bi-x-circle me-1"></i>Cancelar
-                      </button>
+                      <button type="submit" className="btn btn-azul fw-bold" disabled={dupChecking || duplicateExists}><i className="bi bi-save me-1"></i>{modalModo === 'modificar' ? 'Guardar cambios' : 'Guardar'}</button>
+                      <button type="button" className="btn btn-dorado fw-bold" onClick={() => setModalVisible(false)}><i className="bi bi-x-circle me-1"></i>Cancelar</button>
                     </div>
                   )}
                 </form>
               </div>
-              {modalModo === "consultar" && (
-                <div className="modal-footer">
-                  <button className="btn btn-dorado fw-bold" onClick={() => setModalVisible(false)}>
-                    <i className="bi bi-x-circle me-1"></i>Cerrar
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-                  {/* moved ConfirmModal rendering to component root so it can open from table actions */}
-        </div>
-      )}
-      {historialVisible && (
-        <div className="modal" style={{ display: 'block' }}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title"><i className="bi bi-clock-history me-2"></i>Historial de Órdenes</h5>
-                <button className="btn-close" onClick={() => setHistorialVisible(false)}></button>
-              </div>
-              <div className="modal-body">
-                {historialOrdenes.length === 0 ? (
-                  <div className="text-muted">No se encontraron órdenes para este cliente.</div>
-                ) : (
-                  <div className="table-responsive">
-                    <table className="table table-sm">
-                      <thead>
-                        <tr>
-                          <th>Nro Orden</th>
-                          <th>Fecha</th>
-                          <th>Dispositivo</th>
-                          <th>Diagnóstico</th>
-                          <th>Precio Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {historialOrdenes.map(o => (
-                          <tr key={o.nroDeOrden}>
-                            <td>{o.nroDeOrden}</td>
-                            <td>{o.fecha}</td>
-                            <td>{o.dispositivo_info}</td>
-                            <td>{o.diagnostico}</td>
-                            <td>{o.precioTotal}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-              <div className="modal-footer">
-                <button className="btn btn-dorado" onClick={() => setHistorialVisible(false)}>Cerrar</button>
-              </div>
+              {modalModo === 'consultar' && (<div className="modal-footer"><button className="btn btn-dorado fw-bold" onClick={() => setModalVisible(false)}><i className="bi bi-x-circle me-1"></i>Cerrar</button></div>)}
             </div>
           </div>
         </div>
       )}
-      <ConfirmModal
-        open={confirmDeleteCliente.open}
-        title="Confirmar eliminación"
-        message="¿Estás seguro de eliminar este cliente?"
-        onCancel={confirmDeleteClienteCancel}
-        onConfirm={confirmDeleteClienteConfirm}
-      />
+
+      {historialVisible && (<div className="modal" style={{ display: 'block' }}><div className="modal-dialog modal-lg modal-dialog-centered"><div className="modal-content"><div className="modal-header"><h5 className="modal-title"><i className="bi bi-clock-history me-2"></i>Historial de Órdenes</h5><button className="btn-close" onClick={() => setHistorialVisible(false)}></button></div><div className="modal-body">{historialOrdenes.length === 0 ? (<div className="text-muted">No se encontraron órdenes para este cliente.</div>) : (<div className="table-responsive"><table className="table table-sm"><thead><tr><th>Nro Orden</th><th>Fecha</th><th>Dispositivo</th><th>Diagnóstico</th><th>Precio Total</th></tr></thead><tbody>{historialOrdenes.map(o => (<tr key={o.nroDeOrden}><td>{o.nroDeOrden}</td><td>{o.fecha}</td><td>{o.dispositivo_info}</td><td>{o.diagnostico}</td><td>{o.precioTotal}</td></tr>))}</tbody></table></div>)}</div><div className="modal-footer"><button className="btn btn-dorado" onClick={() => setHistorialVisible(false)}>Cerrar</button></div></div></div></div>)}
+
+      <ConfirmModal open={confirmDeleteCliente.open} title="Confirmar eliminación" message="¿Estás seguro de eliminar este cliente?" onCancel={confirmDeleteClienteCancel} onConfirm={confirmDeleteClienteConfirm} />
     </div>
   );
 }
 
-// Portal component for action menu
-function ActionMenuPortal({ anchorEl, onClose, onModificar, onEliminar, onReactivar, activo }) {
+function ActionMenuPortal({ anchorEl, onClose, onModificar, onEliminar, onReactivar, activo, canModify = true, canDelete = true }) {
   const [pos, setPos] = React.useState({ left: 0, top: 0, transformOrigin: 'top right' });
-
-  useEffect(() => {
-    if (!anchorEl) return;
-    const rect = anchorEl.getBoundingClientRect();
-    const menuWidth = 160; // approx
-    const left = rect.right - menuWidth;
-    const top = rect.bottom + 6; // 6px gap
-
-    // If there's not enough space below, open upwards
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const menuHeight = 120; // approximate
-    if (spaceBelow < menuHeight) {
-      setPos({ left: Math.max(8, left), top: rect.top - menuHeight - 6, transformOrigin: 'bottom right' });
-    } else {
-      setPos({ left: Math.max(8, left), top: top, transformOrigin: 'top right' });
-    }
-  }, [anchorEl]);
-
-  React.useEffect(() => {
-    const onDocClick = (e) => {
-      if (!anchorEl) return;
-      const node = document.getElementById('action-menu-portal');
-      if (node && !node.contains(e.target) && !anchorEl.contains(e.target)) onClose();
-    };
-    const onEsc = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onEsc);
-    return () => { document.removeEventListener('mousedown', onDocClick); document.removeEventListener('keydown', onEsc); };
-  }, [anchorEl, onClose]);
-
+  useEffect(() => { if (!anchorEl) return; const rect = anchorEl.getBoundingClientRect(); const menuWidth = 160; const left = rect.right - menuWidth; const top = rect.bottom + 6; const spaceBelow = window.innerHeight - rect.bottom; const menuHeight = 120; if (spaceBelow < menuHeight) setPos({ left: Math.max(8, left), top: rect.top - menuHeight - 6, transformOrigin: 'bottom right' }); else setPos({ left: Math.max(8, left), top: top, transformOrigin: 'top right' }); }, [anchorEl]);
+  React.useEffect(() => { const onDocClick = (e) => { if (!anchorEl) return; const node = document.getElementById('action-menu-portal'); if (node && !node.contains(e.target) && !anchorEl.contains(e.target)) onClose(); }; const onEsc = (e) => { if (e.key === 'Escape') onClose(); }; document.addEventListener('mousedown', onDocClick); document.addEventListener('keydown', onEsc); return () => { document.removeEventListener('mousedown', onDocClick); document.removeEventListener('keydown', onEsc); }; }, [anchorEl, onClose]);
   if (!anchorEl) return null;
-
   return ReactDOM.createPortal(
     <div id="action-menu-portal" style={{ position: 'absolute', left: pos.left, top: pos.top, zIndex: 2147483647, minWidth: 140 }}>
       <div className="card" style={{ overflow: 'visible' }}>
         <ul className="list-group list-group-flush p-2">
-          <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar} disabled={!activo}>Modificar</button></li>
-          {activo ? (
-            <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100 fw-bold" onClick={onEliminar}>Eliminar</button></li>
-          ) : (
-            <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100 fw-bold" onClick={onReactivar}>Reactivar</button></li>
-          )}
+          <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar} disabled={!activo || !canModify} title={!canModify ? 'No tenés permiso para modificar clientes' : ''}>Modificar</button></li>
+          {activo ? (<li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100 fw-bold" onClick={onEliminar} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para eliminar clientes' : ''}>Eliminar</button></li>) : (<li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100 fw-bold" onClick={onReactivar} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para reactivar clientes' : ''}>Reactivar</button></li>)}
         </ul>
       </div>
-    </div>,
-    document.body
+    </div>, document.body
   );
 }
 

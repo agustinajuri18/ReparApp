@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import MenuLateral from './MenuLateral';
 import ConfirmModal from './ConfirmModal';
+import { usePermission } from '../auth/PermissionContext';
+import { hasPermission } from '../utils/permissions';
 import SearchableSelect from './SearchableSelect';
 
 const colores = {
@@ -25,7 +27,7 @@ export default function Empleados() {
     mail: "",
     telefono: "",
   });
-  const [editId, setEditId] = useState(null);
+  const [_editId, setEditId] = useState(null); // used when editing employees (value stored but not directly read)
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState(""); // "consultar" | "modificar" | "alta"
   const [mensaje, setMensaje] = useState("");
@@ -35,31 +37,38 @@ export default function Empleados() {
   const [usuariosParaDropdown, setUsuariosParaDropdown] = useState([]); // For the modal dropdown
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [clienteActual, setClienteActual] = useState(null);
+  const permCtx = usePermission();
+  const identity = permCtx ? permCtx.identity : null;
+  // Assumptions: permiso 47 = ver/listar empleados, 48 = crear, 49 = modificar, 50 = eliminar/reactivar
+  const canView = hasPermission(identity, 47);
+  const canCreate = hasPermission(identity, 48);
+  const canModify = hasPermission(identity, 49);
+  const canDelete = hasPermission(identity, 50);
 
-  const fetchEmpleados = () => {
+  const fetchEmpleados = useCallback(() => {
     const url = `${API_URL}?activos=${!mostrarInactivos}`;
     fetch(url)
       .then(res => res.json())
       .then(data => setEmpleados(Array.isArray(data) ? data : []))
-      .catch(() => setMensaje("Error al cargar empleados"));
-  };
+      .catch(err => { console.warn('Empleados: fetch empleados error', err); setMensaje("Error al cargar empleados"); });
+  }, [mostrarInactivos]);
 
   // Fetch data that changes based on filters
   useEffect(() => {
     fetchEmpleados();
-  }, [mostrarInactivos]);
+  }, [fetchEmpleados]);
 
   // Fetch data that doesn't change often
   useEffect(() => {
     fetch(CARGOS_URL)
       .then(res => res.json())
       .then(data => setCargos(Array.isArray(data) ? data : []))
-      .catch(() => setMensaje("Error al cargar cargos"));
+  .catch(err => { console.warn('Empleados: fetch cargos error', err); setMensaje("Error al cargar cargos"); });
     
     fetch(USUARIOS_URL)
       .then(res => res.json())
       .then(data => setAllUsers(Array.isArray(data) ? data : []))
-      .catch(() => setMensaje("Error al cargar todos los usuarios"));
+  .catch(err => { console.warn('Empleados: fetch todos usuarios error', err); setMensaje("Error al cargar todos los usuarios"); });
   }, []);
 
 
@@ -88,6 +97,7 @@ export default function Empleados() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canCreate) { setMensaje('No tenés permiso para crear empleados.'); return; }
     const errors = validarEmpleado(form);
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -108,13 +118,15 @@ export default function Empleados() {
         const resultado = await res.json();
         setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido");
       }
-    } catch (error) {
+    } catch (err) {
+      console.warn('Empleados: submit error', err);
       setMensaje("Error de conexión");
     }
   };
 
   const handleUpdate = async (e) => {
     e.preventDefault();
+    if (!canModify) { setMensaje('No tenés permiso para modificar empleados.'); return; }
     const errors = validarEmpleado(form);
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -135,12 +147,14 @@ export default function Empleados() {
         const resultado = await res.json();
         setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido");
       }
-    } catch (error) {
-      setMensaje("Error de conexión");
-    }
+    } catch (err) {
+        console.warn('Empleados: update error', err);
+        setMensaje("Error de conexión");
+      }
   };
 
   const handleDelete = idEmpleado => {
+    if (!canDelete) { setMensaje('No tenés permiso para eliminar empleados.'); return; }
     setConfirmDeleteEmpleado({ open: true, id: idEmpleado });
   };
 
@@ -156,20 +170,16 @@ export default function Empleados() {
   };
 
   const handleReactivar = idEmpleado => {
-    fetch(`${API_URL}/${idEmpleado}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activo: 1 })
-    })
-      .then(() => {
-        fetchEmpleados();
-      });
+    if (!canDelete) { setMensaje('No tenés permiso para reactivar empleados.'); return; }
+    fetch(`${API_URL}/${idEmpleado}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activo: 1 }) })
+      .then(() => { fetchEmpleados(); });
   };
 
   function handleModificar(empleado) {
     setEditId(empleado.idEmpleado);
     setClienteActual(null);
     setForm(empleado);
+    if (!canModify) { setModalModo('consultar'); setModalVisible(true); setMensaje('No tenés permiso para modificar empleados. Abriendo en modo consulta.'); setFormErrors({}); return; }
     setModalModo("modificar");
     setModalVisible(true);
     setMensaje("");
@@ -188,6 +198,7 @@ export default function Empleados() {
   }
 
   function handleConsultar(empleado) {
+    if (!canView) { setMensaje('No tenés permiso para ver empleados.'); return; }
     setClienteActual(empleado);
     setUsuariosParaDropdown(allUsers); // Ensure all users are available for display
     setModalModo('consultar');
@@ -196,6 +207,7 @@ export default function Empleados() {
   }
 
   function handleAgregar() {
+    if (!canCreate) { setMensaje('No tenés permiso para crear empleados.'); return; }
     setClienteActual(null);
     setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", mail: "", telefono: "" });
     setEditId(null);
@@ -206,7 +218,7 @@ export default function Empleados() {
     fetch(`${USUARIOS_URL}?no_asignados=true`).then(res => res.json()).then(setUsuariosParaDropdown);
   }
 
-  function handleCancelar() {
+  function _handleCancelar() {
     setModalVisible(false);
     setClienteActual(null);
     setForm({ nombre: "", apellido: "", idCargo: "", idUsuario: "", mail: "", telefono: "" });

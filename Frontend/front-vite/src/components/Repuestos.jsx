@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 import ConfirmModal from './ConfirmModal';
+import { usePermission } from '../auth/PermissionContext';
+import { hasPermission } from '../utils/permissions';
 
 const API_URL = "http://localhost:5000/repuestos";
 const REPUESTOS_PROVEEDORES_URL = "http://localhost:5000/repuestos-proveedores";
@@ -26,7 +28,7 @@ function Repuestos() {
 
   const [modalTodosRepuestos, setModalTodosRepuestos] = useState({ open: false, lista: [] });
   const [originalProveedores, setOriginalProveedores] = useState([]);
-  const [repuestosProveedores, setRepuestosProveedores] = useState([]);
+  // relaciones repuesto-proveedor no usadas en este componente (se consultan cuando es necesario)
   const [confirmRemoveProveedor, setConfirmRemoveProveedor] = useState({ open: false, idx: null });
 
   const fetchRepuestos = (search = searchTerm) => {
@@ -37,21 +39,22 @@ function Repuestos() {
     fetch(`${API_URL}?${params.toString()}`)
       .then(res => res.json())
       .then(data => setRepuestos(data))
-      .catch(() => setMensaje("Error al cargar repuestos"));
+  .catch(err => { console.warn('Repuestos: fetch error', err); setMensaje("Error al cargar repuestos"); });
   };
 
   const fetchRepuestosProveedores = () => {
-    fetch(REPUESTOS_PROVEEDORES_URL)
+    // Fetches relaciones repuesto-proveedor cuando es necesario; actualmente
+    // solo se usa en handleVerTodosRepuestos que vuelve a llamar a la API.
+    return fetch(REPUESTOS_PROVEEDORES_URL)
       .then(res => res.json())
-      .then(data => setRepuestosProveedores(Array.isArray(data) ? data : []))
-      .catch(() => setMensaje("Error al cargar repuestos-proveedores"));
+  .catch(err => { console.warn('Repuestos: fetch repuestos-proveedores error', err); setMensaje("Error al cargar repuestos-proveedores"); return []; });
   };
 
   const fetchProveedores = () => {
     fetch(PROVEEDORES_URL)
       .then(res => res.json())
       .then(data => setProveedores(Array.isArray(data) ? data : []))
-      .catch(() => setMensaje("Error al cargar proveedores"));
+  .catch(err => { console.warn('Repuestos: fetch proveedores error', err); setMensaje("Error al cargar proveedores"); });
   };
 
   // Fetch repuestos whenever mostrarInactivos or searchTerm changes (debounced) so toggle works on first click
@@ -65,6 +68,13 @@ function Repuestos() {
     fetchProveedores();
     fetchRepuestosProveedores();
   }, []);
+
+  // Permission context
+  const permCtx = usePermission();
+  const identity = permCtx ? permCtx.identity : null;
+  const canCreate = hasPermission(identity, 20);
+  const canModify = hasPermission(identity, 21);
+  const canDelete = hasPermission(identity, 22);
 
   // --- Lógica de filtrado de proveedores ---
   const getAvailableProveedoresForRow = (rowIndex) => {
@@ -83,10 +93,7 @@ function Repuestos() {
   };
   // --- Fin de la lógica de filtrado ---
 
-  const handleChange = e => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-    setFormErrors(validarRepuesto({ ...form, [e.target.name]: e.target.value }));
-  };
+  // NOTE: handleFormChange is used below; keep that one. handleChange was unused and removed.
 
   function validarRepuesto(data) {
     const errors = {};
@@ -111,6 +118,10 @@ function Repuestos() {
   const handleModalClose = () => setModalVisible(false);
 
   const handleAgregarClick = () => {
+    if (!canCreate) {
+      setMensaje('No tenés permiso para crear repuestos.');
+      return;
+    }
     setModalModo('alta');
     setForm({ idRepuesto: "", marca: "", modelo: "", proveedores: [] });
     setFormErrors({});
@@ -123,6 +134,15 @@ function Repuestos() {
       .then(res => res.json())
       .then(data => {
         const proveedoresData = data.proveedores || [];
+        if (!canModify) {
+          // If user cannot modify, open in consult mode
+          setModalModo('consultar');
+          setForm({ ...data, proveedores: proveedoresData });
+          setFormErrors({});
+          setMensaje('No tenés permiso para modificar repuestos. Abriendo en modo consulta.');
+          setModalVisible(true);
+          return;
+        }
         setModalModo('modificar');
         setForm({
           idRepuesto: data.idRepuesto,
@@ -195,6 +215,11 @@ function Repuestos() {
 
   const confirmDeleteRepuestoConfirm = () => {
     const idRepuesto = confirmDeleteRepuesto.id;
+    if (!canDelete) {
+      setMensaje('No tenés permiso para eliminar repuestos.');
+      setConfirmDeleteRepuesto({ open: false, id: null });
+      return;
+    }
     fetch(`${API_URL}/${idRepuesto}`, { method: "DELETE" })
       .then(res => {
         if (!res.ok) throw new Error("Error al eliminar el repuesto.");
@@ -205,6 +230,10 @@ function Repuestos() {
   };
 
   const handleReactivar = async (idRepuesto) => {
+    if (!canDelete) {
+      setMensaje('No tenés permiso para reactivar repuestos.');
+      return;
+    }
     try {
       const res = await fetch(`${API_URL}/${idRepuesto}/reactivar`, { method: "PUT" });
       if (!res.ok) throw new Error("Error al reactivar el repuesto.");
@@ -225,6 +254,10 @@ function Repuestos() {
     setMensaje("");
 
     if (modalModo === 'alta') {
+      if (!canCreate) {
+        setMensaje('No tenés permiso para crear repuestos.');
+        return;
+      }
       fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -252,6 +285,10 @@ function Repuestos() {
     }
 
     if (modalModo === 'modificar') {
+      if (!canModify) {
+        setMensaje('No tenés permiso para modificar repuestos.');
+        return;
+      }
       const repuestoUpdateData = { marca: form.marca, modelo: form.modelo };
       fetch(`${API_URL}/${form.idRepuesto}`, {
         method: "PUT",
@@ -312,7 +349,7 @@ function Repuestos() {
         }, {});
         setModalTodosRepuestos({ open: true, lista: Object.values(grouped) });
       })
-      .catch(() => setModalTodosRepuestos({ open: true, lista: [] }));
+  .catch(err => { console.warn('Repuestos: modal todos repuestos error', err); setModalTodosRepuestos({ open: true, lista: [] }); });
   };
 
   return (
@@ -321,7 +358,7 @@ function Repuestos() {
         <MenuLateral />
         <main className="col-12 col-md-10 pt-4 px-2 px-md-4 d-flex flex-column" style={{ background: 'white', borderRadius: 16, boxShadow: `0 4px 24px 0 #1f334522`, minHeight: '90vh' }}>
           <div className="card shadow-sm mb-4" style={{ border: `1.5px solid #1f3345`, borderRadius: 16, background: "var(--color-beige)" }}>
-            <div className="card-header d-flex justify-content-between align-items-center" style={{ background: '#1f3345', color: '#f0ede5', borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+              <div className="card-header d-flex justify-content-between align-items-center" style={{ background: '#1f3345', color: '#f0ede5', borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
               <h4 className="mb-0"><i className="bi bi-gear-wide-connected me-2"></i>Gestión de Repuestos</h4>
               <div className="d-flex gap-2">
                 <button
@@ -330,9 +367,15 @@ function Repuestos() {
                 >
                   {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                 </button>
-                <button className="btn btn-verdeAgua" onClick={handleAgregarClick}>
-                  <i className="bi bi-plus-lg"></i> Agregar repuesto
-                </button>
+                {canCreate ? (
+                  <button className="btn btn-verdeAgua" onClick={handleAgregarClick}>
+                    <i className="bi bi-plus-lg"></i> Agregar repuesto
+                  </button>
+                ) : (
+                  <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear repuestos">
+                    <i className="bi bi-plus-lg"></i> Agregar repuesto
+                  </button>
+                )}
                 <button className="btn btn-gris" onClick={handleVerTodosRepuestos}>
                   <i className="bi bi-list-ul"></i> Listar Todos
                 </button>
@@ -372,15 +415,15 @@ function Repuestos() {
                           <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(r)}>
                             <i className="bi bi-search me-1"></i>Consultar
                           </button>
-                          <button className={`btn btn-sm fw-bold me-1 ${r.activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => r.activo && handleModificar(r)} disabled={!r.activo}>
+                          <button className={`btn btn-sm fw-bold me-1 ${r.activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => r.activo && handleModificar(r)} disabled={!r.activo || !canModify} title={!canModify ? 'No tenés permiso para modificar repuestos' : ''}>
                             <i className="bi bi-pencil-square me-1"></i>Modificar
                           </button>
                           {r.activo ? (
-                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleDelete(r.idRepuesto)}>
+                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleDelete(r.idRepuesto)} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para eliminar repuestos' : ''}>
                               <i className="bi bi-trash me-1"></i>Eliminar
                             </button>
                           ) : (
-                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(r.idRepuesto)}>
+                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(r.idRepuesto)} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para reactivar repuestos' : ''}>
                               <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
                             </button>
                           )}

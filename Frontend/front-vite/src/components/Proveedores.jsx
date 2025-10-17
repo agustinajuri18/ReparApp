@@ -1,11 +1,20 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import MenuLateral from './MenuLateral';
 import ConfirmModal from './ConfirmModal';
+import { usePermission } from '../auth/PermissionContext';
+import { hasPermission } from '../utils/permissions';
 
 const colores = { azul: '#1f3345', dorado: '#c78f57', rojo: '#b54745', verdeAgua: '#85abab', beige: '#f0ede5', mentaSuave: '#c6e8e8' };
 const API_URL = "http://localhost:5000/proveedores";
 
 function Proveedores() {
+  const permCtx = usePermission();
+  const identity = permCtx ? permCtx.identity : null;
+  // permiso 16 = ver/listar proveedores (route), reserve 17..19 for create/modify/delete
+  const canView = hasPermission(identity, 16);
+  const canCreate = hasPermission(identity, 17);
+  const canModify = hasPermission(identity, 18);
+  const canDelete = hasPermission(identity, 19);
   const [proveedores, setProveedores] = useState([]);
   const [form, setForm] = useState({
     cuil: "",
@@ -29,6 +38,7 @@ function Proveedores() {
       const data = await res.json();
       setActiveProveedores(Array.isArray(data) ? data : []);
     } catch (err) {
+      console.warn('Proveedores: openActiveProvidersModal error', err);
       setMensaje("Error al cargar proveedores");
     }
   };
@@ -36,12 +46,12 @@ function Proveedores() {
   const closeActiveProvidersModal = () => setActiveModalOpen(false);
   
   const [mensaje, setMensaje] = useState("");
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [, setMostrarFormulario] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState('consultar'); // 'consultar' | 'modificar'
   const [proveedorActual, setProveedorActual] = useState(null);
-  const [modalErrors, setModalErrors] = useState({});
-  const [formMode, setFormMode] = useState("alta"); // "alta" | "modificar"
+  const [, setModalErrors] = useState({});
+  const [, setFormMode] = useState("alta"); // "alta" | "modificar"
   const [editId, setEditId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [dupChecking, setDupChecking] = useState(false);
@@ -51,15 +61,18 @@ function Proveedores() {
   const [confirmDeleteProveedor, setConfirmDeleteProveedor] = useState({ open: false, cuil: null });
 
   // Cargar proveedores
-  useEffect(() => {
-    const params = new URLSearchParams({
-      activos: mostrarInactivos ? "false" : "true",
-      ...(searchTerm && { search: searchTerm })
-    });
+  const fetchVisibleProveedores = useCallback(() => {
+    if (!canView) return; // don't load if user can't view
+    const params = new URLSearchParams({ activos: mostrarInactivos ? "false" : "true", ...(searchTerm && { search: searchTerm }) });
     fetch(`${API_URL}?${params}`)
       .then(res => res.json())
-      .then(data => setProveedores(data));
-  }, [mostrarInactivos, searchTerm]);
+      .then(data => setProveedores(data))
+      .catch(err => { console.warn('Proveedores: fetchVisibleProveedores error', err); setMensaje("Error al cargar proveedores"); });
+  }, [canView, mostrarInactivos, searchTerm]);
+
+  useEffect(() => {
+    fetchVisibleProveedores();
+  }, [fetchVisibleProveedores]);
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -104,6 +117,7 @@ function Proveedores() {
   // Alta
   function handleSubmit(e) {
     e.preventDefault();
+    if (!canCreate) { setMensaje('No tenés permiso para crear proveedores.'); return; }
     const errors = validarProveedor(form);
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -133,10 +147,11 @@ function Proveedores() {
           .then(res => res.json())
           .then(data => setProveedores(data));
       })
-      .catch(err => setMensaje(err.message));
+      .catch(err => { console.warn('Proveedores: submit error', err); setMensaje(err.message); });
   }
 
   function handleDelete(cuil) {
+    if (!canDelete) { setMensaje('No tenés permiso para eliminar proveedores.'); return; }
     // open confirm modal
     setConfirmDeleteProveedor({ open: true, cuil });
   }
@@ -155,19 +170,13 @@ function Proveedores() {
   };
 
   function handleReactivar(cuil) {
-    fetch(`${API_URL}/${cuil}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activo: 1 })
-    })
-      .then(() => {
-        fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`)
-          .then(res => res.json())
-          .then(data => setProveedores(data));
-      });
+    if (!canDelete) { setMensaje('No tenés permiso para reactivar proveedores.'); return; }
+    fetch(`${API_URL}/${cuil}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activo: 1 }) })
+      .then(() => fetch(`${API_URL}?activos=${mostrarInactivos ? "false" : "true"}`).then(res => res.json()).then(data => setProveedores(data)));
   }
 
   const handleAgregarClick = () => {
+    if (!canCreate) { setMensaje('No tenés permiso para crear proveedores.'); return; }
     setFormMode("alta");
     setProveedorActual(null);
     setModalModo("alta");
@@ -185,6 +194,7 @@ function Proveedores() {
   };
 
   const handleModificar = (prov) => {
+    if (!canModify) { setModalModo('consultar'); setModalVisible(true); setProveedorActual(prov); setMensaje('No tenés permiso para modificar proveedores. Abriendo en modo consulta.'); return; }
     setFormMode("modificar");
     setEditId(prov.cuil);
     setProveedorActual({
@@ -211,28 +221,22 @@ function Proveedores() {
   };
 
   const handleConsultar = (prov) => {
-    setProveedorActual({
-      ...prov,
-      cuil: prov.cuil || "",
-      razonSocial: prov.razonSocial || "",
-      telefonoResponsable: prov.telefonoResponsable || prov.telefono || "",
-      direccion: prov.direccion || "",
-      nombreResponsable: prov.nombreResponsable || "",
-      mailResponsable: prov.mailResponsable || "",
-    });
+    if (!canView) { setMensaje('No tenés permiso para ver proveedores.'); return; }
+    setProveedorActual({ ...prov, cuil: prov.cuil || "", razonSocial: prov.razonSocial || "", telefonoResponsable: prov.telefonoResponsable || prov.telefono || "", direccion: prov.direccion || "", nombreResponsable: prov.nombreResponsable || "", mailResponsable: prov.mailResponsable || "" });
     setModalModo('consultar');
     setModalVisible(true);
     setMensaje("");
   }
 
-  function handleModalClose() {
+  // Not currently referenced directly by ESLint-detected JSX paths — keep as intentionally-unused (prefixed) to silence no-unused-vars
+  function _handleModalClose() {
     setModalVisible(false);
     setProveedorActual(null);
     setModalErrors({});
     setMensaje("");
   }
 
-  function handleModalFieldChange(e) {
+  function _handleModalFieldChange(e) {
     const { name, value } = e.target;
     const nuevo = { ...proveedorActual, [name]: name === "activo" ? Number(value) : value };
     setProveedorActual(nuevo);
@@ -254,10 +258,10 @@ function Proveedores() {
     }
   }
 
-  function handleModalSave(e) {
+  function _handleModalSave(e) {
     e.preventDefault();
-    // No enviar cuil en el body, solo los campos editables
-    const { cuil, telefono, ...rest } = proveedorActual;
+  // No enviar cuil en el body, solo los campos editables
+  const { cuil: _cuil, telefono: _telefono, ...rest } = proveedorActual;
     const proveedorParaEnviar = {
       ...rest,
       telefonoResponsable: proveedorActual.telefonoResponsable ?? proveedorActual.telefono ?? null,
@@ -272,6 +276,7 @@ function Proveedores() {
       setMensaje("Por favor, corrige los errores antes de continuar.");
       return;
     }
+  if (!canModify) { setMensaje('No tenés permiso para modificar proveedores.'); return; }
     fetch(`${API_URL}/${proveedorActual.cuil}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -290,14 +295,14 @@ function Proveedores() {
           .then(res => res.json())
           .then(data => setProveedores(data));
       })
-      .catch(err => setMensaje(err.message));
+  .catch(err => { console.warn('Proveedores: handleModalSave error', err); setMensaje(err.message); });
   }
 
   const fetchProveedores = () => {
     fetch(API_URL)
       .then(res => res.json())
       .then(data => setProveedores(Array.isArray(data) ? data : []))
-      .catch(() => setMensaje("Error al cargar proveedores"));
+      .catch(err => { console.warn('Proveedores: fetchProveedores error', err); setMensaje("Error al cargar proveedores"); });
   };
 
   async function verificarDuplicado(cuil) {
@@ -401,12 +406,11 @@ function Proveedores() {
                   <i className="bi bi-list-ul me-1"></i>Ver todos los proveedores
                 </button>
                 
-                <button
-                  className="btn btn-verdeAgua"
-                  onClick={handleAgregarClick}
-                >
-                  <i className="bi bi-plus-lg"></i> Agregar proveedor
-                </button>
+                {canCreate ? (
+                  <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar proveedor</button>
+                ) : (
+                  <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear proveedores"><i className="bi bi-plus-lg"></i> Agregar proveedor</button>
+                )}
               </div>
             </div>
             <div className="card-body">
@@ -439,33 +443,12 @@ function Proveedores() {
                         <td>{prov.telefonoResponsable || prov.telefono}</td>
                         <td>{prov.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
-                          <button
-                            className="btn btn-sm btn-verdeAgua fw-bold me-1"
-                            onClick={() => handleConsultar(prov)}
-                          >
-                            <i className="bi bi-search me-1"></i>Consultar
-                          </button>
-                          <button
-                            className={`btn btn-sm fw-bold me-1 ${prov.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`}
-                            onClick={() => prov.activo === 1 && handleModificar(prov)}
-                            disabled={prov.activo !== 1}
-                          >
-                            <i className="bi bi-pencil-square me-1"></i>Modificar
-                          </button>
+                          <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(prov)} disabled={!canView} title={!canView ? 'No tenés permiso para ver proveedores' : ''}><i className="bi bi-search me-1"></i>Consultar</button>
+                          <button className={`btn btn-sm fw-bold me-1 ${prov.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => prov.activo === 1 && handleModificar(prov)} disabled={prov.activo !== 1 || !canModify} title={!canModify ? 'No tenés permiso para modificar proveedores' : ''}><i className="bi bi-pencil-square me-1"></i>Modificar</button>
                           {prov.activo === 1 ? (
-                            <button
-                              className="btn btn-sm btn-rojo fw-bold"
-                              onClick={() => handleDelete(prov.cuil)}
-                            >
-                              <i className="bi bi-trash me-1"></i>Eliminar
-                            </button>
+                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleDelete(prov.cuil)} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para eliminar proveedores' : ''}><i className="bi bi-trash me-1"></i>Eliminar</button>
                           ) : (
-                            <button
-                              className="btn btn-sm btn-verdeAgua fw-bold"
-                              onClick={() => handleReactivar(prov.cuil)}
-                            >
-                              <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
-                            </button>
+                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(prov.cuil)} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para reactivar proveedores' : ''}><i className="bi bi-arrow-clockwise me-1"></i>Reactivar</button>
                           )}
                         </td>
                       </tr>
@@ -732,4 +715,4 @@ function Proveedores() {
   );
 }
 
-export default Proveedores; Proveedores;
+export default Proveedores;

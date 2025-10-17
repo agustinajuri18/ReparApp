@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import MenuLateral from './MenuLateral';
 import ConfirmModal from './ConfirmModal';
+import { usePermission } from '../auth/PermissionContext';
+import { hasPermission } from '../utils/permissions';
 
 const API_URL = "http://localhost:5000/servicios";
 const REPUESTOS_URL = "http://localhost:5000/repuestos";
@@ -13,6 +15,14 @@ const colores = {
 };
 
 export default function Servicios() {
+  const permCtx = usePermission();
+  const identity = permCtx ? permCtx.identity : null;
+  // permiso 27 = ver/listar servicios; reserve 28..30 for create/modify/delete
+  const canView = hasPermission(identity, 27);
+  const canCreate = hasPermission(identity, 28);
+  const canModify = hasPermission(identity, 29);
+  const canDelete = hasPermission(identity, 30);
+
   const [servicios, setServicios] = useState([]);
   const [repuestos, setRepuestos] = useState([]);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
@@ -39,6 +49,7 @@ export default function Servicios() {
       const data = await res.json();
       setServiciosCatalogo(Array.isArray(data) ? data : []);
     } catch (err) {
+      console.warn('Servicios: error loading catalog', err);
       setMensaje('Error al cargar catálogo de servicios');
     }
   };
@@ -50,7 +61,7 @@ export default function Servicios() {
     fetch(`${API_URL}?activos=${mostrarInactivos ? 'false' : 'true'}`)
       .then(res => res.json())
       .then(data => setServicios(Array.isArray(data) ? data : []))
-      .catch(() => setMensaje("Error al cargar servicios"));
+  .catch(err => { console.warn('Servicios: fetch servicios error', err); setMensaje("Error al cargar servicios"); });
   };
 
   // Cargar repuestos
@@ -58,10 +69,11 @@ export default function Servicios() {
     fetch(REPUESTOS_URL)
       .then(res => res.json())
       .then(data => setRepuestos(Array.isArray(data) ? data : []))
-      .catch(() => setMensaje("Error al cargar repuestos"));
+  .catch(err => { console.warn('Servicios: fetch repuestos error', err); setMensaje("Error al cargar repuestos"); });
   };
 
   useEffect(() => {
+    if (!canView) return;
     fetchServicios();
     fetchRepuestos();
     // eslint-disable-next-line
@@ -70,6 +82,7 @@ export default function Servicios() {
 
   // Modal handlers
   const handleAgregarClick = () => {
+    if (!canCreate) { setMensaje('No tenés permiso para crear servicios.'); return; }
     setServicioActual({
       idServicio: "",
       descripcion: "",
@@ -83,6 +96,7 @@ export default function Servicios() {
   };
 
   const handleModificar = (servicio) => {
+    if (!canModify) { setModalModo('consultar'); setModalVisible(true); setServicioActual(servicio); setMensaje('No tenés permiso para modificar servicios. Abriendo en modo consulta.'); return; }
     fetch(`${API_URL}/${servicio.idServicio}`)
       .then(res => res.json())
       .then(data => {
@@ -100,6 +114,7 @@ export default function Servicios() {
   };
 
   const handleConsultar = (servicio) => {
+    if (!canView) { setMensaje('No tenés permiso para ver servicios.'); return; }
     fetch(`${API_URL}/${servicio.idServicio}`)
       .then(res => res.json())
       .then(data => {
@@ -119,6 +134,7 @@ export default function Servicios() {
   const [confirmDeleteRepuesto, setConfirmDeleteRepuesto] = useState({ open: false, index: null });
 
   const handleEliminar = async (idServicio) => {
+    if (!canDelete) { setMensaje('No tenés permiso para eliminar servicios.'); return; }
     setConfirmDeleteServicio({ open: true, id: idServicio });
   };
 
@@ -131,9 +147,9 @@ export default function Servicios() {
     setConfirmDeleteServicio({ open: false, id: null });
   };
 
-  const handleEliminarRepuestoClick = (idx) => {
+  const _handleEliminarRepuestoClick = (index) => {
     // open confirm modal for the repuesto row
-    setConfirmDeleteRepuesto({ open: true, index: idx });
+    setConfirmDeleteRepuesto({ open: true, index });
   };
 
   const confirmDeleteRepuestoCancel = () => setConfirmDeleteRepuesto({ open: false, index: null });
@@ -146,11 +162,13 @@ export default function Servicios() {
   };
 
   const handleReactivar = async (idServicio) => {
+    if (!canDelete) { setMensaje('No tenés permiso para reactivar servicios.'); return; }
     try {
       const res = await fetch(`${API_URL}/${idServicio}/reactivar`, { method: "PUT" });
       if (!res.ok) throw new Error("Error al reactivar el servicio.");
       fetchServicios();
     } catch (err) {
+      console.warn('Servicios: handleReactivar error', err);
       setMensaje(err.message);
     }
   };
@@ -321,12 +339,11 @@ export default function Servicios() {
                 >
                   <i className="bi bi-journal-bookmark me-1"></i>Catálogo de servicios
                 </button>
-                <button
-                  className="btn btn-verdeAgua"
-                  onClick={handleAgregarClick}
-                >
-                  <i className="bi bi-plus-lg"></i> Agregar servicio
-                </button>
+                {canCreate ? (
+                  <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar servicio</button>
+                ) : (
+                  <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear servicios"><i className="bi bi-plus-lg"></i> Agregar servicio</button>
+                )}
               </div>
             </div>
             <div className="card-body">
@@ -349,33 +366,12 @@ export default function Servicios() {
                         <td>${Number(s.precioBase).toLocaleString("es-AR", { minimumFractionDigits: 2 })}</td>
                         <td>{s.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
-                          <button
-                            className="btn btn-sm btn-verdeAgua fw-bold me-1"
-                            onClick={() => handleConsultar(s)}
-                          >
-                            <i className="bi bi-search me-1"></i>Consultar
-                          </button>
-                          <button
-                            className={`btn btn-sm fw-bold me-1 ${s.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`}
-                            onClick={() => s.activo === 1 && handleModificar(s)}
-                            disabled={s.activo !== 1}
-                          >
-                            <i className="bi bi-pencil-square me-1"></i>Modificar
-                          </button>
+                          <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(s)} disabled={!canView} title={!canView ? 'No tenés permiso para ver servicios' : ''}><i className="bi bi-search me-1"></i>Consultar</button>
+                          <button className={`btn btn-sm fw-bold me-1 ${s.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => s.activo === 1 && handleModificar(s)} disabled={s.activo !== 1 || !canModify} title={!canModify ? 'No tenés permiso para modificar servicios' : ''}><i className="bi bi-pencil-square me-1"></i>Modificar</button>
                           {s.activo === 1 ? (
-                            <button
-                              className="btn btn-sm btn-rojo fw-bold"
-                              onClick={() => handleEliminar(s.idServicio)}
-                            >
-                                <i className="bi bi-trash me-1"></i>Eliminar
-                            </button>
+                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleEliminar(s.idServicio)} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para eliminar servicios' : ''}><i className="bi bi-trash me-1"></i>Eliminar</button>
                           ) : (
-                            <button
-                              className="btn btn-sm btn-verdeAgua fw-bold"
-                              onClick={() => handleReactivar(s.idServicio)}
-                            >
-                              <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
-                            </button>
+                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(s.idServicio)} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para reactivar servicios' : ''}><i className="bi bi-arrow-clockwise me-1"></i>Reactivar</button>
                           )}
                         </td>
                       </tr>
