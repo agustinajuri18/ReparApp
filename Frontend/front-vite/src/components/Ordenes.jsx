@@ -22,6 +22,8 @@ function Ordenes() {
   const canCreate = hasPermission(identity, 30);
   const canModify = hasPermission(identity, 31);
   const _canDelete = hasPermission(identity, 32);
+  const isSalesAdmin = identity?.idCargo === 3; // Asistente de ventas -> idCargo 3
+  const isTecnico = identity?.idCargo === 2; // Técnico -> idCargo 2
   const [ordenes, setOrdenes] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [empleados, setEmpleados] = useState([]);
@@ -262,7 +264,14 @@ function Ordenes() {
 
   // En handleModificar, cambiar setShowAddDetalle(false) a setShowAddDetalle(true) para permitir añadir detalles en modificar
   const handleModificar = (orden) => {
-    if (!canModify) { setModalModo('consultar'); setModalVisible(true); setForm({ ...orden }); setMensaje('No tenés permiso para modificar órdenes. Abriendo en modo consulta.'); return; }
+    // Allow Técnicos (idCargo === 2) to modify even if they don't have the canModify permiso.
+    if (!canModify && !isTecnico) { 
+      setModalModo('consultar'); 
+      setModalVisible(true); 
+      setForm({ ...orden }); 
+      setMensaje('No tenés permiso para modificar órdenes. Abriendo en modo consulta.'); 
+      return; 
+    }
     // Configura el modal en modo modificar y carga detalles
     setModalModo('modificar');
     setForm({
@@ -937,9 +946,15 @@ function Ordenes() {
                           <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarPDF(o.nroDeOrden)}>
                             <i className="bi bi-file-earmark-pdf me-1"></i>Emitir
                           </button>
-                          <button className="btn btn-sm btn-dorado fw-bold" onClick={() => handleModificar(o)}>
-                            <i className="bi bi-pencil-square me-1"></i>Modificar
-                          </button>
+                          {(isTecnico || (canModify && !isSalesAdmin)) ? (
+                            <button className="btn btn-sm btn-dorado fw-bold" onClick={() => handleModificar(o)}>
+                              <i className="bi bi-pencil-square me-1"></i>Modificar
+                            </button>
+                          ) : (
+                            <button className="btn btn-sm btn-dorado fw-bold" disabled title={isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para modificar órdenes'}>
+                              <i className="bi bi-pencil-square me-1"></i>Modificar
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -987,9 +1002,11 @@ function Ordenes() {
                               required
                             />
                           </div>
-                          <button type="button" className="btn btn-secondary" onClick={handleAddDispositivo}>
-                            Nuevo Dispositivo
-                          </button>
+                          {modalModo !== 'consultar' && (
+                            <button type="button" className="btn btn-secondary" onClick={handleAddDispositivo}>
+                              Nuevo Dispositivo
+                            </button>
+                          )}
                         </div>
                         {formErrors.idDispositivo && <div className="input-error-message">{formErrors.idDispositivo}</div>}
                       </div>

@@ -22,6 +22,8 @@ export default function Servicios() {
   const canCreate = hasPermission(identity, 28);
   const canModify = hasPermission(identity, 29);
   const canDelete = hasPermission(identity, 30);
+  const isSalesAdmin = identity?.idCargo === 3; // Asistente de ventas
+  const canDeleteEffective = canDelete && !isSalesAdmin;
 
   const [servicios, setServicios] = useState([]);
   const [repuestos, setRepuestos] = useState([]);
@@ -134,7 +136,7 @@ export default function Servicios() {
   const [confirmDeleteRepuesto, setConfirmDeleteRepuesto] = useState({ open: false, index: null });
 
   const handleEliminar = async (idServicio) => {
-    if (!canDelete) { setMensaje('No tenés permiso para eliminar servicios.'); return; }
+    if (!canDelete || isSalesAdmin) { setMensaje(isSalesAdmin ? 'Acción no disponible para Asistente de ventas.' : 'No tenés permiso para eliminar servicios.'); return; }
     setConfirmDeleteServicio({ open: true, id: idServicio });
   };
 
@@ -162,7 +164,7 @@ export default function Servicios() {
   };
 
   const handleReactivar = async (idServicio) => {
-    if (!canDelete) { setMensaje('No tenés permiso para reactivar servicios.'); return; }
+    if (!canDelete || isSalesAdmin) { setMensaje(isSalesAdmin ? 'Acción no disponible para Asistente de ventas.' : 'No tenés permiso para reactivar servicios.'); return; }
     try {
       const res = await fetch(`${API_URL}/${idServicio}/reactivar`, { method: "PUT" });
       if (!res.ok) throw new Error("Error al reactivar el servicio.");
@@ -369,9 +371,9 @@ export default function Servicios() {
                           <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(s)} disabled={!canView} title={!canView ? 'No tenés permiso para ver servicios' : ''}><i className="bi bi-search me-1"></i>Consultar</button>
                           <button className={`btn btn-sm fw-bold me-1 ${s.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => s.activo === 1 && handleModificar(s)} disabled={s.activo !== 1 || !canModify} title={!canModify ? 'No tenés permiso para modificar servicios' : ''}><i className="bi bi-pencil-square me-1"></i>Modificar</button>
                           {s.activo === 1 ? (
-                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleEliminar(s.idServicio)} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para eliminar servicios' : ''}><i className="bi bi-trash me-1"></i>Eliminar</button>
+                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleEliminar(s.idServicio)} disabled={!canDeleteEffective} title={!canDeleteEffective ? (isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para eliminar servicios') : ''}><i className="bi bi-trash me-1"></i>Eliminar</button>
                           ) : (
-                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(s.idServicio)} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para reactivar servicios' : ''}><i className="bi bi-arrow-clockwise me-1"></i>Reactivar</button>
+                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(s.idServicio)} disabled={!canDeleteEffective} title={!canDeleteEffective ? (isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para reactivar servicios') : ''}><i className="bi bi-arrow-clockwise me-1"></i>Reactivar</button>
                           )}
                         </td>
                       </tr>
@@ -484,7 +486,7 @@ export default function Servicios() {
                         {/* cantidad removed from modal UI; defaults to 1 */}
                         {(modalModo === "modificar" || modalModo === "alta") && (
                           <div className="col-12 col-md-3">
-                            <button type="button" className="btn btn-sm btn-rojo fw-bold" onClick={() => handleEliminarRepuesto(idx)}>
+                            <button type="button" className="btn btn-sm btn-rojo fw-bold" onClick={() => handleEliminarRepuesto(idx)} disabled={isSalesAdmin} title={isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : ''}>
                                 <i className="bi bi-trash me-1"></i>Eliminar
                             </button>
                           </div>

@@ -230,7 +230,11 @@ export default function Clientes() {
         <div className="modal" style={{ display: 'block' }}>
           <div className="modal-dialog" style={{ maxWidth: '100vw' }}>
             <div className="modal-content" style={{ width: '100vw', maxWidth: '100vw' }}>
-              <div className="modal-header"><h5 className="modal-title">{modalModo === 'consultar' ? <><i className="bi bi-search me-2"></i>Consultar cliente</> : modalModo === 'modificar' ? <><i className="bi bi-pencil-square me-2"></i>Modificar cliente</> : <><i className="bi bi-plus-lg me-2"></i>Nuevo cliente</>}</h5></div>
+              <div className="modal-header">
+                <h5 className="modal-title">{modalModo === 'consultar' ? <><i className="bi bi-search me-2"></i>Consultar cliente</> : modalModo === 'modificar' ? <><i className="bi bi-pencil-square me-2"></i>Modificar cliente</> : <><i className="bi bi-plus-lg me-2"></i>Nuevo cliente</>}</h5>
+                {/* Botón para cerrar el modal con una 'X' */}
+                <button type="button" className="btn-close" aria-label="Cerrar" onClick={() => setModalVisible(false)}></button>
+              </div>
               <div className="modal-body" style={{ padding: 0 }}>
                 <form className="form-container" onSubmit={modalModo === 'modificar' ? handleUpdate : modalModo === 'alta' ? handleSubmit : undefined}>
                   <fieldset style={{ border: 'none' }}>
