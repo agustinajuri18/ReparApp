@@ -36,12 +36,30 @@ export default function Login() {
       // store session id and redirect
       localStorage.setItem('idSesion', j.idSesion);
       localStorage.setItem('idUsuario', j.idUsuario);
-      // If backend returned cargo/permisos in login response, save them to context
+      // If backend returned cargo/permisos in login response, save them to context.
+      // Otherwise fetch /session/<idSesion> immediately to populate identity before navigating.
       try {
         if (permCtx && typeof permCtx.setIdentity === 'function') {
-          const identity = { idCargo: j.idCargo ?? j.cargoId ?? null, permisos: j.permisos ?? j.permisosIds ?? [] };
-          // persist identity in PermissionContext (also saved to localStorage there)
-          permCtx.setIdentity(identity);
+          const maybeIdentity = j.idCargo || j.permisos ? { idCargo: j.idCargo ?? j.cargoId ?? null, permisos: j.permisos ?? j.permisosIds ?? [] } : null;
+          if (maybeIdentity) {
+            permCtx.setIdentity(maybeIdentity);
+            navigate('/');
+            return;
+          }
+          // otherwise fetch session to get cargo/permisos
+          const idSesion = j.idSesion;
+          if (idSesion) {
+            try {
+              const sres = await fetch(`http://localhost:5000/session/${idSesion}`);
+              if (sres.ok) {
+                const sj = await sres.json();
+                const identity = { idCargo: sj.idCargo ?? sj.cargoId ?? null, permisos: sj.permisos ?? sj.permisosIds ?? [] };
+                permCtx.setIdentity(identity);
+              }
+            } catch (e) {
+              console.warn('Login: failed to fetch session for identity', e);
+            }
+          }
         }
       } catch (err) {
         console.warn('Login: failed to persist identity to context', err);
