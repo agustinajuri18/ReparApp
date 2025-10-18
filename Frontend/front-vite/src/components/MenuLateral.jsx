@@ -5,6 +5,44 @@ import { usePermission } from '../auth/PermissionContext';
 import { hasPermission, hasAnyPermission } from '../utils/permissions';
 import ConfirmModal from './ConfirmModal';
 
+// Small panel component to show user's display name and role
+function MenuIdentityPanel({ identity }) {
+  const [displayName, setDisplayName] = React.useState(null);
+  const idUsuario = localStorage.getItem('idUsuario');
+
+  React.useEffect(() => {
+    let mounted = true;
+    const fetchName = async () => {
+      if (!idUsuario) return;
+      try {
+        const res = await fetch(`http://localhost:5000/usuarios/${idUsuario}`);
+        if (!res.ok) return;
+        const j = await res.json();
+        if (mounted) setDisplayName(j.nombreUsuario || j.nombre || null);
+      } catch {
+        // ignore
+      }
+    };
+    fetchName();
+    return () => { mounted = false; };
+  }, [idUsuario]);
+
+  const roleNames = {
+    1: 'Supervisor',
+    2: 'Técnico',
+    3: 'Asistente de ventas',
+    4: 'Asistente de compras'
+  };
+  const roleLabel = roleNames[identity.idCargo] || `Cargo ${identity.idCargo}`;
+
+  return (
+    <div className="w-100 p-2 text-start text-white-50" style={{ fontSize: 12, borderTop: '1px dashed rgba(255,255,255,0.08)', marginTop: 8 }}>
+      <div><strong>Usuario:</strong> {displayName || idUsuario || '—'}</div>
+      <div><strong>Rol:</strong> {roleLabel}</div>
+    </div>
+  );
+}
+
   // Map menu routes to labels and the permiso id(s) required to view them.
 // For `repuestos` we allow multiple related permisos so roles like
 // Asistente de Compras (20/21/22) or Técnico (19/23) can see the menu.
@@ -166,21 +204,9 @@ const MenuLateral = () => {
         </button>
       </div>
 
-      {/* Development-only debug panel: shows cargo and permisos to help diagnose missing menu items */}
-      {import.meta.env.DEV && identity && (
-        <div className="w-100 p-2 small text-start text-white-50" style={{ fontSize: 12 }}>
-          <strong style={{ color: colores.dorado }}>Debug:</strong>
-          <div>Cargo: {identity.idCargo ?? '—'}</div>
-          <div>Permisos: {(Array.isArray(identity.permisos) ? identity.permisos.join(', ') : String(identity.permisos)) || '—'}</div>
-        </div>
-      )}
-
-      {/* Debug: show current identity (cargo + permisos) for troubleshooting when logged in */}
+      {/* Development-only identity panel: show only username and role name */}
       {identity && (
-        <div className="w-100 p-2 text-center text-muted small" style={{ borderTop: '1px dashed rgba(255,255,255,0.08)', marginTop: 8 }}>
-          <div><strong>Cargo:</strong> {identity.idCargo ?? 'N/A'}</div>
-          <div style={{ wordBreak: 'break-word' }}><strong>Permisos:</strong> {Array.isArray(identity.permisos) ? identity.permisos.join(', ') : String(identity.permisos)}</div>
-        </div>
+        <MenuIdentityPanel identity={identity} />
       )}
 
       <ConfirmModal

@@ -17,7 +17,7 @@ if env_url:
     DATABASE_URL = env_url
 else:
     # Construye una URL de sqlite basada en un archivo.
-    db_path = Path(__file__).resolve().parent / "ProyectoV5.db"
+    db_path = Path(__file__).resolve().parent / "ProyectoV6.db"
     DATABASE_URL = f"sqlite:///{db_path.as_posix()}"
 
 engine = create_engine(
