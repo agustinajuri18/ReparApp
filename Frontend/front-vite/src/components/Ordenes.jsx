@@ -407,7 +407,7 @@ function Ordenes() {
       .then(data => {
         console.log('Respuesta aceptar presupuesto:', data);
         if (data && data.success) {
-          setModalMensaje({ tipo: 'success', texto: `Orden #${nro} marcada como ${data.estado || 'EnReparacion'}` });
+          setModalMensaje({ tipo: 'success', texto: `Orden #${nro} marcada como ${data.estado || 'En Reparación'}` });
           setPresupuestoModalVisible(false);
           fetchOrdenes();
         } else {
@@ -1541,7 +1541,7 @@ function Ordenes() {
                     <legend>Avances Técnicos</legend>
 
                     {/* Solo muestra la entrada si está en reparación */}
-                    {form.estado === 'EnReparacion' && (
+                    {form.estado === 'En Reparación' && (
                       <div className="mb-3">
                         <div className="input-group">
                           <input
@@ -1679,7 +1679,7 @@ function Ordenes() {
                     ) : (
                       <div className="alert alert-light text-center">
                         No hay avances registrados para esta orden.
-                        {form.estado === 'EnReparacion' ?
+                        {form.estado === 'En Reparación' ?
                           ' Utilice el formulario superior para registrar un nuevo avance.' :
                           ''}
                       </div>
