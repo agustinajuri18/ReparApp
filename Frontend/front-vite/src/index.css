@@ -175,8 +175,31 @@ button,
   color: var(--color-azul) !important;
 }
 .btn-gris:hover {
+  /* hover: slightly darker gray */
+  background: #cfcfcf !important;
+  color: var(--color-azul) !important;
+}
+
+/* Make small header filter buttons visually consistent with other action buttons */
+.header-filter-btn {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.95rem;
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.header-filter-btn.btn-gris:hover {
+  background: #cfcfcf !important;
+  color: var(--color-azul) !important;
+}
+
+.header-filter-btn.btn-dorado:hover {
   background: var(--color-azul) !important;
-  color: #e0e0e0 !important;
+  color: var(--color-dorado) !important;
+}
+
+.header-filter-btn.btn-verdeAgua:hover {
+  background: var(--color-azul) !important;
+  color: var(--color-verdeAgua) !important;
 }
 
 /* Alertas bonitas y notorias */
@@ -191,6 +214,20 @@ button,
   font-weight: 600;
   border: none;
   font-size: 1.01rem;
+}
+
+/* Alert variants inside modal */
+.modal-content .alert-success {
+  background: linear-gradient(90deg, var(--color-verdeAgua) 0%, #fff0 100%);
+  color: var(--color-azul);
+}
+.modal-content .alert-info {
+  background: linear-gradient(90deg, #dfeeff 0%, #fff0 100%);
+  color: var(--color-azul);
+}
+.modal-content .alert-danger {
+  background: linear-gradient(90deg, var(--color-rojo) 0%, #fff0 100%);
+  color: var(--color-beige);
 }
 
 /* Tablas responsivas y uniformes */

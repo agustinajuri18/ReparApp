@@ -84,7 +84,9 @@ def registrar_orden():
                 descripcionDanos=data.get('descripcionDanos'),
                 diagnostico=data.get('diagnostico'),
                 presupuesto=data.get('presupuesto'),
-                idEmpleado=data.get('idEmpleado')
+                idEmpleado=data.get('idEmpleado'),
+                resultado=data.get('resultado'),
+                informacionAdicional=data.get('informacionAdicional')
             )
 
         # Asignar estado inicial "EnDiagnostico" (buscando robustamente por nombre)
@@ -140,6 +142,8 @@ def modificar_orden_existente(nroDeOrden):
         diagnostico=data.get('diagnostico'),
         presupuesto=data.get('presupuesto'),
         idEmpleado=data.get('idEmpleado'),
+        resultado=data.get('resultado'),
+        informacionAdicional=data.get('informacionAdicional'),
         detalles=detalles_data  # <-- Pasar la lista de detalles
     )
 
@@ -277,6 +281,87 @@ def listar_actualizaciones_orden(nroDeOrden):
             'descripcion': h.descripcion,
         })
     return jsonify(result)
+
+
+@bp.route('/ordenes/<int:nroDeOrden>/solicitar-aprobacion', methods=['POST', 'OPTIONS'])
+@cross_origin()
+def solicitar_aprobacion(nroDeOrden):
+    """
+    Marca la orden como 'PendienteDeAprobacion' añadiendo un registro en HistorialEstadoOrden.
+    """
+    # Responder inmediatamente a preflight OPTIONS para satisfacer CORS
+    if request.method == 'OPTIONS':
+        return make_response('', 200)
+    try:
+        id_pendiente, nombre_pendiente = encontrar_estado_id('PendienteDeAprobacion')
+        if not id_pendiente:
+            return jsonify({'error': 'Estado PendienteDeAprobacion no configurado en la BD'}), 500
+
+        historial = asignar_estado_orden(
+            nroDeOrden=nroDeOrden,
+            idEstado=id_pendiente,
+            fechaCambio=datetime.now(),
+            observaciones=f'Solicitado para aprobación'
+        )
+        return jsonify({'success': True, 'estado': nombre_pendiente}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/ordenes/<int:nroDeOrden>/presupuesto/aceptar', methods=['POST', 'OPTIONS'])
+@cross_origin()
+def presupuesto_aceptar(nroDeOrden):
+    """
+    Marca la orden como 'EnReparacion' cuando se acepta el presupuesto.
+    """
+    # Responder inmediatamente a preflight OPTIONS para satisfacer CORS
+    if request.method == 'OPTIONS':
+        return make_response('', 200)
+    try:
+        id_en_reparacion, nombre = encontrar_estado_id('EnReparacion')
+        if not id_en_reparacion:
+            return jsonify({'error': 'Estado EnReparacion no configurado en la BD'}), 500
+
+        historial = asignar_estado_orden(
+            nroDeOrden=nroDeOrden,
+            idEstado=id_en_reparacion,
+            fechaCambio=datetime.now(),
+            observaciones='Presupuesto aceptado por Administrador de Ventas'
+        )
+        return jsonify({'success': True, 'estado': nombre}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/ordenes/<int:nroDeOrden>/presupuesto/rechazar', methods=['POST', 'OPTIONS'])
+@cross_origin()
+def presupuesto_rechazar(nroDeOrden):
+    """
+    Marca la orden como 'PendienteDeRetiro' cuando se rechaza el presupuesto.
+    """
+    # Responder inmediatamente a preflight OPTIONS para satisfacer CORS
+    if request.method == 'OPTIONS':
+        return make_response('', 200)
+    try:
+        id_retiro, nombre = encontrar_estado_id('PendienteDeRetiro')
+        if not id_retiro:
+            return jsonify({'error': 'Estado PendienteDeRetiro no configurado en la BD'}), 500
+
+        historial = asignar_estado_orden(
+            nroDeOrden=nroDeOrden,
+            idEstado=id_retiro,
+            fechaCambio=datetime.now(),
+            observaciones='Presupuesto rechazado por Administrador de Ventas'
+        )
+        return jsonify({'success': True, 'estado': nombre}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/ordenes/<int:nroDeOrden>/pdf', methods=['GET'])
 @cross_origin()

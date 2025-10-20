@@ -758,10 +758,18 @@ def baja_detalle_orden(idDetalle):
 
 
 # ----------- OrdenDeReparacion -----------
-def alta_orden_de_reparacion(idDispositivo, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None):
+def alta_orden_de_reparacion(idDispositivo, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, resultado=None, informacionAdicional=None):
     with session_scope() as s:
-        o = OrdenDeReparacion(idDispositivo=idDispositivo, fecha=fecha, descripcionDanos=descripcionDanos, 
-                             diagnostico=diagnostico, presupuesto=presupuesto, idEmpleado=idEmpleado)
+        o = OrdenDeReparacion(
+            idDispositivo=idDispositivo,
+            fecha=fecha,
+            descripcionDanos=descripcionDanos,
+            diagnostico=diagnostico,
+            presupuesto=presupuesto,
+            idEmpleado=idEmpleado,
+            resultado=resultado,
+            informacionAdicional=informacionAdicional
+        )
         s.add(o)
         s.commit()
         s.refresh(o)
@@ -789,7 +797,7 @@ def mostrar_ordenes_de_reparacion():
         )
         return q.all()
 
-def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, detalles=None):
+def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, detalles=None, resultado=None, informacionAdicional=None):
     with session_scope() as session:
         try:
             orden = session.query(OrdenDeReparacion).filter_by(nroDeOrden=nroDeOrden).first()
@@ -809,6 +817,11 @@ def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos
                 orden.presupuesto = presupuesto
             if idEmpleado is not None:
                 orden.idEmpleado = idEmpleado
+            # Nuevos campos añadidos a la tabla OrdenDeReparacion
+            if resultado is not None:
+                orden.resultado = resultado
+            if informacionAdicional is not None:
+                orden.informacionAdicional = informacionAdicional
 
             # --- Lógica para sincronizar detalles ---
             if detalles is not None:
@@ -960,6 +973,8 @@ def obtener_ordenes(mode='summary', idCliente=None, idDispositivo=None, nroDeOrd
                 'idDispositivo': getattr(o, 'idDispositivo', None),
                 'fecha': getattr(o, 'fecha', None).isoformat() if getattr(o, 'fecha', None) else None,
                 'descripcionDanos': getattr(o, 'descripcionDanos', None),
+                'resultado': getattr(o, 'resultado', None),
+                'informacionAdicional': getattr(o, 'informacionAdicional', None),
                 'diagnostico': getattr(o, 'diagnostico', None),
                 'precioTotal': float(precio_total),
                 'idEmpleado': getattr(o, 'idEmpleado', None),

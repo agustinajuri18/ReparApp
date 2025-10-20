@@ -24,6 +24,8 @@ function Ordenes() {
   const _canDelete = hasPermission(identity, 32);
   const isSalesAdmin = identity?.idCargo === 3; // Asistente de ventas -> idCargo 3
   const isTecnico = identity?.idCargo === 2; // Técnico -> idCargo 2
+  const [showOnlyEnDiagnostico, setShowOnlyEnDiagnostico] = useState(false);
+  const [showOnlyPendienteAprobacion, setShowOnlyPendienteAprobacion] = useState(false);
   const [ordenes, setOrdenes] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [empleados, setEmpleados] = useState([]);
@@ -37,6 +39,29 @@ function Ordenes() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState('alta');
+  const [presupuestoModalVisible, setPresupuestoModalVisible] = useState(false);
+  const [presupuestoDetalles, setPresupuestoDetalles] = useState([]);
+  const [presupuestoCalc, setPresupuestoCalc] = useState(0);
+  const [presupuestoNroOrden, setPresupuestoNroOrden] = useState(null);
+
+  // Helper: normalize string, remove accents/diacritics, whitespace and lower-case
+  const _normalize = (s) => {
+    if (!s && s !== 0) return '';
+    try {
+      return String(s)
+        .normalize('NFKD')
+        .replace(/\p{Diacritic}/gu, '')
+        .replace(/\s+/g, '')
+        .toLowerCase();
+    } catch (e) {
+      // Fallback for environments without unicode property escapes
+      return String(s)
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, '')
+        .toLowerCase();
+    }
+  };
 
   const [proveedoresFiltrados, setProveedoresFiltrados] = useState([]);
 
@@ -323,6 +348,96 @@ function Ordenes() {
     if (!canView) { setMensaje('No tenés permiso para generar PDF de órdenes.'); return; }
     // Abrir la página de previsualización en una nueva ventana
     window.open(`${API_URL}/${nroDeOrden}/preview`, '_blank', 'width=1000,height=800');
+  };
+
+  // Abrir modal de calcular presupuesto (solo frontend: trae detalles y calcula total)
+  const handleAbrirCalcularPresupuesto = (orden) => {
+    const nro = orden.nroDeOrden;
+    setPresupuestoNroOrden(nro);
+    // Intentar obtener detalles via endpoint existente
+    fetch(`${API_URL}/${nro}`)
+      .then(res => {
+        if (!res.ok) return Promise.reject(new Error('No se pudo obtener la orden'));
+        return res.json();
+      })
+      .then(data => {
+        const detalles = Array.isArray(data.detalles) ? data.detalles : (data.detalles || []);
+        setPresupuestoDetalles(detalles);
+        // calcular total sumando los subtotales
+        const total = detalles.reduce((s, d) => s + Number(d.subtotal || 0), 0);
+  setPresupuestoCalc(total);
+        setPresupuestoModalVisible(true);
+      })
+      .catch(err => {
+        console.error('Error al obtener detalles para presupuesto:', err);
+        setPresupuestoDetalles([]);
+  setPresupuestoCalc(0);
+        setPresupuestoModalVisible(true);
+      });
+  };
+
+  // Acciones desde el modal de presupuesto para administradores de ventas
+  const handlePresupuestoAceptar = (nro) => {
+    console.log('Llamando a aceptar presupuesto para orden', nro);
+    fetch(`${API_URL}/${nro}/presupuesto/aceptar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario: identity?.nombre || 'admin' })
+    })
+      .then(async res => {
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '');
+          console.error('Respuesta no OK:', res.status, txt);
+          throw new Error(`HTTP ${res.status} ${txt}`);
+        }
+        // Intentar parsear JSON de forma segura
+        return res.json().catch(() => ({}));
+      })
+      .then(data => {
+        console.log('Respuesta aceptar presupuesto:', data);
+        if (data && data.success) {
+          setModalMensaje({ tipo: 'success', texto: `Orden #${nro} marcada como ${data.estado || 'EnReparacion'}` });
+          setPresupuestoModalVisible(false);
+          fetchOrdenes();
+        } else {
+          setModalMensaje({ tipo: 'danger', texto: data.error || 'No se pudo aceptar el presupuesto.' });
+        }
+      })
+      .catch(err => {
+        console.error('Error aceptar presupuesto:', err);
+        setModalMensaje({ tipo: 'danger', texto: `Error al aceptar presupuesto: ${err.message || err}` });
+      });
+  };
+
+  const handlePresupuestoRechazar = (nro) => {
+    console.log('Llamando a rechazar presupuesto para orden', nro);
+    fetch(`${API_URL}/${nro}/presupuesto/rechazar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario: identity?.nombre || 'admin' })
+    })
+      .then(async res => {
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '');
+          console.error('Respuesta no OK:', res.status, txt);
+          throw new Error(`HTTP ${res.status} ${txt}`);
+        }
+        return res.json().catch(() => ({}));
+      })
+      .then(data => {
+        console.log('Respuesta rechazar presupuesto:', data);
+        if (data && data.success) {
+          setModalMensaje({ tipo: 'success', texto: `Orden #${nro} marcada como ${data.estado || 'PendienteDeRetiro'}` });
+          setPresupuestoModalVisible(false);
+          fetchOrdenes();
+        } else {
+          setModalMensaje({ tipo: 'danger', texto: data.error || 'No se pudo rechazar el presupuesto.' });
+        }
+      })
+      .catch(err => {
+        console.error('Error rechazar presupuesto:', err);
+        setModalMensaje({ tipo: 'danger', texto: `Error al rechazar presupuesto: ${err.message || err}` });
+      });
   };
 
   const handleConsultar = (orden) => {
@@ -624,6 +739,29 @@ function Ordenes() {
     setNuevoDetalleErrors(validarNuevoDetalle(updatedDetalle)); // Agrega validación en tiempo real
   };
 
+  // Solicitar aprobación: cambiar estado a PendienteDeAprobacion
+  const handleSolicitarAprobacion = (nro) => {
+    fetch(`${API_URL}/${nro}/solicitar-aprobacion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success) {
+          setModalMensaje({ tipo: 'success', texto: 'Orden marcada como Pendiente de Aprobación.' });
+          fetchOrdenes();
+          // actualizar estado local del form para reflejar el cambio
+          setForm(prev => ({ ...prev, estado: data.estado || 'PendienteDeAprobacion' }));
+        } else {
+          setModalMensaje({ tipo: 'danger', texto: data.error || 'No se pudo solicitar aprobación.' });
+        }
+      })
+      .catch(err => {
+        console.error('Error solicitar aprobacion:', err);
+        setModalMensaje({ tipo: 'danger', texto: 'Error de red al solicitar aprobación.' });
+      });
+  };
+
 
   // --- Acciones CRUD ---
   const handleSubmit = (e) => {
@@ -908,7 +1046,29 @@ function Ordenes() {
           <div className="card shadow-sm mb-4" style={{ border: `1.5px solid #1f3345`, borderRadius: 16, background: "var(--color-beige)" }}>
             <div className="card-header d-flex justify-content-between align-items-center" style={{ background: '#1f3345', color: '#f0ede5', borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
               <h4 className="mb-0"><i className="bi bi-clipboard-data me-2"></i>Gestión de Órdenes</h4>
+              <div className="d-flex align-items-center gap-2">
+                {isTecnico && (
+                  <button
+                    type="button"
+                    className={`btn header-filter-btn ${showOnlyEnDiagnostico ? 'btn-dorado' : 'btn-gris'}`}
+                    onClick={() => setShowOnlyEnDiagnostico(v => !v)}
+                    title="Filtrar órdenes en diagnóstico"
+                  >
+                    En Diagnostico
+                  </button>
+                )}
+                {isSalesAdmin && (
+                  <button
+                    type="button"
+                    className={`btn header-filter-btn ${showOnlyPendienteAprobacion ? 'btn-dorado' : 'btn-gris'}`}
+                    onClick={() => setShowOnlyPendienteAprobacion(v => !v)}
+                    title="Filtrar órdenes pendientes de aprobación"
+                  >
+                    Pendiente Aprob.
+                  </button>
+                )}
                 {canCreate ? <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar Orden</button> : <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear órdenes"><i className="bi bi-plus-lg"></i> Agregar Orden</button>}
+              </div>
             </div>
             <div className="card-body">
               {/* quitar el alert de mensaje general */}
@@ -927,7 +1087,16 @@ function Ordenes() {
                     </tr>
                   </thead>
                   <tbody>
-                    {ordenes.map((o) => (
+                    {ordenes
+                      .filter(o => {
+                        // If no filter toggles are active, show all
+                        if (!showOnlyEnDiagnostico && !showOnlyPendienteAprobacion) return true;
+                        const estado = _normalize(o.estado || '');
+                        const matchesDiagnostico = showOnlyEnDiagnostico && estado.includes('diagnost');
+                        const matchesPendiente = showOnlyPendienteAprobacion && estado.includes('pendientedeaprobacion');
+                        return Boolean(matchesDiagnostico || matchesPendiente);
+                      })
+                      .map((o) => (
                       <tr key={String(o.nroDeOrden)}>
                         <td>{o.nroDeOrden}</td>
                         <td>{o.dispositivo_info}</td>
@@ -940,20 +1109,29 @@ function Ordenes() {
                         <td>{o.estado}</td> {/* Mostramos el estado actual */}
                         <td>{o.diagnostico}</td>
                         <td>
+                            {/* Mostrar botón calcular presupuesto SOLO cuando el filtro PendienteAprobación está activo */}
+                            {showOnlyPendienteAprobacion && (
+                              <button className="btn btn-sm btn-azul fw-bold me-1" onClick={() => handleAbrirCalcularPresupuesto(o)}>
+                                <i className="bi bi-calculator me-1"></i>Calcular Presupuesto
+                              </button>
+                            )}
                           <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
                             <i className="bi bi-search me-1"></i>Consultar
                           </button>
                           <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarPDF(o.nroDeOrden)}>
                             <i className="bi bi-file-earmark-pdf me-1"></i>Emitir
                           </button>
-                          {(isTecnico || (canModify && !isSalesAdmin)) ? (
-                            <button className="btn btn-sm btn-dorado fw-bold" onClick={() => handleModificar(o)}>
-                              <i className="bi bi-pencil-square me-1"></i>Modificar
-                            </button>
-                          ) : (
-                            <button className="btn btn-sm btn-dorado fw-bold" disabled title={isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para modificar órdenes'}>
-                              <i className="bi bi-pencil-square me-1"></i>Modificar
-                            </button>
+                          {/* Ocultar el botón Modificar cuando se está filtrando por PendienteDeAprobacion */}
+                          {!showOnlyPendienteAprobacion && (
+                            (isTecnico || (canModify && !isSalesAdmin)) ? (
+                              <button className="btn btn-sm btn-dorado fw-bold" onClick={() => handleModificar(o)}>
+                                <i className="bi bi-pencil-square me-1"></i>Modificar
+                              </button>
+                            ) : (
+                              <button className="btn btn-sm btn-dorado fw-bold" disabled title={isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para modificar órdenes'}>
+                                <i className="bi bi-pencil-square me-1"></i>Modificar
+                              </button>
+                            )
                           )}
                         </td>
                       </tr>
@@ -965,6 +1143,66 @@ function Ordenes() {
           </div>
         </main>
       </div>
+
+      {/* Modal para mostrar detalles y presupuesto calculado */}
+      {presupuestoModalVisible && (
+        <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1065 }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Presupuesto - Orden #{presupuestoNroOrden}</h5>
+                <button type="button" className="btn-close" onClick={() => setPresupuestoModalVisible(false)}></button>
+              </div>
+              <div className="modal-body">
+                {presupuestoDetalles && presupuestoDetalles.length > 0 ? (
+                  <div>
+                    <table className="table table-striped">
+                      <thead>
+                        <tr>
+                          <th>Servicio</th>
+                          <th>Repuesto</th>
+                          <th>Proveedor</th>
+                          <th>Costo Servicio</th>
+                          <th>Costo Repuesto</th>
+                          <th>Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {presupuestoDetalles.map((d) => (
+                          <tr key={d.idDetalle || JSON.stringify(d)}>
+                            <td>{d.servicioDescripcion}</td>
+                            <td>{d.repuestoDescripcion}</td>
+                            <td>{d.proveedorRazonSocial || (d.proveedor && d.proveedor.razonSocial)}</td>
+                            <td>{Number(d.costoServicio || 0).toFixed(2)}</td>
+                            <td>{Number(d.costoRepuesto || 0).toFixed(2)}</td>
+                            <td>{Number(d.subtotal || 0).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="text-end fw-bold">Presupuesto final: ${Number(presupuestoCalc || 0).toFixed(2)}</div>
+                  </div>
+                ) : (
+                  <div className="text-center text-muted">No se pudieron obtener los detalles de la orden.</div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-dorado" onClick={() => setPresupuestoModalVisible(false)}>Cerrar</button>
+                {isSalesAdmin && (
+                  <>
+                    <button type="button" className="btn btn-success me-2" onClick={() => handlePresupuestoAceptar(presupuestoNroOrden)}>
+                      Aceptar
+                    </button>
+                    <button type="button" className="btn btn-danger" onClick={() => handlePresupuestoRechazar(presupuestoNroOrden)}>
+                      Rechazar
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modalVisible && (
         <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1040 }}>
@@ -1375,7 +1613,25 @@ function Ordenes() {
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn btn-dorado" onClick={handleModalClose}>Cerrar</button>
-                  {modalModo !== 'consultar' && <button type="submit" className="btn btn-azul">Guardar</button>}
+                  {modalModo === 'modificar' && isTecnico && (
+                    <button
+                      type="button"
+                      className="btn btn-dorado me-2"
+                      onClick={() => handleSolicitarAprobacion(form.nroDeOrden)}
+                      disabled={!(detalles && detalles.length >= 1)}
+                      title={!(detalles && detalles.length >= 1) ? 'Debe agregar al menos 1 detalle antes de confirmar' : ''}
+                    >
+                      Confirmar
+                    </button>
+                  )}
+                  {modalModo !== 'consultar' && (
+                    <button
+                      type="submit"
+                      className="btn btn-azul"
+                    >
+                      Guardar
+                    </button>
+                  )}
                 </div>
               </form>
             </div>

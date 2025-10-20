@@ -153,6 +153,8 @@ class OrdenDeReparacion(Base):
     diagnostico = Column(String)
     presupuesto = Column(Integer)
     idEmpleado = Column(Integer, ForeignKey("Empleado.idEmpleado"))
+    resultado = Column(String)
+    informacionAdicional = Column(String)
 
     dispositivo = relationship("Dispositivo", back_populates="ordenes")
     empleado = relationship("Empleado", back_populates="ordenes")
