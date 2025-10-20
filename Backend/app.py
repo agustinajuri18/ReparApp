@@ -1,3 +1,9 @@
+import sys
+major, minor = sys.version_info[:2]
+MIN_MAJOR, MIN_MINOR = 3, 11
+if (major, minor) < (MIN_MAJOR, MIN_MINOR):
+    sys.exit(f"Python {MIN_MAJOR}.{MIN_MINOR}+ is required. Ejecutando: {major}.{minor}")
+
 from flask import Flask, jsonify
 from flask_cors import CORS
 
