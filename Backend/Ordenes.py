@@ -541,9 +541,42 @@ def generar_pdf_orden(nroDeOrden):
         elements.append(Spacer(1, 15))
         
         # Información del cliente y dispositivo en 2 columnas
+        # Construir bloque de cliente con campos separados si están disponibles
+        cliente_text_lines = []
+        cliente = orden.get('cliente') if isinstance(orden.get('cliente'), dict) else None
+        # Si la estructura viene bajo dispositivo.cliente
+        if not cliente and isinstance(orden.get('dispositivo'), dict):
+            cliente = orden.get('dispositivo', {}).get('cliente') if isinstance(orden.get('dispositivo', {}).get('cliente'), dict) else None
+
+        if cliente:
+            nombre = cliente.get('nombre') or ''
+            apellido = cliente.get('apellido') or ''
+            if nombre or apellido:
+                cliente_text_lines.append(f"Nombre: {nombre} {apellido}".strip())
+            nro_doc = cliente.get('numeroDoc') or cliente.get('dni') or cliente.get('documento')
+            if nro_doc:
+                cliente_text_lines.append(f"Documento: {nro_doc}")
+            telefono = cliente.get('telefono') or cliente.get('telefonoCelular') or cliente.get('telefonoContacto')
+            if telefono:
+                cliente_text_lines.append(f"Tel: {telefono}")
+            email = cliente.get('email') or cliente.get('mail')
+            if email:
+                cliente_text_lines.append(f"Email: {email}")
+            direccion = cliente.get('direccion') or cliente.get('domicilio') or cliente.get('direccionFiscal')
+            if direccion:
+                cliente_text_lines.append(f"Domicilio: {direccion}")
+        else:
+            # Fallback a cliente_info string si existe
+            if orden.get('cliente_info'):
+                cliente_text_lines.append(orden.get('cliente_info'))
+            else:
+                cliente_text_lines.append('No disponible')
+
+        cliente_block_text = '<br/>'.join(cliente_text_lines)
+
         client_device_info = [
             [
-                Paragraph("<b>CLIENTE</b><br/>" + (orden.get('cliente_info', 'No disponible')), normal_style),
+                Paragraph("<b>CLIENTE</b><br/>" + cliente_block_text, normal_style),
                 Paragraph("<b>DISPOSITIVO</b><br/>" + (orden.get('dispositivo_info', 'No disponible')), normal_style)
             ]
         ]
@@ -873,38 +906,170 @@ def comprobante_retiro(nroDeOrden):
         if not fecha_retiro:
             fecha_retiro = datetime.now().isoformat()
 
-        # construir PDF simple
+        # construir PDF con layout tipo 'orden de retiro' parecido al diseño entregado
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter,
                               rightMargin=36, leftMargin=36,
                               topMargin=36, bottomMargin=36)
         styles = getSampleStyleSheet()
         normal = styles['Normal']
-        title = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=14, alignment=1)
+        normal.fontSize = 9
+        title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=28, alignment=1, fontName='Helvetica-Bold', textColor=colors.HexColor('#123847'))
+        section_style = ParagraphStyle('Section', parent=styles['Heading2'], fontSize=11, fontName='Helvetica-Bold', textColor=colors.HexColor('#0d6b66'))
+        small = ParagraphStyle('Small', parent=styles['Normal'], fontSize=9, textColor=colors.gray)
 
         elements = []
-        elements.append(Paragraph('COMPROBANTE DE RETIRO', title))
-        elements.append(Spacer(1, 12))
 
-        cliente = orden.get('cliente_info') or ''
-        dispositivo = orden.get('dispositivo_info') or ''
-        nro = orden.get('nroDeOrden') or ''
+        # Header: logo izquierdo, título grande a la derecha
+        logo_path = os.path.join(os.path.dirname(__file__), 'static', 'logo.png')
+        logo_exists = os.path.exists(logo_path)
+        logo_img = Image(logo_path, 1.6*inch, 1.6*inch) if logo_exists else ''
 
-        lines = [
-            f'Nro de Orden: {nro}',
-            f'Cliente: {cliente}',
-            f'Dispositivo: {dispositivo}',
-            f'Fecha de retiro: {fecha_retiro}',
-            '',
-            'Recibí conformidad del dispositivo y entrego el comprobante de retiro.',
-            '\n\nFirma del cliente: ____________________________',
-            '\n\nDocumento del cliente: ________________________'
+        header_right = [
+            Paragraph('ORDEN DE RETIRO', title_style),
+            Spacer(1,6),
+            Paragraph('Orden Nro: <b>%s</b>' % (orden.get('nroDeOrden','')), small),
+            Paragraph('Fecha: <b>%s</b>' % (orden.get('fecha','')), small)
         ]
 
-        for l in lines:
-            elements.append(Paragraph(l, normal))
-            elements.append(Spacer(1, 6))
+        header_table = Table([[logo_img, header_right]], colWidths=[1.8*inch, 5.2*inch])
+        header_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN', (1,0), (1,0), 'RIGHT'),
+            ('LEFTPADDING', (0,0), (-1,-1), 6),
+            ('RIGHTPADDING', (0,0), (-1,-1), 6),
+        ]))
+        # Banner decorativo superior (color suave detrás del header)
+        banner = Table([[ ' ' ]], colWidths=[7.0*inch], rowHeights=[0.55*inch])
+        banner.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (0,0), colors.HexColor('#f0eede')),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ]))
 
+        elements.append(banner)
+        elements.append(Spacer(1,6))
+        elements.append(header_table)
+        elements.append(Spacer(1, 12))
+
+        # Info cliente (izquierda) y datos orden (derecha)
+        # Construir bloque de cliente con campos separados si están disponibles
+        cliente_text_lines = []
+        cliente = orden.get('cliente') if isinstance(orden.get('cliente'), dict) else None
+        if not cliente and isinstance(orden.get('dispositivo'), dict):
+            cliente = orden.get('dispositivo', {}).get('cliente') if isinstance(orden.get('dispositivo', {}).get('cliente'), dict) else None
+
+        if cliente:
+            nombre = cliente.get('nombre') or ''
+            apellido = cliente.get('apellido') or ''
+            if nombre or apellido:
+                cliente_text_lines.append(f"Nombre: {nombre} {apellido}".strip())
+            nro_doc = cliente.get('numeroDoc') or cliente.get('dni') or cliente.get('documento')
+            if nro_doc:
+                cliente_text_lines.append(f"Documento: {nro_doc}")
+            telefono = cliente.get('telefono') or cliente.get('telefonoCelular') or cliente.get('telefonoContacto')
+            if telefono:
+                cliente_text_lines.append(f"Tel: {telefono}")
+            email = cliente.get('email') or cliente.get('mail')
+            if email:
+                cliente_text_lines.append(f"Email: {email}")
+            direccion = cliente.get('direccion') or cliente.get('domicilio') or cliente.get('direccionFiscal')
+            if direccion:
+                cliente_text_lines.append(f"Domicilio: {direccion}")
+        else:
+            if orden.get('cliente_info'):
+                cliente_text_lines.append(orden.get('cliente_info'))
+            else:
+                cliente_text_lines.append('No disponible')
+
+        cliente_block_text = '<br/>'.join(cliente_text_lines)
+        cliente_block = Paragraph('<b>INFORMACIÓN DEL CLIENTE</b><br/>' + cliente_block_text, normal)
+        orden_block = Paragraph('<b>ORDEN NRO:</b><br/>' + str(orden.get('nroDeOrden') or '') + '<br/><br/><b>FECHA:</b><br/>' + str(fecha_retiro), normal)
+        info_table = Table([[cliente_block, orden_block]], colWidths=[4.6*inch, 2.4*inch])
+        info_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('LEFTPADDING', (0,0), (-1,-1), 6),
+            ('RIGHTPADDING', (0,0), (-1,-1), 6),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 16))
+
+        # Detalles: tabla con cabecera destacada
+        detalles = orden.get('detalles') or []
+        data = [[Paragraph('<b>DETALLE</b>', section_style), Paragraph('<b>Subtotal</b>', section_style)]]
+        if detalles:
+            for det in detalles:
+                desc = det.get('servicioDescripcion') or det.get('repuestoDescripcion') or det.get('descripcion') or ''
+                subtotal = det.get('subtotal', det.get('precio', 0)) or 0
+                data.append([Paragraph(str(desc), normal), Paragraph(f"${float(subtotal):.2f}", normal)])
+        else:
+            # filas vacías para mantener layout similar
+            data.append([Paragraph('-', normal), Paragraph('$0.00', normal)])
+
+        table = Table(data, colWidths=[5.0*inch, 1.0*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#7fb6b1')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('ALIGN', (1,1), (1,-1), 'RIGHT'),
+            ('GRID', (0,0), (-1,-1), 0.25, colors.HexColor('#d9e6e3')),
+            ('LEFTPADDING', (0,0), (-1,-1), 8),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ]))
+        elements.append(table)
+        elements.append(Spacer(1, 12))
+
+        # Total destacado (usar precioTotal si existe)
+        precio_total = orden.get('precioTotal')
+        if precio_total is None:
+            # intentar sumar subtotales
+            try:
+                precio_total = sum([float(d.get('subtotal', d.get('precio', 0) or 0)) for d in detalles])
+            except Exception:
+                precio_total = 0
+
+        total_table = Table([[Paragraph('<b>TOTAL</b>', ParagraphStyle('TotLab', parent=styles['Normal'], fontSize=10, alignment=1, textColor=colors.white)), Paragraph(f"${float(precio_total):.2f}", ParagraphStyle('TotVal', parent=styles['Normal'], fontSize=10, alignment=1, textColor=colors.white))]], colWidths=[5.0*inch, 1.0*inch])
+        total_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#2c6f6a')),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.white),
+            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#2c6f6a')),
+            ('LEFTPADDING', (0,0), (-1,-1), 6),
+            ('RIGHTPADDING', (0,0), (-1,-1), 6),
+        ]))
+        elements.append(total_table)
+        elements.append(Spacer(1, 24))
+
+        # Pie: intentar incluir robot decorativo a la izquierda y firma a la derecha
+        # Preferencia de ruta: usuario Downloads (si existe) -> Backend/static/robot.png
+        user_robot_path = r"C:\Users\LENOVO\Downloads\repi destornillador.png"
+        static_robot_path = os.path.join(os.path.dirname(__file__), 'static', 'robot.png')
+        robot_img = None
+        if os.path.exists(user_robot_path):
+            try:
+                robot_img = Image(user_robot_path, 1.6*inch, 1.6*inch)
+            except Exception:
+                robot_img = None
+        elif os.path.exists(static_robot_path):
+            try:
+                robot_img = Image(static_robot_path, 1.6*inch, 1.6*inch)
+            except Exception:
+                robot_img = None
+
+        sig_table = Table([[Paragraph('Firma', small), '______________________________']], colWidths=[1.5*inch, 4.5*inch])
+        sig_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+
+        if robot_img:
+            footer_row = [[robot_img, sig_table]]
+            footer_table = Table(footer_row, colWidths=[1.8*inch, 5.2*inch])
+            footer_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('LEFTPADDING',(0,0),(0,0),6)]))
+            elements.append(footer_table)
+        else:
+            elements.append(sig_table)
+        elements.append(Spacer(1, 6))
+        elements.append(Paragraph('Gracias por confiar en nuestros servicios técnicos.', small))
+
+        # Generar PDF
         doc.build(elements)
         buffer.seek(0)
         resp = make_response(buffer.getvalue())
@@ -920,23 +1085,50 @@ def comprobante_retiro(nroDeOrden):
 @bp.route('/ordenes/<int:nroDeOrden>/comprobante-retiro/preview', methods=['GET'])
 @cross_origin()
 def preview_comprobante_retiro(nroDeOrden):
-    html = f"""
-    <!doctype html>
-    <html>
-    <head><meta charset="utf-8"><title>Comprobante Retiro #{nroDeOrden}</title></head>
-    <body style="margin:0;padding:20px;background:#f8f9fa;">
-    <div style="max-width:900px;margin:0 auto;background:white;padding:20px;border-radius:8px;">
-      <h2>Comprobante de Retiro - Orden #{nroDeOrden}</h2>
-      <div style="margin-top:12px;">
-        <object data="/ordenes/{nroDeOrden}/comprobante-retiro" type="application/pdf" width="100%" height="700px">
-          <p>Tu navegador no puede mostrar el PDF. <a href="/ordenes/{nroDeOrden}/comprobante-retiro">Descargar comprobante</a></p>
-        </object>
-      </div>
-    </div>
-    </body>
-    </html>
-    """
-    return html
+            logo_url = '/static/logo.png'
+            html_template = """
+            <!doctype html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width,initial-scale=1">
+                <title>Orden de Retiro #__NRO__</title>
+                <style>
+                    body { margin:0; padding:20px; background:#f2f4f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; }
+                    .card { max-width:900px; margin:0 auto; background:#fff; border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,0.08); overflow:hidden; }
+                    .header { display:flex; align-items:center; gap:16px; padding:20px 28px; border-bottom:1px solid #e9edf2; }
+                    .logo { height:72px; width:auto; }
+                    .title { flex:1; text-align:right; color:#123847; font-weight:800; font-size:30px; letter-spacing:3px; }
+                    .pdf-wrap { padding:20px; }
+                    .actions { display:flex; gap:12px; justify-content:center; padding:18px; border-top:1px solid #e9edf2; background:#fafbfc; }
+                    .btn { display:inline-block; background:#0b8f6b; color:white; padding:10px 16px; border-radius:8px; text-decoration:none; font-weight:600; }
+                    .btn.secondary { background:#6c757d; }
+                    @media print { .header, .actions { display:none!important; } .pdf-wrap { padding:0; } }
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <div class="header">
+                        <div style="flex:0 0 auto;"><img src="__LOGO_URL__" class="logo" alt="logo" onerror="this.style.display='none'"/></div>
+                        <div class="title">COMPROBANTE<br/>DE RETIRO<br/><small style="font-size:12px; font-weight:600; color:#4b6b7a;">Orden #__NRO__</small></div>
+                    </div>
+                    <div class="pdf-wrap">
+                        <object data="/ordenes/__NRO__/comprobante-retiro" type="application/pdf" width="100%" height="720px">
+                            <p>Tu navegador no puede mostrar el PDF. <a href="/ordenes/__NRO__/comprobante-retiro">Descargar Orden de Retiro</a></p>
+                        </object>
+                    </div>
+                    <div class="actions">
+                        <a class="btn" href="/ordenes/__NRO__/comprobante-retiro" download><i class="fa fa-download"></i>&nbsp;Descargar PDF</a>
+                        <a class="btn secondary" href="#" onclick="window.print();return false;">Imprimir</a>
+                        <a class="btn secondary" href="#" onclick="window.close();return false;">Cerrar</a>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            # usar reemplazo simple para no interpretar llaves del CSS
+            html = html_template.replace('__NRO__', str(nroDeOrden)).replace('__LOGO_URL__', logo_url)
+            return html
 
 
 # ----------------- Reportes -----------------

@@ -1154,8 +1154,8 @@ function Ordenes() {
                               <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
                                 <i className="bi bi-search me-1"></i>Consultar
                               </button>
-                              {((o.fechaInicioRetiro) || (o.estado && (o.estado.toLowerCase().includes('pendiente') && o.estado.toLowerCase().includes('retiro')) || (o.estado && o.estado.toLowerCase().includes('retir')))) && (
-                                                      <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarComprobante(o.nroDeOrden)}>
+                              {((o.fechaInicioRetiro) || (o.estado && ((o.estado.toLowerCase().includes('pendiente') && o.estado.toLowerCase().includes('retiro')) || o.estado.toLowerCase().includes('retir')))) && (
+                                <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarComprobante(o.nroDeOrden)}>
                                   <i className="bi bi-file-earmark-pdf me-1"></i>Comprobante retiro
                                 </button>
                               )}
@@ -1690,8 +1690,8 @@ function Ordenes() {
                 <div className="modal-footer">
                   <button type="button" className="btn btn-dorado" onClick={handleModalClose}>Cerrar</button>
                   {/* Botón para comprobante de retiro: visible si hay fechaInicioRetiro o estado PendienteDeRetiro/Retirada */}
-                  {((form.fechaInicioRetiro) || (form.estado && (form.estado.toLowerCase().includes('pendiente') && form.estado.toLowerCase().includes('retiro')) || (form.estado && form.estado.toLowerCase().includes('retir')))) && (
-                              <button type="button" className="btn btn-sm btn-rojo fw-bold me-2" onClick={() => handleGenerarComprobante(form.nroDeOrden)}>
+                  {((form.fechaInicioRetiro) || (form.estado && ((form.estado.toLowerCase().includes('pendiente') && form.estado.toLowerCase().includes('retiro')) || form.estado.toLowerCase().includes('retir')))) && (
+                    <button type="button" className="btn btn-sm btn-rojo fw-bold me-2" onClick={() => handleGenerarComprobante(form.nroDeOrden)}>
                       <i className="bi bi-file-earmark-pdf me-1"></i>Comprobante de retiro
                     </button>
                   )}

@@ -812,7 +812,7 @@ def alta_orden_de_reparacion(idDispositivo, fecha=None, descripcionDanos=None, d
         s.refresh(o)
         return o
 
-def alta_orden_por_nroSerie(nroSerie, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, resultado =None, informacionAdicional=None):
+def alta_orden_por_nroSerie(nroSerie, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, resultado =None, informacionAdicional=None, fechaInicioRetiro=None):
     """Crea una orden buscando el dispositivo por su número de serie."""
     with session_scope() as s:
         dispositivo = s.query(Dispositivo).filter_by(nroSerie=nroSerie).first()
@@ -834,7 +834,7 @@ def mostrar_ordenes_de_reparacion():
         )
         return q.all()
 
-def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, detalles=None, resultado=None, informacionAdicional=None, fechaInicioRetiro=None):
+def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, detalles=None, resultado=None, informacionAdicional=None):
     with session_scope() as session:
         try:
             orden = session.query(OrdenDeReparacion).filter_by(nroDeOrden=nroDeOrden).first()
@@ -857,41 +857,8 @@ def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos
             # Nuevos campos añadidos a la tabla OrdenDeReparacion
             if resultado is not None:
                 orden.resultado = resultado
-                # Si el resultado indica que la reparación terminó (reparada / no reparada),
-                # setear fechaInicioRetiro automáticamente si aún no está puesta.
-                try:
-                    # Normalizar texto para comparaciones robustas
-                    res_norm = ''.join(ch for ch in (str(resultado) or '').lower() if ch.isalnum())
-                    if 'reparada' in res_norm or ('noreparada' in res_norm) or ('noreparada' == res_norm):
-                        try:
-                            cols = [c['name'] for c in sa_inspect(session.bind).get_columns('OrdenDeReparacion')]
-                        except Exception:
-                            cols = []
-
-                        if 'fechaInicioRetiro' in cols and getattr(orden, 'fechaInicioRetiro', None) is None:
-                            orden.fechaInicioRetiro = datetime.now().date()
-                            print(f"[ABMC_db] modificar_orden: auto-set fechaInicioRetiro for orden {nroDeOrden} due to resultado='{resultado}'")
-                except Exception:
-                    # No queremos que un fallo en este ajuste impida la actualización principal
-                    pass
             if informacionAdicional is not None:
                 orden.informacionAdicional = informacionAdicional
-
-            # Permitir setear fechaInicioRetiro explícitamente (por ejemplo al rechazar presupuesto)
-            if fechaInicioRetiro is not None:
-                try:
-                    cols = [c['name'] for c in sa_inspect(session.bind).get_columns('OrdenDeReparacion')]
-                except Exception:
-                    cols = []
-
-                if 'fechaInicioRetiro' in cols:
-                    try:
-                        orden.fechaInicioRetiro = fechaInicioRetiro
-                        print(f"[ABMC_db] modificar_orden: fechaInicioRetiro set for orden {nroDeOrden} -> {fechaInicioRetiro}")
-                    except Exception as e:
-                        print(f"[ABMC_db] modificar_orden: error setting fechaInicioRetiro for orden {nroDeOrden}: {e}")
-                else:
-                    print(f"[ABMC_db] modificar_orden: columna fechaInicioRetiro no existe, no se puede setear")
 
             # --- Lógica para sincronizar detalles ---
             if detalles is not None:
@@ -1052,6 +1019,15 @@ def obtener_ordenes(mode='summary', idCliente=None, idDispositivo=None, nroDeOrd
                 'dispositivo_info': dispositivo_info,
                 'idCliente': getattr(c, 'idCliente', None) if c else None,
                 'cliente_info': f"{getattr(c,'nombre','') or ''} {getattr(c,'apellido','') or ''} ({getattr(c,'numeroDoc','') or ''})".strip() if c else None,
+                # incluir cliente serializado para facilitar acceso a teléfono / mail en los consumidores (PDFs, previews)
+                'cliente': {
+                    'nombre': getattr(c, 'nombre', None) if c else None,
+                    'apellido': getattr(c, 'apellido', None) if c else None,
+                    'numeroDoc': getattr(c, 'numeroDoc', None) if c else None,
+                    'telefono': getattr(c, 'telefono', None) if c else None,
+                    'mail': getattr(c, 'mail', None) if c else None,
+                    'direccion': getattr(c, 'direccion', None) if c else None,
+                } if c else None,
                 'empleado_info': f"{getattr(e,'nombre','') or ''} {getattr(e,'apellido','') or ''}".strip() if e else None,
                 'estado': getattr(getattr(ultimo_estado, 'estado', None), 'nombre', None) if ultimo_estado else None,
                 'fechaEstado': getattr(ultimo_estado, 'fechaCambio', None).isoformat() if ultimo_estado and getattr(ultimo_estado, 'fechaCambio', None) else None
