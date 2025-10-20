@@ -2,6 +2,8 @@
 :root {
   --color-azul: #1f3345;
   --color-dorado: #c78f57;
+  --sidebar-width: 14rem; /* ancho del sidebar fijo en pantallas md+ */
+  --sidebar-z: 1035;
   --color-rojo: #b54745;
   --color-verdeAgua: #85abab;
   --color-beige: #f0ede5;
@@ -246,6 +248,37 @@ button,
   vertical-align: middle !important;
   font-size: 1rem;
   color: var(--color-azul);
+}
+
+/* Sidebar fijo: aplicamos position:fixed en pantallas md+ y dejamos el layout responsive en móvil */
+.menu-lateral {
+  /* valores por defecto para mobile: se mantiene como bloque normal */
+  position: relative;
+  z-index: var(--sidebar-z);
+}
+
+@media (min-width: 768px) {
+  .menu-lateral {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: var(--sidebar-width);
+    max-width: 22rem;
+    overflow: hidden; /* el listado interno ya tiene overflow-y:auto */
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Shift main content to avoid being cubierto por el sidebar. Use a CSS selector that matches main containers used in pages. */
+  .main-with-sidebar, main.col-md-10 {
+    margin-left: var(--sidebar-width) !important;
+  }
+
+  /* For cases where main element doesn't have the helper class, add a global fallback for the main content inside .row.flex-nowrap */
+  .row.flex-nowrap > main {
+    margin-left: var(--sidebar-width) !important;
+  }
 }
 
 /* Cabeceras de tabla blancas */

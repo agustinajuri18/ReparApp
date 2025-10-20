@@ -24,6 +24,7 @@ function Ordenes() {
   const _canDelete = hasPermission(identity, 32);
   const isSalesAdmin = identity?.idCargo === 3; // Asistente de ventas -> idCargo 3
   const isTecnico = identity?.idCargo === 2; // Técnico -> idCargo 2
+  // Nota: 'Atención al público' no se usa aquí — solo Asistente de ventas (idCargo === 3) mostrará el comprobante.
   const [showOnlyEnDiagnostico, setShowOnlyEnDiagnostico] = useState(false);
   const [showOnlyEnReparacion, setShowOnlyEnReparacion] = useState(false);
   const [showOnlyPendienteAprobacion, setShowOnlyPendienteAprobacion] = useState(false);
@@ -354,6 +355,12 @@ function Ordenes() {
     window.open(`${API_URL}/${nroDeOrden}/preview`, '_blank', 'width=1000,height=800');
   };
 
+  const handleGenerarComprobante = (nroDeOrden) => {
+    if (!canView) { setMensaje('No tenés permiso para generar comprobantes.'); return; }
+    // Abrir preview del comprobante — similar comportamiento al PDF de la orden
+    window.open(`${API_URL}/${nroDeOrden}/comprobante-retiro/preview`, '_blank', 'width=900,height=700');
+  };
+
   // Abrir modal de calcular presupuesto (solo frontend: trae detalles y calcula total)
   const handleAbrirCalcularPresupuesto = (orden) => {
     const nro = orden.nroDeOrden;
@@ -494,6 +501,19 @@ function Ordenes() {
     setAvailableRepuestos([]);
     setProveedoresFiltrados([]);
     setEditingDetalleId(null);
+    // Además, intentar obtener la orden completa para campos como fechaInicioRetiro
+    fetch(`${API_URL}/${orden.nroDeOrden}`)
+      .then(res => res.ok ? res.json() : Promise.reject(res))
+      .then(data => {
+        // data puede ser el detalle completo
+        if (data) {
+          setForm(prev => ({ ...prev, fechaInicioRetiro: data.fechaInicioRetiro || prev.fechaInicioRetiro, estado: data.estado || prev.estado }));
+        }
+      })
+      .catch(err => {
+        // No crítico
+        console.debug('No se pudo obtener orden completa:', err);
+      });
   };
 
   // --- Confirmación de Presupuesto ---
@@ -1134,6 +1154,11 @@ function Ordenes() {
                               <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
                                 <i className="bi bi-search me-1"></i>Consultar
                               </button>
+                              {((o.fechaInicioRetiro) || (o.estado && (o.estado.toLowerCase().includes('pendiente') && o.estado.toLowerCase().includes('retiro')) || (o.estado && o.estado.toLowerCase().includes('retir')))) && (
+                                                      <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarComprobante(o.nroDeOrden)}>
+                                  <i className="bi bi-file-earmark-pdf me-1"></i>Comprobante retiro
+                                </button>
+                              )}
                               {/* 'Terminar' button shown instead of 'Modificar' when viewing En Reparación filter. No functionality yet. */}
                               <button
                                 className="btn btn-sm btn-dorado fw-bold"
@@ -1664,6 +1689,12 @@ function Ordenes() {
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn btn-dorado" onClick={handleModalClose}>Cerrar</button>
+                  {/* Botón para comprobante de retiro: visible si hay fechaInicioRetiro o estado PendienteDeRetiro/Retirada */}
+                  {((form.fechaInicioRetiro) || (form.estado && (form.estado.toLowerCase().includes('pendiente') && form.estado.toLowerCase().includes('retiro')) || (form.estado && form.estado.toLowerCase().includes('retir')))) && (
+                              <button type="button" className="btn btn-sm btn-rojo fw-bold me-2" onClick={() => handleGenerarComprobante(form.nroDeOrden)}>
+                      <i className="bi bi-file-earmark-pdf me-1"></i>Comprobante de retiro
+                    </button>
+                  )}
                   {modalModo === 'modificar' && isTecnico && (
                     <button
                       type="button"

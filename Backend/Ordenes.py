@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, make_response, send_file
 from flask_cors import cross_origin
 from datetime import datetime, date
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib import colors
@@ -15,6 +15,9 @@ from ABMC_db import (
     alta_detalle_orden, modificar_detalle_orden, baja_detalle_orden,
     mostrar_historial_arreglos, alta_historial_arreglos, buscar_por_id
 )
+
+from datetime import timedelta
+
 
 import unicodedata
 
@@ -288,6 +291,7 @@ def confirmar_presupuesto(nroDeOrden):
     return jsonify({'success': True, 'nuevoEstado': nombre_reparacion if aceptado else nombre_desestimada})
 
 @bp.route('/ordenes/<int:nroDeOrden>/actualizaciones', methods=['POST'])
+@cross_origin()
 def registrar_actualizacion_orden(nroDeOrden):
     """
     Registra un avance técnico en la orden.
@@ -318,6 +322,7 @@ def registrar_actualizacion_orden(nroDeOrden):
     return jsonify({'success': True})
 
 @bp.route('/ordenes/<int:nroDeOrden>/actualizaciones', methods=['GET'])
+@cross_origin()
 def listar_actualizaciones_orden(nroDeOrden):
     """
     Devuelve el historial de actualizaciones técnicas de una orden.
@@ -835,3 +840,457 @@ def preview_pdf_orden(nroDeOrden):
     </html>
     """
     return html_content
+
+
+@bp.route('/ordenes/<int:nroDeOrden>/comprobante-retiro', methods=['GET'])
+@cross_origin()
+def comprobante_retiro(nroDeOrden):
+    """
+    Genera un comprobante de retiro (PDF) para la orden indicado.
+    Intenta usar la fecha de retiro (fechaInicioRetiro) si existe, o la última
+    fecha de estado que contenga 'retir' si está disponible.
+    """
+    try:
+        from ABMC_db import obtener_ordenes
+        ordenes = obtener_ordenes(mode='detail', nroDeOrden=nroDeOrden)
+        if not ordenes:
+            return jsonify({'error': 'Orden no encontrada'}), 404
+
+        orden = ordenes[0]
+
+        # determinar fecha de retiro
+        fecha_retiro = orden.get('fechaInicioRetiro') or None
+        if not fecha_retiro:
+            # buscar en historial_estados una entrada con 'retir' en el nombre u observaciones
+            hs = orden.get('historial_estados', [])
+            for h in reversed(hs):
+                obs = (h.get('observaciones') or '').lower()
+                estado_nombre = (h.get('estado_nombre') or '')
+                if 'retir' in obs or 'retir' in (estado_nombre or '').lower() or 'retir' in (h.get('observaciones') or '').lower():
+                    fecha_retiro = h.get('fechaCambio')
+                    break
+
+        if not fecha_retiro:
+            fecha_retiro = datetime.now().isoformat()
+
+        # construir PDF simple
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter,
+                              rightMargin=36, leftMargin=36,
+                              topMargin=36, bottomMargin=36)
+        styles = getSampleStyleSheet()
+        normal = styles['Normal']
+        title = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=14, alignment=1)
+
+        elements = []
+        elements.append(Paragraph('COMPROBANTE DE RETIRO', title))
+        elements.append(Spacer(1, 12))
+
+        cliente = orden.get('cliente_info') or ''
+        dispositivo = orden.get('dispositivo_info') or ''
+        nro = orden.get('nroDeOrden') or ''
+
+        lines = [
+            f'Nro de Orden: {nro}',
+            f'Cliente: {cliente}',
+            f'Dispositivo: {dispositivo}',
+            f'Fecha de retiro: {fecha_retiro}',
+            '',
+            'Recibí conformidad del dispositivo y entrego el comprobante de retiro.',
+            '\n\nFirma del cliente: ____________________________',
+            '\n\nDocumento del cliente: ________________________'
+        ]
+
+        for l in lines:
+            elements.append(Paragraph(l, normal))
+            elements.append(Spacer(1, 6))
+
+        doc.build(elements)
+        buffer.seek(0)
+        resp = make_response(buffer.getvalue())
+        resp.headers['Content-Type'] = 'application/pdf'
+        resp.headers['Content-Disposition'] = f'inline; filename=comprobante_retiro_{nroDeOrden}.pdf'
+        return resp
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Error al generar comprobante: {str(e)}'}), 500
+
+
+@bp.route('/ordenes/<int:nroDeOrden>/comprobante-retiro/preview', methods=['GET'])
+@cross_origin()
+def preview_comprobante_retiro(nroDeOrden):
+    html = f"""
+    <!doctype html>
+    <html>
+    <head><meta charset="utf-8"><title>Comprobante Retiro #{nroDeOrden}</title></head>
+    <body style="margin:0;padding:20px;background:#f8f9fa;">
+    <div style="max-width:900px;margin:0 auto;background:white;padding:20px;border-radius:8px;">
+      <h2>Comprobante de Retiro - Orden #{nroDeOrden}</h2>
+      <div style="margin-top:12px;">
+        <object data="/ordenes/{nroDeOrden}/comprobante-retiro" type="application/pdf" width="100%" height="700px">
+          <p>Tu navegador no puede mostrar el PDF. <a href="/ordenes/{nroDeOrden}/comprobante-retiro">Descargar comprobante</a></p>
+        </object>
+      </div>
+    </div>
+    </body>
+    </html>
+    """
+    return html
+
+
+# ----------------- Reportes -----------------
+def _normalize_text(s):
+    if not s:
+        return ''
+    s = unicodedata.normalize('NFKD', str(s))
+    s = ''.join(c for c in s if not unicodedata.combining(c))
+    return ''.join(ch for ch in s.lower() if ch.isalnum())
+
+
+def _serialize_order_for_report(o):
+    d = getattr(o, 'dispositivo', None)
+    e = getattr(o, 'empleado', None)
+    c = getattr(d, 'cliente', None) if d else None
+    dispositivo_info = f"{getattr(d,'marca','') or ''} {getattr(d,'modelo','') or ''} ({getattr(d,'nroSerie','') or ''})".strip() if d else None
+    precio_total = 0
+    try:
+        from ABMC_db import calcular_precio_total_orden_obj
+        precio_total = float(calcular_precio_total_orden_obj(o))
+    except Exception:
+        precio_total = 0
+
+    ultimo_estado = None
+    if getattr(o, 'historial_estados', None):
+        ultimo_estado = sorted(o.historial_estados, key=lambda h: getattr(h, 'fechaCambio', None) or 0, reverse=True)[0]
+
+    return {
+        'nroDeOrden': getattr(o, 'nroDeOrden', None),
+        'fecha': getattr(o, 'fecha', None).isoformat() if getattr(o, 'fecha', None) else None,
+        'cliente_info': f"{getattr(c,'nombre','') or ''} {getattr(c,'apellido','') or ''} ({getattr(c,'numeroDoc','') or ''})".strip() if c else None,
+        'dispositivo_info': dispositivo_info,
+        'idEmpleado': getattr(o, 'idEmpleado', None),
+        'empleado_info': f"{getattr(e,'nombre','') or ''} {getattr(e,'apellido','') or ''}".strip() if e else None,
+        'resultado': getattr(o, 'resultado', None),
+        'estado': getattr(getattr(ultimo_estado, 'estado', None), 'nombre', None) if ultimo_estado else None,
+        'fechaInicioRetiro': getattr(o, 'fechaInicioRetiro', None).isoformat() if getattr(o, 'fechaInicioRetiro', None) else None,
+        'precioTotal': precio_total
+    }
+
+
+def _add_soft_breaks(s, maxlen=25):
+    """Insert zero-width spaces into long tokens so ReportLab Paragraph can wrap them.
+    Breaks any token longer than maxlen by inserting '\u200b' every maxlen chars.
+    """
+    if not s:
+        return s
+    try:
+        parts = str(s).split()
+        out = []
+        for p in parts:
+            if len(p) <= maxlen:
+                out.append(p)
+            else:
+                # insert zero-width space every maxlen chars
+                chunks = [p[i:i+maxlen] for i in range(0, len(p), maxlen)]
+                out.append('\u200b'.join(chunks))
+        return ' '.join(out)
+    except Exception:
+        return s
+
+
+def _strip_serial(s):
+    """Remove common serial patterns in parentheses like (SN12345) to shorten display in PDFs."""
+    if not s:
+        return s
+    try:
+        import re
+        # remove parenthesis content that looks like SN or long alphanumeric tokens
+        return re.sub(r"\s*\([^\)]*(SN|sn|s/n|nro|serial)[^\)]*\)", '', str(s))
+    except Exception:
+        return s
+
+
+def _truncate_display(s, max_chars=40):
+    if not s:
+        return s
+    s = str(s)
+    if len(s) <= max_chars:
+        return s
+    return s[:max_chars-3].rstrip() + '...'
+
+
+@bp.route('/reportes/reparados', methods=['GET'])
+@cross_origin()
+def reporte_reparados():
+    """Devuelve un reporte de órdenes reparadas en un rango de fecha.
+    Query params: desde=YYYY-MM-DD, hasta=YYYY-MM-DD, format=(json|pdf)
+    Criterio: se considera reparada si `resultado` contiene 'reparad' o el último estado contiene 'Retirada' o 'Reparacion'.
+    """
+    desde = request.args.get('desde')
+    hasta = request.args.get('hasta')
+    fmt = (request.args.get('format') or 'json').lower()
+
+    # Validar formato de fechas (si se pasaron)
+    try:
+        fecha_desde = datetime.strptime(desde, '%Y-%m-%d').date() if desde else None
+    except Exception:
+        return jsonify({'error': "Parámetro 'desde' inválido. Use formato YYYY-MM-DD"}), 400
+    try:
+        fecha_hasta = datetime.strptime(hasta, '%Y-%m-%d').date() if hasta else None
+    except Exception:
+        return jsonify({'error': "Parámetro 'hasta' inválido. Use formato YYYY-MM-DD"}), 400
+    if fecha_desde and fecha_hasta and fecha_desde > fecha_hasta:
+        return jsonify({'error': "Rango inválido: 'desde' no puede ser posterior a 'hasta'"}), 400
+
+    try:
+        from ABMC_db import session_scope
+        from BDD.database import OrdenDeReparacion
+        with session_scope() as s:
+            q = s.query(OrdenDeReparacion).order_by(OrdenDeReparacion.nroDeOrden)
+            if fecha_desde:
+                q = q.filter(OrdenDeReparacion.fecha >= fecha_desde)
+            if fecha_hasta:
+                q = q.filter(OrdenDeReparacion.fecha <= fecha_hasta)
+            ordenes = q.all()
+
+            filas = []
+            for o in ordenes:
+                # criterio reparado
+                res_norm = _normalize_text(getattr(o, 'resultado', '') or '')
+                last_estado = None
+                if getattr(o, 'historial_estados', None):
+                    last_estado = getattr(o, 'historial_estados', [])[-1]
+                estado_norm = _normalize_text(getattr(getattr(last_estado, 'estado', None), 'nombre', '') or '')
+
+                if 'reparad' in res_norm or 'retirad' in estado_norm or 'reparacion' in estado_norm:
+                    filas.append(_serialize_order_for_report(o))
+
+            # calcular resumen
+            summary = {
+                'total': len(filas),
+                'average_days_to_repair': None,
+                'by_tecnico': {},
+                'by_tipo_reparacion': {},
+            }
+            # intentar calcular tiempo promedio: si hay fecha y fechaInicioRetiro
+            dias = []
+            for f in filas:
+                # fecha: f['fecha'] y retiro: f['fechaInicioRetiro']
+                try:
+                    if f.get('fecha') and f.get('fechaInicioRetiro'):
+                        d1 = datetime.fromisoformat(f.get('fecha')).date()
+                        d2 = datetime.fromisoformat(f.get('fechaInicioRetiro')).date()
+                        dias.append((d2 - d1).days)
+                except Exception:
+                    pass
+                # contar por técnico
+                tec = f.get('empleado_info') or 'Sin técnico'
+                summary['by_tecnico'][tec] = summary['by_tecnico'].get(tec, 0) + 1
+                # heurística: buscar palabras clave en 'resultado' o 'estado' para tipo de reparación
+                tipo = (f.get('resultado') or f.get('estado') or 'otro').lower()
+                summary['by_tipo_reparacion'][tipo] = summary['by_tipo_reparacion'].get(tipo, 0) + 1
+
+            if dias:
+                summary['average_days_to_repair'] = sum(dias) / len(dias)
+
+            # Responder según formato
+            if fmt == 'pdf':
+                # generar PDF con mejor layout: wrapping, tamaños de columna y fuente más pequeña
+                buffer = BytesIO()
+                # Use landscape to provide more horizontal space for wide tables
+                doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
+                styles = getSampleStyleSheet()
+                title_style = ParagraphStyle('Title', parent=styles['Heading2'], alignment=1)
+                small = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8)
+                header_style = ParagraphStyle('H', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold')
+
+                elements = [Paragraph('Reporte - Celulares Reparados', title_style), Spacer(1, 8)]
+
+                # resumen
+                resumen_lines = [f"Total reparados: {summary['total']}"]
+                if summary['average_days_to_repair'] is not None:
+                    resumen_lines.append(f"Tiempo promedio (días): {summary['average_days_to_repair']:.1f}")
+                for l in resumen_lines:
+                    elements.append(Paragraph(l, small))
+                    elements.append(Spacer(1, 4))
+
+                # Tabla: combinamos 'Dispositivo' y 'Resultado' en una sola columna
+                data = [[Paragraph('Nro', header_style), Paragraph('Fecha', header_style), Paragraph('Cliente', header_style), Paragraph('Dispositivo / Resultado', header_style), Paragraph('Precio', header_style)]]
+                for r in filas:
+                    nro = Paragraph(str(r.get('nroDeOrden') or ''), small)
+                    fecha = Paragraph(r.get('fecha') or '', small)
+                    cliente_text = _truncate_display(_strip_serial(r.get('cliente_info') or ''), max_chars=40)
+                    dispositivo_text = _truncate_display(_strip_serial(r.get('dispositivo_info') or ''), max_chars=60)
+                    resultado_text = _truncate_display(str(r.get('resultado') or r.get('estado') or ''), max_chars=60)
+                    # unir con un separador para mejor lectura y permitir wrapping
+                    combined = (dispositivo_text + ' — ' + resultado_text).strip()
+                    cliente = Paragraph(_add_soft_breaks(cliente_text), small)
+                    dispositivo_resultado = Paragraph(_add_soft_breaks(combined), small)
+                    precio = Paragraph(f"${r.get('precioTotal',0):.2f}", small)
+                    data.append([nro, fecha, cliente, dispositivo_resultado, precio])
+
+                # Landscape letter: width = 792pt. With margins 24+24 => available = 744pt.
+                # Column widths chosen to fit within available space: Nro, Fecha, Cliente, Dispositivo/Resultado, Precio
+                col_widths = [40, 80, 200, 360, 64]
+                table = Table(data, colWidths=col_widths, repeatRows=1)
+                table.setStyle(TableStyle([
+                    ('GRID', (0,0), (-1,-1), 0.4, colors.black),
+                    ('BACKGROUND',(0,0),(-1,0),colors.lightgrey),
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('ALIGN', (4,1), (4,-1), 'RIGHT'),
+                    ('FONTSIZE', (0,0), (-1,-1), 8),
+                    ('LEFTPADDING', (0,0), (-1,-1), 4),
+                    ('RIGHTPADDING', (0,0), (-1,-1), 4),
+                ]))
+                elements.append(table)
+                doc.build(elements)
+                buffer.seek(0)
+                resp = make_response(buffer.getvalue())
+                resp.headers['Content-Type'] = 'application/pdf'
+                resp.headers['Content-Disposition'] = 'inline; filename=reporte_reparados.pdf'
+                return resp
+
+            if fmt == 'csv':
+                import csv
+                import io
+                sio = io.StringIO()
+                writer = csv.writer(sio)
+                writer.writerow(['nroDeOrden','fecha','cliente','dispositivo','resultado','precioTotal','empleado'])
+                for r in filas:
+                    writer.writerow([r.get('nroDeOrden'), r.get('fecha'), r.get('cliente_info'), r.get('dispositivo_info'), r.get('resultado') or r.get('estado'), r.get('precioTotal'), r.get('empleado_info')])
+                data = sio.getvalue().encode('utf-8')
+                resp = make_response(data)
+                resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
+                resp.headers['Content-Disposition'] = 'attachment; filename=reporte_reparados.csv'
+                return resp
+
+            # JSON por defecto: enviar filas y summary
+            return jsonify({'summary': summary, 'rows': filas})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/reportes/no-reparados', methods=['GET'])
+@cross_origin()
+def reporte_no_reparados():
+    """Devuelve un reporte de órdenes no reparadas en un rango de fecha.
+    Criterio: resultado contiene 'desestim' o 'norepar' o último estado contiene 'PendienteDeRetiro' o 'Abandon'.
+    """
+    desde = request.args.get('desde')
+    hasta = request.args.get('hasta')
+    fmt = (request.args.get('format') or 'json').lower()
+
+    # validar fechas
+    try:
+        fecha_desde = datetime.strptime(desde, '%Y-%m-%d').date() if desde else None
+    except Exception:
+        return jsonify({'error': "Parámetro 'desde' inválido. Use formato YYYY-MM-DD"}), 400
+    try:
+        fecha_hasta = datetime.strptime(hasta, '%Y-%m-%d').date() if hasta else None
+    except Exception:
+        return jsonify({'error': "Parámetro 'hasta' inválido. Use formato YYYY-MM-DD"}), 400
+    if fecha_desde and fecha_hasta and fecha_desde > fecha_hasta:
+        return jsonify({'error': "Rango inválido: 'desde' no puede ser posterior a 'hasta'"}), 400
+
+    try:
+        from ABMC_db import session_scope
+        from BDD.database import OrdenDeReparacion
+        with session_scope() as s:
+            q = s.query(OrdenDeReparacion).order_by(OrdenDeReparacion.nroDeOrden)
+            if fecha_desde:
+                q = q.filter(OrdenDeReparacion.fecha >= fecha_desde)
+            if fecha_hasta:
+                q = q.filter(OrdenDeReparacion.fecha <= fecha_hasta)
+            ordenes = q.all()
+
+            filas = []
+            for o in ordenes:
+                res_norm = _normalize_text(getattr(o, 'resultado', '') or '')
+                last_estado = None
+                if getattr(o, 'historial_estados', None):
+                    last_estado = getattr(o, 'historial_estados', [])[-1]
+                estado_norm = _normalize_text(getattr(getattr(last_estado, 'estado', None), 'nombre', '') or '')
+
+                if 'desestim' in res_norm or 'norepar' in res_norm or 'pendientederetiro' in estado_norm or 'abandon' in estado_norm:
+                    filas.append(_serialize_order_for_report(o))
+
+            # resumen
+            summary = {'total': len(filas), 'by_reason': {}, 'by_modelo': {}, 'by_tecnico': {}}
+            for f in filas:
+                # motivo: tomar 'resultado' o 'informacionAdicional'
+                motivo = (f.get('resultado') or 'sin motivo').lower()
+                summary['by_reason'][motivo] = summary['by_reason'].get(motivo, 0) + 1
+                # modelo desde dispositivo_info heurísticamente
+                modelo = (f.get('dispositivo_info') or 'desconocido')
+                summary['by_modelo'][modelo] = summary['by_modelo'].get(modelo, 0) + 1
+                tec = f.get('empleado_info') or 'Sin técnico'
+                summary['by_tecnico'][tec] = summary['by_tecnico'].get(tec, 0) + 1
+
+            if fmt == 'pdf':
+                buffer = BytesIO()
+                doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
+                styles = getSampleStyleSheet()
+                title_style = ParagraphStyle('Title', parent=styles['Heading2'], alignment=1)
+                small = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8)
+                header_style = ParagraphStyle('H', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold')
+
+                elements = [Paragraph('Reporte - Celulares No Reparados', title_style), Spacer(1, 8)]
+                elements.append(Paragraph(f"Total no reparados: {summary['total']}", small))
+                elements.append(Spacer(1, 6))
+
+                # Tabla: combinamos 'Dispositivo' y 'Resultado' en una sola columna
+                data = [[Paragraph('Nro', header_style), Paragraph('Fecha', header_style), Paragraph('Cliente', header_style), Paragraph('Dispositivo / Resultado', header_style), Paragraph('Precio', header_style)]]
+                for r in filas:
+                    nro = Paragraph(str(r.get('nroDeOrden') or ''), small)
+                    fecha = Paragraph(r.get('fecha') or '', small)
+                    cliente_text = _truncate_display(_strip_serial(r.get('cliente_info') or ''), max_chars=40)
+                    dispositivo_text = _truncate_display(_strip_serial(r.get('dispositivo_info') or ''), max_chars=60)
+                    resultado_text = _truncate_display(str(r.get('resultado') or r.get('estado') or ''), max_chars=60)
+                    combined = (dispositivo_text + ' — ' + resultado_text).strip()
+                    cliente = Paragraph(_add_soft_breaks(cliente_text), small)
+                    dispositivo_resultado = Paragraph(_add_soft_breaks(combined), small)
+                    precio = Paragraph(f"${r.get('precioTotal',0):.2f}", small)
+                    data.append([nro, fecha, cliente, dispositivo_resultado, precio])
+
+                # Landscape letter: width = 792pt. With margins 24+24 => available = 744pt.
+                col_widths = [40, 80, 200, 360, 64]
+                table = Table(data, colWidths=col_widths, repeatRows=1)
+                table.setStyle(TableStyle([
+                    ('GRID', (0,0), (-1,-1), 0.4, colors.black),
+                    ('BACKGROUND',(0,0),(-1,0),colors.lightgrey),
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('ALIGN', (4,1), (4,-1), 'RIGHT'),
+                    ('FONTSIZE', (0,0), (-1,-1), 8),
+                    ('LEFTPADDING', (0,0), (-1,-1), 4),
+                    ('RIGHTPADDING', (0,0), (-1,-1), 4),
+                ]))
+                elements.append(table)
+                doc.build(elements)
+                buffer.seek(0)
+                resp = make_response(buffer.getvalue())
+                resp.headers['Content-Type'] = 'application/pdf'
+                resp.headers['Content-Disposition'] = 'inline; filename=reporte_no_reparados.pdf'
+                return resp
+
+            if fmt == 'csv':
+                import csv
+                import io
+                sio = io.StringIO()
+                writer = csv.writer(sio)
+                writer.writerow(['nroDeOrden','fecha','cliente','dispositivo','resultado','precioTotal','empleado'])
+                for r in filas:
+                    writer.writerow([r.get('nroDeOrden'), r.get('fecha'), r.get('cliente_info'), r.get('dispositivo_info'), r.get('resultado') or r.get('estado'), r.get('precioTotal'), r.get('empleado_info')])
+                data = sio.getvalue().encode('utf-8')
+                resp = make_response(data)
+                resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
+                resp.headers['Content-Disposition'] = 'attachment; filename=reporte_no_reparados.csv'
+                return resp
+
+            return jsonify({'summary': summary, 'rows': filas})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500

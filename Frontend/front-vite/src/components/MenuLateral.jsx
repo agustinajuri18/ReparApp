@@ -125,31 +125,36 @@ const MenuLateral = () => {
   };
   return (
     <nav
-      className="col-12 col-md-2 d-flex flex-md-column flex-row align-items-center align-items-md-start py-3 px-2 px-md-3"
-      style={{ background: colores.azul, minHeight: "100vh", width: '14rem', maxWidth: '18rem' }}
+      className="menu-lateral col-12 col-md-2 d-flex flex-md-column flex-row align-items-center align-items-md-start p-0"
+      style={{ background: colores.azul, minHeight: "100vh", width: 'var(--sidebar-width)', maxWidth: '18rem' }}
     >
-      {/* Logo arriba del menú */}
-      <img
-        src={logo}
-        alt="Logo"
-        style={{
-          width: "110px",
-          marginBottom: "24px",
-          borderRadius: "10px",
-          boxShadow: `0 2px 8px ${colores.dorado}55`,
-        }}
-      />
-      <h4
-        className="mb-4 ms-3"
-        style={{
-          color: colores.dorado,
-          fontWeight: 700,
-          letterSpacing: 1,
-        }}
-      >
-        Menú
-      </h4>
-      <ul className="nav nav-pills flex-md-column flex-row w-100 gap-2">
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%' }}>
+        {/* Contenido principal scrollable */}
+        <div style={{ padding: '16px' }}>
+          {/* Logo arriba del menú */}
+          <img
+            src={logo}
+            alt="Logo"
+            style={{
+              width: "110px",
+              marginBottom: "12px",
+              borderRadius: "10px",
+              boxShadow: `0 2px 8px ${colores.dorado}55`,
+            }}
+          />
+          <h4
+            className="mb-3 ms-0"
+            style={{
+              color: colores.dorado,
+              fontWeight: 700,
+              letterSpacing: 1,
+            }}
+          >
+            Menú
+          </h4>
+
+          <div style={{ maxHeight: 'calc(100vh - 220px)', overflowY: 'auto' }}>
+            <ul className="nav nav-pills flex-md-column flex-row w-100 gap-2" style={{ paddingLeft: 0 }}>
         {(() => {
           const rendered = menuOptions.filter((option) => {
             if (!option.permiso) return true;
@@ -192,22 +197,31 @@ const MenuLateral = () => {
             </li>
           ));
         })()}
-      </ul>
-      {/* Logout button at the bottom */}
-      <div className="w-100 d-flex justify-content-center justify-content-md-start" style={{ marginTop: 'auto' }}>
-        <button
-          className="btn btn-rojo fw-bold ms-3 mb-3"
-          onClick={openConfirmLogout}
-          title="Cerrar sesión"
-        >
-          <i className="bi bi-box-arrow-right me-1"></i>Cerrar sesión
-        </button>
-      </div>
+            </ul>
+          </div>
+        </div>
 
-      {/* Development-only identity panel: show only username and role name */}
-      {identity && (
-        <MenuIdentityPanel identity={identity} />
-      )}
+        {/* Pie fijo: logout + identidad */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', padding: '12px 16px', marginTop: 'auto', background: 'transparent' }}>
+          <div className="w-100 d-flex justify-content-center justify-content-md-start">
+            <button
+              className="btn btn-rojo fw-bold"
+              onClick={openConfirmLogout}
+              title="Cerrar sesión"
+              style={{ width: '100%' }}
+            >
+              <i className="bi bi-box-arrow-right me-1"></i>Cerrar sesión
+            </button>
+          </div>
+
+          {/* Development-only identity panel: show only username and role name */}
+          {identity && (
+            <div style={{ marginTop: 8 }}>
+              <MenuIdentityPanel identity={identity} />
+            </div>
+          )}
+        </div>
+      </div>
 
       <ConfirmModal
         open={confirmLogout.open}
