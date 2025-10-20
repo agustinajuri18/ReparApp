@@ -1,9 +1,11 @@
 import os
 import sys
 import time
+from datetime import datetime, date
 from contextlib import contextmanager
 from sqlalchemy.orm import joinedload, aliased  # Agregar esta importación al inicio
 from sqlalchemy.exc import OperationalError
+from sqlalchemy import inspect as sa_inspect
 
 # agregar la raíz del proyecto al path para poder importar el paquete BDD (carpeta hermana)
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -420,6 +422,41 @@ def asignar_estado_orden(nroDeOrden, idEstado, fechaCambio, observaciones=None):
         s.add(h)
         s.commit()
         s.refresh(h)
+
+        # Si el nuevo estado es 'PendienteDeRetiro' (tolerante a espacios/acentos),
+        # registrar la fecha de inicio de retiro en la orden si no está ya presente.
+        try:
+            estado_obj = s.get(Estado, idEstado)
+            nombre_estado = (getattr(estado_obj, 'nombre', None) or '').lower()
+            # Normalizar eliminando caracteres no alfanuméricos para comparar robustamente
+            nombre_norm = ''.join(ch for ch in nombre_estado if ch.isalnum())
+            if ('pendientederetiro' in nombre_norm) or ('pendiente' in nombre_norm and 'retiro' in nombre_norm):
+                # Usar una segunda sesión para actualizar la orden, así si falla no se revierte el historial insertado
+                try:
+                    with session_scope() as s2:
+                        try:
+                            cols = [c['name'] for c in sa_inspect(s2.bind).get_columns('OrdenDeReparacion')]
+                        except Exception:
+                            cols = []
+
+                        if 'fechaInicioRetiro' in cols:
+                            orden = s2.get(OrdenDeReparacion, nroDeOrden)
+                            if orden and getattr(orden, 'fechaInicioRetiro', None) is None:
+                                orden.fechaInicioRetiro = datetime.now().date()
+                                s2.commit()
+                                print(f"[ABMC_db] fechaInicioRetiro set for orden {nroDeOrden}")
+                            else:
+                                print(f"[ABMC_db] fechaInicioRetiro already set or orden not found for {nroDeOrden}")
+                        else:
+                            print(f"[ABMC_db] columna fechaInicioRetiro no existe en la tabla OrdenDeReparacion")
+                except Exception as e:
+                    # No queremos que esto rompa la asignación de estado principal
+                    import traceback
+                    traceback.print_exc()
+                    print(f"[ABMC_db] Error al intentar setear fechaInicioRetiro para orden {nroDeOrden}: {e}")
+        except Exception:
+            # No queremos romper la asignación de estado por un fallo secundario al intentar setear la fecha
+            pass
         return h
 
 def mostrar_por_estado(idEstado):
@@ -758,7 +795,7 @@ def baja_detalle_orden(idDetalle):
 
 
 # ----------- OrdenDeReparacion -----------
-def alta_orden_de_reparacion(idDispositivo, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, resultado=None, informacionAdicional=None):
+def alta_orden_de_reparacion(idDispositivo, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, resultado=None, informacionAdicional=None, fechaInicioRetiro=None):
     with session_scope() as s:
         o = OrdenDeReparacion(
             idDispositivo=idDispositivo,
@@ -775,7 +812,7 @@ def alta_orden_de_reparacion(idDispositivo, fecha=None, descripcionDanos=None, d
         s.refresh(o)
         return o
 
-def alta_orden_por_nroSerie(nroSerie, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None):
+def alta_orden_por_nroSerie(nroSerie, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, resultado =None, informacionAdicional=None):
     """Crea una orden buscando el dispositivo por su número de serie."""
     with session_scope() as s:
         dispositivo = s.query(Dispositivo).filter_by(nroSerie=nroSerie).first()
@@ -797,7 +834,7 @@ def mostrar_ordenes_de_reparacion():
         )
         return q.all()
 
-def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, detalles=None, resultado=None, informacionAdicional=None):
+def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, detalles=None, resultado=None, informacionAdicional=None, fechaInicioRetiro=None):
     with session_scope() as session:
         try:
             orden = session.query(OrdenDeReparacion).filter_by(nroDeOrden=nroDeOrden).first()
@@ -820,8 +857,41 @@ def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos
             # Nuevos campos añadidos a la tabla OrdenDeReparacion
             if resultado is not None:
                 orden.resultado = resultado
+                # Si el resultado indica que la reparación terminó (reparada / no reparada),
+                # setear fechaInicioRetiro automáticamente si aún no está puesta.
+                try:
+                    # Normalizar texto para comparaciones robustas
+                    res_norm = ''.join(ch for ch in (str(resultado) or '').lower() if ch.isalnum())
+                    if 'reparada' in res_norm or ('noreparada' in res_norm) or ('noreparada' == res_norm):
+                        try:
+                            cols = [c['name'] for c in sa_inspect(session.bind).get_columns('OrdenDeReparacion')]
+                        except Exception:
+                            cols = []
+
+                        if 'fechaInicioRetiro' in cols and getattr(orden, 'fechaInicioRetiro', None) is None:
+                            orden.fechaInicioRetiro = datetime.now().date()
+                            print(f"[ABMC_db] modificar_orden: auto-set fechaInicioRetiro for orden {nroDeOrden} due to resultado='{resultado}'")
+                except Exception:
+                    # No queremos que un fallo en este ajuste impida la actualización principal
+                    pass
             if informacionAdicional is not None:
                 orden.informacionAdicional = informacionAdicional
+
+            # Permitir setear fechaInicioRetiro explícitamente (por ejemplo al rechazar presupuesto)
+            if fechaInicioRetiro is not None:
+                try:
+                    cols = [c['name'] for c in sa_inspect(session.bind).get_columns('OrdenDeReparacion')]
+                except Exception:
+                    cols = []
+
+                if 'fechaInicioRetiro' in cols:
+                    try:
+                        orden.fechaInicioRetiro = fechaInicioRetiro
+                        print(f"[ABMC_db] modificar_orden: fechaInicioRetiro set for orden {nroDeOrden} -> {fechaInicioRetiro}")
+                    except Exception as e:
+                        print(f"[ABMC_db] modificar_orden: error setting fechaInicioRetiro for orden {nroDeOrden}: {e}")
+                else:
+                    print(f"[ABMC_db] modificar_orden: columna fechaInicioRetiro no existe, no se puede setear")
 
             # --- Lógica para sincronizar detalles ---
             if detalles is not None:
@@ -972,6 +1042,7 @@ def obtener_ordenes(mode='summary', idCliente=None, idDispositivo=None, nroDeOrd
                 'nroDeOrden': getattr(o, 'nroDeOrden', None),
                 'idDispositivo': getattr(o, 'idDispositivo', None),
                 'fecha': getattr(o, 'fecha', None).isoformat() if getattr(o, 'fecha', None) else None,
+                'fechaInicioRetiro': getattr(o, 'fechaInicioRetiro', None).isoformat() if getattr(o, 'fechaInicioRetiro', None) else None,
                 'descripcionDanos': getattr(o, 'descripcionDanos', None),
                 'resultado': getattr(o, 'resultado', None),
                 'informacionAdicional': getattr(o, 'informacionAdicional', None),

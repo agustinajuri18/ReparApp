@@ -51,6 +51,33 @@ def encontrar_estado_id(nombre_clave):
 
 bp = Blueprint('ordenes', __name__)
 
+
+# Endpoint de diagnóstico (dev-only): devuelve la URL de la DB usada por SQLAlchemy y columnas de OrdenDeReparacion
+@bp.route('/diagnostics/db-info', methods=['GET'])
+def diagnostics_db_info():
+    try:
+        from BDD import database as dbmod
+        engine = getattr(dbmod, 'engine', None)
+        db_url = getattr(dbmod, 'DATABASE_URL', None)
+        inspector = None
+        cols = []
+        if engine is not None:
+            try:
+                from sqlalchemy import inspect as _inspect
+                inspector = _inspect(engine)
+                col_info = inspector.get_columns('OrdenDeReparacion')
+                cols = [c.get('name') for c in col_info]
+            except Exception as e:
+                # return partial info with error
+                return jsonify({'database_url': db_url, 'columns_error': str(e), 'columns': cols}), 200
+
+        return jsonify({'database_url': db_url, 'columns': cols}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/ordenes', methods=['POST'])
 @cross_origin()
 def registrar_orden():
@@ -169,6 +196,29 @@ def obtener_orden_detalle(nroDeOrden):
         if not ord_list:
             return jsonify({'error': 'Orden no encontrada'}), 404
         return jsonify(ord_list[0]), 200
+
+
+@bp.route('/ordenes/<int:nroDeOrden>/detalles', methods=['GET'])
+@cross_origin()
+def obtener_detalles_orden(nroDeOrden):
+    """Endpoint para devolver solo los detalles de una orden.
+
+    El frontend solicita `/ordenes/<nro>/detalles` en varios puntos; este
+    endpoint devuelve una lista (posible vacía) con los detalles serializados.
+    """
+    try:
+        from ABMC_db import obtener_ordenes
+        ordenes = obtener_ordenes(mode='detail', nroDeOrden=nroDeOrden)
+        if not ordenes:
+            # devolver array vacío para que el frontend maneje el caso
+            return jsonify([]), 200
+        detalles = ordenes[0].get('detalles', []) or []
+        return jsonify(detalles), 200
+    except Exception as e:
+        # En caso de error devolver 500 con mensaje para facilitar debugging
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Error al obtener detalles: {str(e)}'}), 500
 
 
 # Nuevo endpoint: repuestos + proveedores por servicio
@@ -350,6 +400,21 @@ def presupuesto_rechazar(nroDeOrden):
         id_retiro, nombre = encontrar_estado_id('PendienteDeRetiro')
         if not id_retiro:
             return jsonify({'error': 'Estado PendienteDeRetiro no configurado en la BD'}), 500
+
+        # Además de asignar el estado, registrar el resultado y la fechaInicioRetiro
+        try:
+            from ABMC_db import modificar_orden
+            fecha_hoy = datetime.now().date()
+            # Establecer resultado='desestimada' y fechaInicioRetiro
+            modificar_orden(
+                nroDeOrden=nroDeOrden,
+                resultado='desestimada',
+                fechaInicioRetiro=fecha_hoy
+            )
+        except Exception:
+            # No romper la operación principal si falla la actualización secundaria
+            import traceback
+            traceback.print_exc()
 
         historial = asignar_estado_orden(
             nroDeOrden=nroDeOrden,

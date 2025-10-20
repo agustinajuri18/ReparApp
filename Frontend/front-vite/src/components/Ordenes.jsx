@@ -25,6 +25,7 @@ function Ordenes() {
   const isSalesAdmin = identity?.idCargo === 3; // Asistente de ventas -> idCargo 3
   const isTecnico = identity?.idCargo === 2; // Técnico -> idCargo 2
   const [showOnlyEnDiagnostico, setShowOnlyEnDiagnostico] = useState(false);
+  const [showOnlyEnReparacion, setShowOnlyEnReparacion] = useState(false);
   const [showOnlyPendienteAprobacion, setShowOnlyPendienteAprobacion] = useState(false);
   const [ordenes, setOrdenes] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -66,6 +67,9 @@ function Ordenes() {
   const [proveedoresFiltrados, setProveedoresFiltrados] = useState([]);
 
   const [modalMensaje, setModalMensaje] = useState(null);
+  const [terminarModalOpen, setTerminarModalOpen] = useState(false);
+  const [terminarOrden, setTerminarOrden] = useState(null);
+  const [terminarComentario, setTerminarComentario] = useState("");
   const [showAddDetalle, setShowAddDetalle] = useState(false);
   const [availableRepuestos, setAvailableRepuestos] = useState([]); // <-- repuestos filtrados por servicio
 
@@ -1048,14 +1052,26 @@ function Ordenes() {
               <h4 className="mb-0"><i className="bi bi-clipboard-data me-2"></i>Gestión de Órdenes</h4>
               <div className="d-flex align-items-center gap-2">
                 {isTecnico && (
-                  <button
-                    type="button"
-                    className={`btn header-filter-btn ${showOnlyEnDiagnostico ? 'btn-dorado' : 'btn-gris'}`}
-                    onClick={() => setShowOnlyEnDiagnostico(v => !v)}
-                    title="Filtrar órdenes en diagnóstico"
-                  >
-                    En Diagnostico
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className={`btn header-filter-btn ${showOnlyEnReparacion ? 'btn-dorado' : 'btn-gris'}`}
+                      onClick={() => setShowOnlyEnReparacion(v => !v)}
+                      title="Filtrar órdenes en reparación"
+                      style={{ marginRight: 8 }}
+                    >
+                      En Reparación
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`btn header-filter-btn ${showOnlyEnDiagnostico ? 'btn-dorado' : 'btn-gris'}`}
+                      onClick={() => setShowOnlyEnDiagnostico(v => !v)}
+                      title="Filtrar órdenes en diagnóstico"
+                    >
+                      En Diagnostico
+                    </button>
+                  </>
                 )}
                 {isSalesAdmin && (
                   <button
@@ -1075,67 +1091,102 @@ function Ordenes() {
               <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-hover align-middle">
                   <thead>
-                    <tr>
-                      <th>N° Orden</th>
-                      <th>Dispositivo</th>
-                      <th>Cliente</th>
-                      <th>Empleado</th>
-                      <th>Fecha</th>
-                      <th>Estado</th> {/* Columna para estado */}
-                      <th>Diagnóstico</th>
-                      <th>Acciones</th>
-                    </tr>
+                    {showOnlyEnReparacion ? (
+                      <tr>
+                        <th>N° Orden</th>
+                        <th>Dispositivo</th>
+                        <th>Técnico</th>
+                        <th>Diagnóstico</th>
+                        <th>Acciones</th>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <th>N° Orden</th>
+                        <th>Dispositivo</th>
+                        <th>Cliente</th>
+                        <th>Empleado</th>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                        <th>Diagnóstico</th>
+                        <th>Acciones</th>
+                      </tr>
+                    )}
                   </thead>
                   <tbody>
                     {ordenes
                       .filter(o => {
                         // If no filter toggles are active, show all
-                        if (!showOnlyEnDiagnostico && !showOnlyPendienteAprobacion) return true;
+                        if (!showOnlyEnDiagnostico && !showOnlyEnReparacion && !showOnlyPendienteAprobacion) return true;
                         const estado = _normalize(o.estado || '');
                         const matchesDiagnostico = showOnlyEnDiagnostico && estado.includes('diagnost');
+                        const matchesReparacion = showOnlyEnReparacion && estado.includes('reparacion');
                         const matchesPendiente = showOnlyPendienteAprobacion && estado.includes('pendientedeaprobacion');
-                        return Boolean(matchesDiagnostico || matchesPendiente);
+                        return Boolean(matchesDiagnostico || matchesReparacion || matchesPendiente);
                       })
                       .map((o) => (
-                      <tr key={String(o.nroDeOrden)}>
-                        <td>{o.nroDeOrden}</td>
-                        <td>{o.dispositivo_info}</td>
-                        <td>{
-                          // cliente_info has format 'Nombre Apellido (numeroDoc)'. We show only the name part.
-                          o.cliente_info ? o.cliente_info.split('(')[0].trim() : (o.dispositivo_info ? o.dispositivo_info.split('(')[0].trim() : '')
-                        }</td>
-                        <td>{o.empleado_info}</td>
-                        <td>{o.fecha}</td>
-                        <td>{o.estado}</td> {/* Mostramos el estado actual */}
-                        <td>{o.diagnostico}</td>
-                        <td>
-                            {/* Mostrar botón calcular presupuesto SOLO cuando el filtro PendienteAprobación está activo */}
-                            {showOnlyPendienteAprobacion && (
-                              <button className="btn btn-sm btn-azul fw-bold me-1" onClick={() => handleAbrirCalcularPresupuesto(o)}>
-                                <i className="bi bi-calculator me-1"></i>Calcular Presupuesto
+                        showOnlyEnReparacion ? (
+                          <tr key={String(o.nroDeOrden)}>
+                            <td>{o.nroDeOrden}</td>
+                            <td>{o.dispositivo_info}</td>
+                            <td>{o.empleado_info}</td>
+                            <td>{o.diagnostico}</td>
+                            <td>
+                              <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
+                                <i className="bi bi-search me-1"></i>Consultar
                               </button>
-                            )}
-                          <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
-                            <i className="bi bi-search me-1"></i>Consultar
-                          </button>
-                          <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarPDF(o.nroDeOrden)}>
-                            <i className="bi bi-file-earmark-pdf me-1"></i>Emitir
-                          </button>
-                          {/* Ocultar el botón Modificar cuando se está filtrando por PendienteDeAprobacion */}
-                          {!showOnlyPendienteAprobacion && (
-                            (isTecnico || (canModify && !isSalesAdmin)) ? (
-                              <button className="btn btn-sm btn-dorado fw-bold" onClick={() => handleModificar(o)}>
-                                <i className="bi bi-pencil-square me-1"></i>Modificar
+                              {/* 'Terminar' button shown instead of 'Modificar' when viewing En Reparación filter. No functionality yet. */}
+                              <button
+                                className="btn btn-sm btn-dorado fw-bold"
+                                onClick={() => { setTerminarOrden(o); setTerminarComentario(''); setTerminarModalOpen(true); }}
+                                title="Terminar"
+                              >
+                                <i className="bi bi-flag-fill me-1"></i>Terminar
                               </button>
-                            ) : (
-                              <button className="btn btn-sm btn-dorado fw-bold" disabled title={isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para modificar órdenes'}>
-                                <i className="bi bi-pencil-square me-1"></i>Modificar
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr key={String(o.nroDeOrden)}>
+                            <td>{o.nroDeOrden}</td>
+                            <td>{o.dispositivo_info}</td>
+                            <td>{
+                              // cliente_info has format 'Nombre Apellido (numeroDoc)'. We show only the name part.
+                              o.cliente_info ? o.cliente_info.split('(')[0].trim() : (o.dispositivo_info ? o.dispositivo_info.split('(')[0].trim() : '')
+                            }</td>
+                            <td>{o.empleado_info}</td>
+                            <td>{o.fecha}</td>
+                            <td>{o.estado}</td> {/* Mostramos el estado actual */}
+                            <td>{o.diagnostico}</td>
+                            <td>
+                              {/* Mostrar botón calcular presupuesto SOLO cuando el filtro PendienteAprobación está activo */}
+                              {showOnlyPendienteAprobacion && (
+                                <button className="btn btn-sm btn-azul fw-bold me-1" onClick={() => handleAbrirCalcularPresupuesto(o)}>
+                                  <i className="bi bi-calculator me-1"></i>Calcular Presupuesto
+                                </button>
+                              )}
+                              <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
+                                <i className="bi bi-search me-1"></i>Consultar
                               </button>
-                            )
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                              {!isTecnico && (
+                                <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarPDF(o.nroDeOrden)}>
+                                  <i className="bi bi-file-earmark-pdf me-1"></i>Emitir
+                                </button>
+                              )}
+                              {/* Ocultar el botón Modificar cuando se está filtrando por PendienteDeAprobacion */}
+                              {!showOnlyPendienteAprobacion && (
+                                (isTecnico || (canModify && !isSalesAdmin)) ? (
+                                  <button className="btn btn-sm btn-dorado fw-bold" onClick={() => handleModificar(o)}>
+                                    <i className="bi bi-pencil-square me-1"></i>Modificar
+                                  </button>
+                                ) : (
+                                  <button className="btn btn-sm btn-dorado fw-bold" disabled title={isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para modificar órdenes'}>
+                                    <i className="bi bi-pencil-square me-1"></i>Modificar
+                                  </button>
+                                )
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -1765,6 +1816,113 @@ function Ordenes() {
                     <button type="submit" className="btn btn-azul fw-bold"><i className="bi bi-save me-1"></i>Guardar Dispositivo</button>
                   </div>
                 </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Terminar modal: aparece al presionar Terminar en la tabla 'En Reparación' */}
+      {terminarModalOpen && (
+        <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1065 }}>
+          <div className="modal-dialog modal-md modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Terminar Orden #{terminarOrden?.nroDeOrden}</h5>
+                <button type="button" className="btn-close" onClick={() => setTerminarModalOpen(false)}></button>
+              </div>
+              <div className="modal-body">
+                <p className="mb-3">Marque el resultado de la reparación y agregue información adicional (opcional):</p>
+                  <div className="d-flex gap-2 mb-3">
+                  <button type="button" className="btn btn-success flex-grow-1" onClick={async () => {
+                    // Marcar orden como reparada: 1) actualizar resultado/informacionAdicional, 2) cambiar estado a PendienteDeRetiro
+                    if (!terminarOrden) return;
+                    const nro = terminarOrden.nroDeOrden;
+                    try {
+                      // 1) PUT para actualizar resultado e informacionAdicional
+                      const payload = {
+                        resultado: 'reparada',
+                        informacionAdicional: terminarComentario || null
+                      };
+                      const resPut = await fetch(`${API_URL}/${nro}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                      });
+                      if (!resPut.ok) {
+                        const body = await resPut.text().catch(() => '');
+                        throw new Error(`Error actualizando orden: ${resPut.status} ${body}`);
+                      }
+
+                      // 2) POST para establecer estado PendienteDeRetiro
+                      const resState = await fetch(`${API_URL}/${nro}/presupuesto/rechazar`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                      });
+                      if (!resState.ok) {
+                        const body = await resState.text().catch(() => '');
+                        throw new Error(`Error cambiando estado: ${resState.status} ${body}`);
+                      }
+
+                      // Éxito: cerrar modal, refrescar lista y mostrar mensaje
+                      setTerminarModalOpen(false);
+                      setMensaje(`Orden #${nro} marcada como reparada y pendiente de retiro.`);
+                      fetchOrdenes();
+                    } catch (err) {
+                      console.error('Error al terminar orden:', err);
+                      // Mantener el modal abierto para que el usuario pueda reintentar o editar el comentario
+                      setModalMensaje({ tipo: 'danger', texto: `No se pudo marcar la orden como reparada: ${err.message}` });
+                    }
+                  }}>
+                    Reparada
+                  </button>
+                  <button type="button" className="btn btn-danger flex-grow-1" onClick={async () => {
+                    if (!terminarOrden) return;
+                    const nro = terminarOrden.nroDeOrden;
+                    try {
+                      const payload = {
+                        resultado: 'no reparada',
+                        informacionAdicional: terminarComentario || null
+                      };
+                      const resPut = await fetch(`${API_URL}/${nro}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                      });
+                      if (!resPut.ok) {
+                        const body = await resPut.text().catch(() => '');
+                        throw new Error(`Error actualizando orden: ${resPut.status} ${body}`);
+                      }
+
+                      // Cambiar estado a PendienteDeRetiro
+                      const resState = await fetch(`${API_URL}/${nro}/presupuesto/rechazar`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                      });
+                      if (!resState.ok) {
+                        const body = await resState.text().catch(() => '');
+                        throw new Error(`Error cambiando estado: ${resState.status} ${body}`);
+                      }
+
+                      setTerminarModalOpen(false);
+                      setMensaje(`Orden #${nro} marcada como NO reparada y pendiente de retiro.`);
+                      fetchOrdenes();
+                    } catch (err) {
+                      console.error('Error al marcar no reparada:', err);
+                      setModalMensaje({ tipo: 'danger', texto: `No se pudo marcar la orden como no reparada: ${err.message}` });
+                    }
+                  }}>
+                    No reparada
+                  </button>
+                </div>
+
+                <div>
+                  <label className="form-label">Información adicional</label>
+                  <textarea className="form-control" rows={4} value={terminarComentario} onChange={(e) => setTerminarComentario(e.target.value)} placeholder="Agregue notas, observaciones, o detalles del cierre..."></textarea>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-dorado" onClick={() => setTerminarModalOpen(false)}>Cerrar</button>
               </div>
             </div>
           </div>

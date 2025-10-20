@@ -155,6 +155,7 @@ class OrdenDeReparacion(Base):
     idEmpleado = Column(Integer, ForeignKey("Empleado.idEmpleado"))
     resultado = Column(String)
     informacionAdicional = Column(String)
+    fechaInicioRetiro = Column(Date)
 
     dispositivo = relationship("Dispositivo", back_populates="ordenes")
     empleado = relationship("Empleado", back_populates="ordenes")
