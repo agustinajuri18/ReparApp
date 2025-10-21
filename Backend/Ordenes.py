@@ -683,6 +683,320 @@ def generar_pdf_orden(nroDeOrden):
     except Exception as e:
         return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
 
+
+def _build_pdf_bytes(nroDeOrden):
+    """
+    Helper: genera el PDF en memoria y devuelve bytes.
+    Se reutiliza la misma lógica que en `generar_pdf_orden` pero devuelve bytes
+    para poder subir o enviar el archivo sin duplicar demasiado código.
+    """
+    from ABMC_db import obtener_ordenes
+    ordenes = obtener_ordenes(mode='detail', nroDeOrden=nroDeOrden)
+    if not ordenes:
+        raise FileNotFoundError('Orden no encontrada')
+
+    orden = ordenes[0]
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter,
+                          rightMargin=36, leftMargin=36,
+                          topMargin=36, bottomMargin=36)
+    styles = getSampleStyleSheet()
+
+    # Recreate the rich PDF layout from generar_pdf_orden but return bytes
+    title_style = ParagraphStyle(
+        'Title',
+        parent=styles['Heading1'],
+        fontSize=16,
+        spaceAfter=15,
+        alignment=1,
+        fontName='Helvetica-Bold'
+    )
+    company_style = ParagraphStyle(
+        'Company',
+        parent=styles['Normal'],
+        fontSize=10,
+        alignment=1,
+        fontName='Helvetica-Bold'
+    )
+    section_style = ParagraphStyle(
+        'Section',
+        parent=styles['Heading2'],
+        fontSize=11,
+        spaceAfter=8,
+        fontName='Helvetica-Bold',
+        textColor=colors.black
+    )
+    normal_style = styles['Normal']
+    normal_style.fontSize = 9
+    small_style = ParagraphStyle(
+        'Small',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=colors.gray
+    )
+
+    elements = []
+
+    # Header with logo and company info
+    logo_path = os.path.join(os.path.dirname(__file__), 'static', 'logo.png')
+    logo_img = Image(logo_path, 1.5*inch, 0.8*inch) if os.path.exists(logo_path) else ''
+    header_table = Table([
+        [logo_img,
+         [
+             Paragraph("REPARAPP", company_style),
+             Paragraph("Servicio Técnico Especializado", ParagraphStyle('Sub', parent=company_style, fontSize=8)),
+             Paragraph("Calle Ficticia 123, Ciudad - Tel: +54 11 1234-5678", small_style),
+             Paragraph("Email: info@reparapp.com", small_style)
+         ]]
+    ], colWidths=[1.5*inch, 4*inch])
+    header_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    elements.append(header_table)
+    elements.append(Spacer(1, 15))
+    elements.append(Table([['']], colWidths=[7.5*inch], rowHeights=[1]))
+    elements.append(Spacer(1, 10))
+    elements.append(Paragraph("ORDEN DE REPARACIÓN", title_style))
+    elements.append(Spacer(1, 10))
+
+    order_info = [
+        ['N° Orden:', str(orden.get('nroDeOrden', '')), 'Fecha:', orden.get('fecha', '')],
+        ['Estado:', orden.get('estado', '') or 'Pendiente', 'Técnico:', orden.get('empleado_info', 'No asignado')]
+    ]
+    order_table = Table(order_info, colWidths=[1*inch, 1.5*inch, 1*inch, 1.5*inch])
+    order_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.gray),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.lightgrey),
+    ]))
+    elements.append(order_table)
+    elements.append(Spacer(1, 15))
+
+    # Cliente y dispositivo
+    cliente_text_lines = []
+    cliente = orden.get('cliente') if isinstance(orden.get('cliente'), dict) else None
+    if not cliente and isinstance(orden.get('dispositivo'), dict):
+        cliente = orden.get('dispositivo', {}).get('cliente') if isinstance(orden.get('dispositivo', {}).get('cliente'), dict) else None
+
+    if cliente:
+        nombre = cliente.get('nombre') or ''
+        apellido = cliente.get('apellido') or ''
+        if nombre or apellido:
+            cliente_text_lines.append(f"Nombre: {nombre} {apellido}".strip())
+        nro_doc = cliente.get('numeroDoc') or cliente.get('dni') or cliente.get('documento')
+        if nro_doc:
+            cliente_text_lines.append(f"Documento: {nro_doc}")
+        telefono = cliente.get('telefono') or cliente.get('telefonoCelular') or cliente.get('telefonoContacto')
+        if telefono:
+            cliente_text_lines.append(f"Tel: {telefono}")
+        email = cliente.get('email') or cliente.get('mail')
+        if email:
+            cliente_text_lines.append(f"Email: {email}")
+        direccion = cliente.get('direccion') or cliente.get('domicilio') or cliente.get('direccionFiscal')
+        if direccion:
+            cliente_text_lines.append(f"Domicilio: {direccion}")
+    else:
+        if orden.get('cliente_info'):
+            cliente_text_lines.append(orden.get('cliente_info'))
+        else:
+            cliente_text_lines.append('No disponible')
+
+    cliente_block_text = '<br/>'.join(cliente_text_lines)
+    client_device_info = [
+        [
+            Paragraph("<b>CLIENTE</b><br/>" + cliente_block_text, normal_style),
+            Paragraph("<b>DISPOSITIVO</b><br/>" + (orden.get('dispositivo_info', 'No disponible')), normal_style)
+        ]
+    ]
+    client_device_table = Table(client_device_info, colWidths=[3.5*inch, 3.5*inch])
+    client_device_table.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 1, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.gray),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    elements.append(client_device_table)
+    elements.append(Spacer(1, 15))
+
+    # Descripción y diagnóstico
+    description_diagnosis = [
+        [
+            Paragraph("<b>DESCRIPCIÓN DE DAÑOS</b><br/>" + (orden.get('descripcionDanos', 'No especificado')), normal_style),
+            Paragraph("<b>DIAGNÓSTICO</b><br/>" + (orden.get('diagnostico', 'Pendiente')), normal_style)
+        ]
+    ]
+    desc_diag_table = Table(description_diagnosis, colWidths=[3.5*inch, 3.5*inch])
+    desc_diag_table.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 1, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.gray),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    elements.append(desc_diag_table)
+    elements.append(Spacer(1, 15))
+
+    detalles = orden.get('detalles', [])
+    if detalles:
+        elements.append(Paragraph("DETALLES DE LA REPARACIÓN", section_style))
+        data_detalles = [['Servicio', 'Repuesto', 'Costo Serv.', 'Costo Rep.', 'Subtotal']]
+        for det in detalles:
+            servicio_desc = str(det.get('servicioDescripcion', '')) or ''
+            servicio = servicio_desc[:25] + '...' if len(servicio_desc) > 25 else servicio_desc
+            repuesto_desc = str(det.get('repuestoDescripcion', '')) or ''
+            repuesto = repuesto_desc[:25] + '...' if len(repuesto_desc) > 25 else repuesto_desc
+            costo_serv = f"${det.get('costoServicio', 0):.2f}"
+            costo_rep = f"${det.get('costoRepuesto', 0):.2f}"
+            subtotal = f"${det.get('subtotal', 0):.2f}"
+            data_detalles.append([servicio, repuesto, costo_serv, costo_rep, subtotal])
+        table_detalles = Table(data_detalles, colWidths=[1.5*inch, 1.5*inch, 0.8*inch, 0.8*inch, 0.9*inch])
+        table_detalles.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.gray),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('ALIGN', (2, 1), (4, -1), 'RIGHT'),
+        ]))
+        elements.append(table_detalles)
+        elements.append(Spacer(1, 10))
+
+    precio_total = orden.get('precioTotal', 0)
+    total_table = Table([['TOTAL: $' + f"{precio_total:.2f}"]], colWidths=[7.5*inch])
+    total_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, 0), colors.black),
+        ('TEXTCOLOR', (0, 0), (0, 0), colors.white),
+        ('ALIGN', (0, 0), (0, 0), 'CENTER'),
+        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (0, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (0, 0), 8),
+    ]))
+    elements.append(total_table)
+    elements.append(Spacer(1, 20))
+
+    footer_table = Table([
+        [
+            Paragraph("Gracias por confiar en nuestros servicios técnicos especializados.", small_style),
+            Paragraph(f"Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')}<br/>Comprobante generado electrónicamente", small_style)
+        ]
+    ], colWidths=[3.5*inch, 3.5*inch])
+    footer_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    elements.append(footer_table)
+
+    # Build PDF and return bytes
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+@bp.route('/ordenes/<int:nroDeOrden>/pdf/download', methods=['GET'])
+@cross_origin()
+def descargar_pdf_orden(nroDeOrden):
+    """
+    Endpoint que devuelve el PDF como attachment (descarga).
+    Usa `send_file` con `as_attachment=True` para forzar descarga y asegurar
+    que el archivo sea entregable por clientes/descargadores y por servicios de subida.
+    """
+    try:
+        pdf_bytes = _build_pdf_bytes(nroDeOrden)
+    except FileNotFoundError:
+        return jsonify({'error': 'Orden no encontrada'}), 404
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+
+    bio = BytesIO(pdf_bytes)
+    bio.seek(0)
+    # send_file soporta `download_name` en Flask >=2.0; en versiones antiguas se usa attachment_filename
+    filename = f"Comprobante_Orden_{nroDeOrden}.pdf"
+    try:
+        return send_file(bio, mimetype='application/pdf', as_attachment=True, download_name=filename)
+    except TypeError:
+        # fallback para Flask antiguos
+        return send_file(bio, mimetype='application/pdf', as_attachment=True, attachment_filename=filename)
+
+
+@bp.route('/ordenes/<int:nroDeOrden>/pdf/publish', methods=['POST'])
+@cross_origin()
+def publicar_pdf_orden(nroDeOrden):
+    """
+    Genera el PDF y lo sube a un hosting público (transfer.sh). Devuelve JSON con `pdf_url`.
+    Body (opcional JSON): { "filename": "mi_nombre.pdf" }
+    """
+    try:
+        pdf_bytes = _build_pdf_bytes(nroDeOrden)
+    except FileNotFoundError:
+        return jsonify({'error': 'Orden no encontrada'}), 404
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+
+    filename = request.json.get('filename') if request.is_json else None
+    if not filename:
+        filename = f"Comprobante_Orden_{nroDeOrden}.pdf"
+
+    # Subir usando helper en whatsapp.py (no confundir con envío)
+    try:
+        from whatsapp import upload_to_transfersh
+        pdf_url = upload_to_transfersh(pdf_bytes, filename)
+    except Exception as e:
+        return jsonify({'error': f'Error al subir PDF: {str(e)}'}), 500
+
+    return jsonify({'pdf_url': pdf_url}), 200
+
+
+@bp.route('/ordenes/<int:nroDeOrden>/pdf/send', methods=['POST'])
+@cross_origin()
+def enviar_pdf_por_whatsapp(nroDeOrden):
+    """
+    Genera el PDF, lo sube a transfer.sh y envía el link como documento por WhatsApp usando la Cloud API.
+    Request JSON: { "destinatario": "549351...", "caption": "Texto opcional" }
+    """
+    # Responder inmediatamente a preflight OPTIONS para satisfacer CORS
+    if request.method == 'OPTIONS':
+        return make_response('', 200)
+
+    data = request.get_json() or {}
+    destinatario = data.get('destinatario')
+    caption = data.get('caption') or f'Comprobante Orden {nroDeOrden}'
+    if not destinatario:
+        return jsonify({'error': 'Campo destinatario requerido (número en formato internacional)'}), 400
+
+    try:
+        pdf_bytes = _build_pdf_bytes(nroDeOrden)
+    except FileNotFoundError:
+        return jsonify({'error': 'Orden no encontrada'}), 404
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+
+    filename = f"Comprobante_Orden_{nroDeOrden}.pdf"
+
+    # Preferir subir los bytes directamente a WhatsApp si la función está disponible
+    from whatsapp import enviar_whatsapp_pdf_bytes, upload_to_transfersh, enviar_whatsapp_pdf
+    try:
+        result = enviar_whatsapp_pdf_bytes(pdf_bytes=pdf_bytes, nroDeOrden=nroDeOrden, destinatario=destinatario, caption=caption, filename=filename)
+        # cuando se suben bytes directamente no hay pdf_url público, pero podemos devolver un placeholder
+        return jsonify({'success': True, 'method': 'direct_upload', 'whatsapp_result': result}), 200
+    except Exception as e_bytes:
+        # si falla la subida directa, intentar la vía transfer.sh como fallback
+        try:
+            pdf_url = upload_to_transfersh(pdf_bytes, filename)
+        except Exception as e_up:
+            return jsonify({'error': f'Error al subir PDF (directo y transfer.sh fallaron): direct_error={str(e_bytes)}; transfer_error={str(e_up)}'}), 500
+
+        try:
+            result = enviar_whatsapp_pdf(pdf_url=pdf_url, nroDeOrden=nroDeOrden, destinatario=destinatario, caption=caption, filename=filename)
+        except Exception as e_send:
+            return jsonify({'error': f'Error al enviar por WhatsApp (via transfer): {str(e_send)}', 'pdf_url': pdf_url}), 500
+
+        return jsonify({'success': True, 'method': 'transfer_sh', 'pdf_url': pdf_url, 'whatsapp_result': result}), 200
+    
 @bp.route('/ordenes/<int:nroDeOrden>/preview', methods=['GET'])
 @cross_origin()
 def preview_pdf_orden(nroDeOrden):
