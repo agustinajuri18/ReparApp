@@ -136,7 +136,7 @@ function Ordenes() {
         });
         setOrdenes(sorted);
       })
-  .catch(err => { console.warn('Ordenes: fetchOrdenes error', err); setMensaje("Error al cargar órdenes"); });
+      .catch(err => { console.warn('Ordenes: fetchOrdenes error', err); setMensaje("Error al cargar órdenes"); });
   };
 
   // Cargar tipos de documento (igual que en Clientes.jsx)
@@ -144,21 +144,21 @@ function Ordenes() {
     fetch(TIPOS_DOC_URL)
       .then(res => res.json())
       .then(data => setTiposDoc(Array.isArray(data) ? data : []))
-  .catch(err => { console.warn('Ordenes: fetchTiposDocumento error', err); setMensaje("Error al cargar tipos de documento"); });
+      .catch(err => { console.warn('Ordenes: fetchTiposDocumento error', err); setMensaje("Error al cargar tipos de documento"); });
   };
 
   const fetchServicios = () => {
     fetch(SERVICIOS_URL)
       .then(res => res.json())
       .then(data => setServicios(Array.isArray(data) ? data : []))
-  .catch(err => { console.warn('Ordenes: fetchServicios error', err); setMensaje("Error al cargar servicios"); });
+      .catch(err => { console.warn('Ordenes: fetchServicios error', err); setMensaje("Error al cargar servicios"); });
   };
 
   const fetchRepuestosProveedores = () => {
     fetch(REPUESTOS_PROVEEDORES_URL)
       .then(res => res.json())
       .then(data => setRepuestosProveedores(Array.isArray(data) ? data : []))
-  .catch(err => { console.warn('Ordenes: fetchRepuestos error', err); setMensaje("Error al cargar repuestos"); });
+      .catch(err => { console.warn('Ordenes: fetchRepuestos error', err); setMensaje("Error al cargar repuestos"); });
   };
 
   useEffect(() => {
@@ -306,12 +306,12 @@ function Ordenes() {
   // En handleModificar, cambiar setShowAddDetalle(false) a setShowAddDetalle(true) para permitir añadir detalles en modificar
   const handleModificar = (orden) => {
     // Allow Técnicos (idCargo === 2) to modify even if they don't have the canModify permiso.
-    if (!canModify && !isTecnico) { 
-      setModalModo('consultar'); 
-      setModalVisible(true); 
-      setForm({ ...orden }); 
-      setMensaje('No tenés permiso para modificar órdenes. Abriendo en modo consulta.'); 
-      return; 
+    if (!canModify && !isTecnico) {
+      setModalModo('consultar');
+      setModalVisible(true);
+      setForm({ ...orden });
+      setMensaje('No tenés permiso para modificar órdenes. Abriendo en modo consulta.');
+      return;
     }
     // Configura el modal en modo modificar y carga detalles
     setModalModo('modificar');
@@ -387,13 +387,13 @@ function Ordenes() {
         setPresupuestoDetalles(detalles);
         // calcular total sumando los subtotales
         const total = detalles.reduce((s, d) => s + Number(d.subtotal || 0), 0);
-  setPresupuestoCalc(total);
+        setPresupuestoCalc(total);
         setPresupuestoModalVisible(true);
       })
       .catch(err => {
         console.error('Error al obtener detalles para presupuesto:', err);
         setPresupuestoDetalles([]);
-  setPresupuestoCalc(0);
+        setPresupuestoCalc(0);
         setPresupuestoModalVisible(true);
       });
   };
@@ -519,7 +519,7 @@ function Ordenes() {
           proveedorRazonSocial: d.proveedorRazonSocial ?? (d.proveedor ? d.proveedor.razonSocial : ''),
         })) : []);
       })
-      .catch(err => { 
+      .catch(err => {
         console.error("Error al obtener detalles:", err);
         setDetalles([]);
       });
@@ -528,7 +528,7 @@ function Ordenes() {
     fetch(`${API_URL}/${orden.nroDeOrden}/actualizaciones`)
       .then(res => res.json())
       .then(setAvances)
-  .catch(err => { console.warn('Ordenes: fetch avances error', err); setAvances([]); });
+      .catch(err => { console.warn('Ordenes: fetch avances error', err); setAvances([]); });
 
     setFormErrors({});
     setMensaje("");
@@ -612,11 +612,22 @@ function Ordenes() {
 
     console.log("Enviando avance:", nuevoAvance); // Debug
 
-    if (!canModify) { setModalMensaje({ tipo: 'warning', texto: 'No tenés permiso para registrar avances.' }); return; }
+    // Permitir a los técnicos registrar avances aunque no tengan el permiso canModify
+    if (!isTecnico && !canModify) {
+      setModalMensaje({
+        tipo: 'warning',
+        texto: 'No tenés permiso para registrar avances.'
+      });
+      return;
+    }
+
     fetch(`http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ descripcion: nuevoAvance, usuario: "tecnico1" })
+      body: JSON.stringify({
+        descripcion: nuevoAvance,
+        usuario: identity?.nombre || "web" // Usar el nombre del usuario actual
+      })
     })
       .then(res => {
         console.log("Respuesta del servidor:", res.status); // Debug
@@ -675,6 +686,8 @@ function Ordenes() {
         });
       });
   };
+
+
   // Función para cargar avances
   const _cargarAvances = () => {
     const url = `http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`;
@@ -871,25 +884,25 @@ function Ordenes() {
       detalles: detalles.map(d => {
         let finalRepuestoProveedorId = d.repuesto_proveedor_id;
 
-    // Si el detalle es nuevo o fue editado, necesitamos encontrar el ID de la relación.
-    if (d.isNew || editingDetalleId === d.idDetalle || !finalRepuestoProveedorId) {
-      // Intentar por cuilProveedor (legacy)
-      let repuestoProveedorRel = repuestosProveedores.find(rp => 
-        String(rp.idRepuesto) === String(d.codRepuestos) &&
-        (String(rp.cuilProveedor) === String(d.cuitProveedor) || String(rp.cuil) === String(d.cuitProveedor))
-      );
-      // Si no se encontró, intentar por idProveedor
-      if (!repuestoProveedorRel) {
-        repuestoProveedorRel = repuestosProveedores.find(rp => 
-          String(rp.idRepuesto) === String(d.codRepuestos) &&
-          (String(rp.idProveedor) === String(d.cuitProveedor) || String(rp.idProveedor) === String(d.idProveedor))
-        );
-      }
-      if (repuestoProveedorRel) {
-        finalRepuestoProveedorId = repuestoProveedorRel.id;
-      }
-    }
-        
+        // Si el detalle es nuevo o fue editado, necesitamos encontrar el ID de la relación.
+        if (d.isNew || editingDetalleId === d.idDetalle || !finalRepuestoProveedorId) {
+          // Intentar por cuilProveedor (legacy)
+          let repuestoProveedorRel = repuestosProveedores.find(rp =>
+            String(rp.idRepuesto) === String(d.codRepuestos) &&
+            (String(rp.cuilProveedor) === String(d.cuitProveedor) || String(rp.cuil) === String(d.cuitProveedor))
+          );
+          // Si no se encontró, intentar por idProveedor
+          if (!repuestoProveedorRel) {
+            repuestoProveedorRel = repuestosProveedores.find(rp =>
+              String(rp.idRepuesto) === String(d.codRepuestos) &&
+              (String(rp.idProveedor) === String(d.cuitProveedor) || String(rp.idProveedor) === String(d.idProveedor))
+            );
+          }
+          if (repuestoProveedorRel) {
+            finalRepuestoProveedorId = repuestoProveedorRel.id;
+          }
+        }
+
         return {
           idDetalle: typeof d.idDetalle === 'string' && d.idDetalle.startsWith('new_') ? null : d.idDetalle,
           idServicio: d.codigoServicio || d.idServicio,
@@ -909,25 +922,25 @@ function Ordenes() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     })
-    .then(async res => {
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        const errMsg = body?.error || body?.detail || `Error ${res.status}`;
-        return Promise.reject(new Error(errMsg));
-      }
-      return res.json();
-    })
-    .then(() => {
-      setMensaje(`Orden ${modalModo === 'alta' ? 'creada' : 'actualizada'} correctamente.`);
-      // --- CORRECCIÓN ---
-      // Mueve el cierre del modal y la recarga de datos aquí, al final del proceso exitoso.
-      handleModalClose(); 
-      fetchOrdenes();
-    })
-    .catch(err => {
-      setMensaje(err.message || 'Error de red');
-      // No cierres el modal si hay un error, para que el usuario pueda corregir.
-    });
+      .then(async res => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          const errMsg = body?.error || body?.detail || `Error ${res.status}`;
+          return Promise.reject(new Error(errMsg));
+        }
+        return res.json();
+      })
+      .then(() => {
+        setMensaje(`Orden ${modalModo === 'alta' ? 'creada' : 'actualizada'} correctamente.`);
+        // --- CORRECCIÓN ---
+        // Mueve el cierre del modal y la recarga de datos aquí, al final del proceso exitoso.
+        handleModalClose();
+        fetchOrdenes();
+      })
+      .catch(err => {
+        setMensaje(err.message || 'Error de red');
+        // No cierres el modal si hay un error, para que el usuario pueda corregir.
+      });
   };
 
 
@@ -948,9 +961,9 @@ function Ordenes() {
     const proveedorObj = proveedoresFiltrados.find(p => String(p.cuilProveedor) === String(cuitProveedor));
 
     // --- CORRECCIÓN: Buscar el ID de la relación aquí ---
-    const repuestoProveedorRel = repuestosProveedores.find(rp => 
-        String(rp.idRepuesto) === String(codRepuestos) &&
-        String(rp.cuilProveedor) === String(cuitProveedor)
+    const repuestoProveedorRel = repuestosProveedores.find(rp =>
+      String(rp.idRepuesto) === String(codRepuestos) &&
+      String(rp.cuilProveedor) === String(cuitProveedor)
     );
 
     const detalleCompleto = {
@@ -1018,7 +1031,7 @@ function Ordenes() {
         .then(data => {
           console.log("Repuestos cargados para edición:", data); // Depuración
           setAvailableRepuestos(Array.isArray(data) ? data : []);
-          
+
           // Cargar proveedores para el repuesto seleccionado
           const cod = detalle.codRepuestos;
           const encontrado = (Array.isArray(data) ? data : []).find(r => String(r.idRepuesto) === String(cod));
@@ -1110,20 +1123,20 @@ function Ordenes() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(nuevoCliente)
     })
-    .then(res => res.json())
-    .then(() => {
-      fetchClientes();
-      if (preservedFormData && redirectAfterAdd === 'cliente') {
-        setForm(preservedFormData);
-        setDetalles(preservedFormData.detalles || []);
-        setPreservedFormData(null);
-        setRedirectAfterAdd(null);
-      }
-      setNuevoCliente({ idTipoDoc: "", numeroDoc: "", nombre: "", apellido: "", telefono: "", mail: "", activo: 1 });
-      setShowAddClienteModal(false);
-      setNuevoClienteErrors({});
-    })
-    .catch(err => console.error("Error saving cliente:", err));
+      .then(res => res.json())
+      .then(() => {
+        fetchClientes();
+        if (preservedFormData && redirectAfterAdd === 'cliente') {
+          setForm(preservedFormData);
+          setDetalles(preservedFormData.detalles || []);
+          setPreservedFormData(null);
+          setRedirectAfterAdd(null);
+        }
+        setNuevoCliente({ idTipoDoc: "", numeroDoc: "", nombre: "", apellido: "", telefono: "", mail: "", activo: 1 });
+        setShowAddClienteModal(false);
+        setNuevoClienteErrors({});
+      })
+      .catch(err => console.error("Error saving cliente:", err));
   };
 
   const handleGuardarDispositivo = () => {
@@ -1137,22 +1150,22 @@ function Ordenes() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(nuevoDispositivo)
     })
-    .then(res => res.json())
-    .then(data => {
-      fetchDispositivos();
-      if (preservedFormData && redirectAfterAdd === 'dispositivo') {
-        setForm({ ...preservedFormData, idDispositivo: data.idDispositivo });
-        setDetalles(preservedFormData.detalles || []);
-        setPreservedFormData(null);
-        setRedirectAfterAdd(null);
-      } else {
-        setForm(prev => ({ ...prev, idDispositivo: data.idDispositivo })); // Seleccionar el nuevo
-      }
-      setNuevoDispositivo({ nroSerie: "", marca: "", modelo: "", idCliente: "", activo: 1 });
-      setShowAddDispositivoModal(false);
-      setNuevoDispositivoErrors({});
-    })
-    .catch(err => console.error("Error saving dispositivo:", err));
+      .then(res => res.json())
+      .then(data => {
+        fetchDispositivos();
+        if (preservedFormData && redirectAfterAdd === 'dispositivo') {
+          setForm({ ...preservedFormData, idDispositivo: data.idDispositivo });
+          setDetalles(preservedFormData.detalles || []);
+          setPreservedFormData(null);
+          setRedirectAfterAdd(null);
+        } else {
+          setForm(prev => ({ ...prev, idDispositivo: data.idDispositivo })); // Seleccionar el nuevo
+        }
+        setNuevoDispositivo({ nroSerie: "", marca: "", modelo: "", idCliente: "", activo: 1 });
+        setShowAddDispositivoModal(false);
+        setNuevoDispositivoErrors({});
+      })
+      .catch(err => console.error("Error saving dispositivo:", err));
   };
 
   // Al crear o modificar un detalle, debes enviar el campo repuesto_proveedor_id (no cuitProveedor/codigoRepuesto) al backend.
@@ -1571,7 +1584,7 @@ function Ordenes() {
                                 console.error('Ping al backend falló:', pingErr);
                                 setModalMensaje({
                                   tipo: 'danger',
-                                  texto: 'No se pudo conectar con el backend. Verificá que el servidor esté corriendo en http://localhost:5000 y que no haya bloqueos CORS o de red. (' + (pingErr.message || String(pingErr)) + ')' 
+                                  texto: 'No se pudo conectar con el backend. Verificá que el servidor esté corriendo en http://localhost:5000 y que no haya bloqueos CORS o de red. (' + (pingErr.message || String(pingErr)) + ')'
                                 });
                                 setIsSending(false);
                                 return;
@@ -1765,155 +1778,69 @@ function Ordenes() {
                     )}
                   </fieldset>
 
-                  {/* Sección de Avances Técnicos */}
-                  <fieldset className="mt-4">
-                    <legend>Avances Técnicos</legend>
 
-                    {/* Solo muestra la entrada si NO estamos en modo 'consultar' y la orden está en reparación */}
-                    {modalModo !== 'consultar' && form.estado === 'En Reparación' && (
-                      <div className="mb-3">
-                        <div className="input-group">
-                          <input
-                            type="text"
-                            value={nuevoAvance}
-                            onChange={e => setNuevoAvance(e.target.value)}
-                            placeholder="Descripción del avance técnico"
-                            className="form-control"
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-dorado"
-                            onClick={() => {
-                              // Validación
-                              if (!nuevoAvance.trim()) {
-                                setModalMensaje({
-                                  tipo: 'warning',
-                                  texto: 'Debe ingresar una descripción del avance'
-                                });
-                                return;
-                              }
+                  {/* Sección de Avances Técnicos - SOLO visible cuando la orden está En Reparación */}
+                  {form.estado === 'En Reparación' && (
+                    <fieldset className="mt-4">
+                      <legend>Avances Técnicos</legend>
 
-                              // Mostrar indicador de carga
-                              setModalMensaje({
-                                tipo: 'info',
-                                texto: 'Registrando avance...'
-                              });
-
-                              fetch(`http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`, {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  'Accept': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                  descripcion: nuevoAvance,
-                                  usuario: "vbluciana"
-                                })
-                              })
-                                .then(res => {
-                                  if (!res.ok) {
-                                    throw new Error(`Error del servidor: ${res.status}`);
-                                  }
-                                  return res.json();
-                                })
-                                .then(data => {
-                                  if (data.success) {
-                                    // Limpiar campo
-                                    setNuevoAvance("");
-
-                                    // Mostrar confirmación
-                                    setModalMensaje({
-                                      tipo: 'success',
-                                      texto: "Avance registrado correctamente"
-                                    });
-
-                                    // Recargar avances tras un breve retardo
-                                    setTimeout(() => {
-                                      fetch(`http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`)
-                                        .then(res => res.json())
-                                        .then(data => setAvances(Array.isArray(data) ? data : []))
-                                        .catch(err => console.error("Error al recargar avances:", err));
-                                    }, 300);
-                                  } else {
-                                    throw new Error(data.error || "Error desconocido");
-                                  }
-                                })
-                                .catch(err => {
-                                  console.error("Error:", err);
-                                  setModalMensaje({
-                                    tipo: 'danger',
-                                    texto: `Error: ${err.message}`
-                                  });
-                                });
-                            }}
-                          >
-                            <i className="bi bi-plus-circle me-1"></i> Registrar avance
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Botón para ver avances (siempre visible) */}
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                      <h5 className="mb-0">Historial de avances</h5>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-verdeAgua"
-                        onClick={() => {
-                          // Mostrar indicador de carga
-                          setModalMensaje({
-                            tipo: 'info',
-                            texto: 'Actualizando historial de avances...'
-                          });
-
-                          fetch(`http://localhost:5000/ordenes/${form.nroDeOrden}/actualizaciones`)
-                            .then(res => {
-                              if (!res.ok) throw new Error("Error al cargar historial");
-                              return res.json();
-                            })
-                            .then(_data => {
-                              setAvances(Array.isArray(_data) ? _data : []);
-                              setModalMensaje({
-                                tipo: 'info',
-                                texto: `Se ${_data && _data.length > 0 ? `encontraron ${_data.length} avances` : 'cargó el historial de avances'}`
-                              });
-                            })
-                            .catch(err => {
-                              setModalMensaje({
-                                tipo: 'danger',
-                                texto: `Error al cargar historial: ${err.message}`
-                              });
-                            });
-                        }}
-                      >
-                        <i className="bi bi-arrow-clockwise me-1"></i> Actualizar historial
-                      </button>
-                    </div>
-
-                    {/* Lista de avances */}
-                    {avances.length > 0 ? (
-                      <div className="list-group">
-                        {avances.map(a => (
-                          <div key={a.idHistorialor} className="list-group-item list-group-item-action">
-                            <div className="d-flex w-100 justify-content-between">
-                              <h6 className="mb-1 fw-bold">Avance técnico</h6>
-                              <small className="text-muted">
-                                {new Date(a.fechaArreglo).toLocaleString()}
-                              </small>
-                            </div>
-                            <p className="mb-1">{a.descripcion}</p>
+                      {/* Formulario para agregar avances - visible SOLO para técnicos */}
+                      {isTecnico && modalModo !== 'consultar' && (
+                        <div className="mb-3">
+                          <div className="input-group">
+                            <input
+                              type="text"
+                              value={nuevoAvance}
+                              onChange={e => setNuevoAvance(e.target.value)}
+                              placeholder="Descripción del avance técnico"
+                              className="form-control"
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-dorado"
+                              onClick={_registrarAvance}
+                            >
+                              <i className="bi bi-plus-circle me-1"></i> Registrar avance
+                            </button>
                           </div>
-                        ))}
+                        </div>
+                      )}
+
+                      {/* Historial de avances */}
+                      <div className="d-flex justify-content-between align-items-center mb-3">
+                        <h5 className="mb-0">Historial de avances</h5>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-verdeAgua"
+                          onClick={_cargarAvances}
+                        >
+                          <i className="bi bi-arrow-clockwise me-1"></i> Actualizar historial
+                        </button>
                       </div>
-                    ) : (
-                      <div className="alert alert-light text-center">
-                        No hay avances registrados para esta orden.
-                        {form.estado === 'En Reparación' ?
-                          ' Utilice el formulario superior para registrar un nuevo avance.' :
-                          ''}
-                      </div>
-                    )}
-                  </fieldset>
+
+                      {/* Lista de avances */}
+                      {avances.length > 0 ? (
+                        <div className="list-group">
+                          {avances.map(a => (
+                            <div key={a.idHistorialor} className="list-group-item list-group-item-action">
+                              <div className="d-flex w-100 justify-content-between">
+                                <h6 className="mb-1 fw-bold">Avance técnico</h6>
+                                <small className="text-muted">
+                                  {new Date(a.fechaArreglo).toLocaleString()}
+                                </small>
+                              </div>
+                              <p className="mb-1">{a.descripcion}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="alert alert-light text-center">
+                          No hay avances registrados para esta orden.
+                          {isTecnico ? ' Utilice el formulario superior para registrar un nuevo avance.' : ''}
+                        </div>
+                      )}
+                    </fieldset>
+                  )}
 
                 </div>
                 <div className="modal-footer">
@@ -2093,7 +2020,7 @@ function Ordenes() {
               </div>
               <div className="modal-body">
                 <p className="mb-3">Marque el resultado de la reparación y agregue información adicional (opcional):</p>
-                  <div className="d-flex gap-2 mb-3">
+                <div className="d-flex gap-2 mb-3">
                   <button type="button" className="btn btn-success flex-grow-1" onClick={async () => {
                     // Marcar orden como reparada: 1) actualizar resultado/informacionAdicional, 2) cambiar estado a PendienteDeRetiro
                     if (!terminarOrden) return;
