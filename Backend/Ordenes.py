@@ -453,6 +453,48 @@ def presupuesto_rechazar(nroDeOrden):
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+
+@bp.route('/ordenes/<int:nroDeOrden>/marcar-retirada', methods=['POST', 'OPTIONS'])
+@cross_origin()
+def marcar_retirada(nroDeOrden):
+    """
+    Marca la orden directamente como 'Retirada'.
+    Body (JSON) opcional: { "usuario": "nombre" }
+    """
+    # Responder preflight
+    if request.method == 'OPTIONS':
+        return make_response('', 200)
+
+    data = request.get_json() or {}
+    usuario = data.get('usuario', 'SinUsuario')
+
+    try:
+        id_retirada, nombre = encontrar_estado_id('Retirada')
+        if not id_retirada:
+            return jsonify({'error': 'Estado Retirada no configurado en la BD'}), 500
+
+        # Intentar establecer fechaInicioRetiro en la orden (si la función está disponible)
+        try:
+            from ABMC_db import modificar_orden
+            fecha_hoy = datetime.now().date()
+            modificar_orden(nroDeOrden=nroDeOrden, fechaInicioRetiro=fecha_hoy)
+        except Exception:
+            # No interrumpir si falla la actualización secundaria
+            import traceback
+            traceback.print_exc()
+
+        historial = asignar_estado_orden(
+            nroDeOrden=nroDeOrden,
+            idEstado=id_retirada,
+            fechaCambio=datetime.now(),
+            observaciones=f'Marcada como retirada por {usuario}'
+        )
+        return jsonify({'success': True, 'estado': nombre}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/ordenes/<int:nroDeOrden>/pdf', methods=['GET'])
 @cross_origin()
 def generar_pdf_orden(nroDeOrden):
