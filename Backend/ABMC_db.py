@@ -797,9 +797,11 @@ def baja_detalle_orden(idDetalle):
 # ----------- OrdenDeReparacion -----------
 def alta_orden_de_reparacion(idDispositivo, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, resultado=None, informacionAdicional=None, fechaInicioRetiro=None):
     with session_scope() as s:
+        # Asegurar que si no se pasa fecha, se use la fecha actual en el servidor
+        fecha_val = fecha or datetime.now().date()
         o = OrdenDeReparacion(
             idDispositivo=idDispositivo,
-            fecha=fecha,
+            fecha=fecha_val,
             descripcionDanos=descripcionDanos,
             diagnostico=diagnostico,
             presupuesto=presupuesto,
@@ -818,7 +820,8 @@ def alta_orden_por_nroSerie(nroSerie, fecha=None, descripcionDanos=None, diagnos
         dispositivo = s.query(Dispositivo).filter_by(nroSerie=nroSerie).first()
         if not dispositivo:
             return None
-        return alta_orden_de_reparacion(dispositivo.idDispositivo, fecha, descripcionDanos, diagnostico, presupuesto, idEmpleado)
+        # Pasar la fecha tal cual; alta_orden_de_reparacion se encargará de usar la fecha actual si es None
+        return alta_orden_de_reparacion(dispositivo.idDispositivo, fecha, descripcionDanos, diagnostico, presupuesto, idEmpleado, resultado, informacionAdicional, fechaInicioRetiro)
 
 
 def mostrar_ordenes_de_reparacion():
@@ -844,8 +847,8 @@ def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos
             # Actualizar campos principales de la orden
             if idDispositivo is not None:
                 orden.idDispositivo = idDispositivo
-            if fecha is not None:
-                orden.fecha = fecha
+            # No permitir modificación de la fecha de la orden vía API: siempre conservar la fecha original
+            # (Ignoramos el parámetro `fecha` si viene)
             if descripcionDanos is not None:
                 orden.descripcionDanos = descripcionDanos
             if diagnostico is not None:

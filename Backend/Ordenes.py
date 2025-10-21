@@ -932,23 +932,16 @@ def comprobante_retiro(nroDeOrden):
             Paragraph('Fecha: <b>%s</b>' % (orden.get('fecha','')), small)
         ]
 
-        header_table = Table([[logo_img, header_right]], colWidths=[1.8*inch, 5.2*inch])
+        # Hacer que el cuadro beige sea el fondo del header (se extiende detrás del logo y título)
+        header_table = Table([[logo_img, header_right]], colWidths=[1.8*inch, 5.2*inch], rowHeights=[1.9*inch])
         header_table.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('ALIGN', (1,0), (1,0), 'RIGHT'),
             ('LEFTPADDING', (0,0), (-1,-1), 6),
             ('RIGHTPADDING', (0,0), (-1,-1), 6),
+            # Fondo beige que cubre ambas celdas del header y se extiende hacia abajo
+            ('BACKGROUND', (0,0), (1,0), colors.HexColor('#f0eede')),
         ]))
-        # Banner decorativo superior (color suave detrás del header)
-        banner = Table([[ ' ' ]], colWidths=[7.0*inch], rowHeights=[0.55*inch])
-        banner.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (0,0), colors.HexColor('#f0eede')),
-            ('LEFTPADDING', (0,0), (-1,-1), 0),
-            ('RIGHTPADDING', (0,0), (-1,-1), 0),
-        ]))
-
-        elements.append(banner)
-        elements.append(Spacer(1,6))
         elements.append(header_table)
         elements.append(Spacer(1, 12))
 

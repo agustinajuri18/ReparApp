@@ -205,7 +205,8 @@ function Ordenes() {
     const errors = {};
     if (!form.idDispositivo) errors.idDispositivo = "Debe seleccionar un dispositivo.";
     if (!form.descripcionDanos || form.descripcionDanos.trim().length < 10) errors.descripcionDanos = "La descripción de daños es obligatoria y debe tener al menos 10 caracteres.";
-    if (!form.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(form.fecha)) errors.fecha = "La fecha es obligatoria y debe tener formato YYYY-MM-DD.";
+    // En creación (modalModo 'alta') la fecha la asigna el servidor; solo validar formato si existe
+    if (form.fecha && !/^\d{4}-\d{2}-\d{2}$/.test(form.fecha)) errors.fecha = "La fecha debe tener formato YYYY-MM-DD.";
     if (!form.idEmpleado) errors.idEmpleado = "Debe seleccionar un empleado.";
     if (form.presupuesto != null && (isNaN(form.presupuesto) || Number(form.presupuesto) < 0)) errors.presupuesto = "El presupuesto debe ser un número válido (>= 0).";
     return errors;
@@ -798,6 +799,8 @@ function Ordenes() {
 
     const payload = {
       ...form,
+      // Nota: no enviar 'fecha' al backend en ninguna operación; el backend gestiona la fecha
+      fecha: undefined,
       ...(modalModo === 'alta' && { diagnostico: undefined }), // Excluir diagnóstico en modo alta
       presupuesto: parseFloat(form.presupuesto) || 0,
       detalles: detalles.map(d => {
@@ -1339,8 +1342,10 @@ function Ordenes() {
                       </div>
                       <div className="col-md-4">
                         <label>Fecha</label>
-                        <input type="date" name="fecha" value={form.fecha} onChange={handleFormChange} className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar'} />
+                        {/* En modo 'alta' la fecha la gestiona el servidor; en 'modificar' tampoco permitimos cambiar la fecha desde la UI */}
+                        <input type="date" name="fecha" value={form.fecha} onChange={handleFormChange} className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar' || modalModo === 'alta' || modalModo === 'modificar'} readOnly={modalModo === 'alta' || modalModo === 'modificar'} />
                         {formErrors.fecha && <div className="input-error-message">{formErrors.fecha}</div>}
+                        {modalModo === 'alta' && <div className="form-text text-muted">La fecha se asignará automáticamente al crear la orden.</div>}
                       </div>
                       <div className="col-md-4">
                         <label>Estado actual</label>
@@ -1689,8 +1694,8 @@ function Ordenes() {
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn btn-dorado" onClick={handleModalClose}>Cerrar</button>
-                  {/* Botón para comprobante de retiro: visible si hay fechaInicioRetiro o estado PendienteDeRetiro/Retirada */}
-                  {((form.fechaInicioRetiro) || (form.estado && ((form.estado.toLowerCase().includes('pendiente') && form.estado.toLowerCase().includes('retiro')) || form.estado.toLowerCase().includes('retir')))) && (
+                  {/* Botón para comprobante de retiro: sólo visible en modo 'consultar' si hay fechaInicioRetiro o estado PendienteDeRetiro/Retirada */}
+                  {modalModo === 'consultar' && ((form.fechaInicioRetiro) || (form.estado && ((form.estado.toLowerCase().includes('pendiente') && form.estado.toLowerCase().includes('retiro')) || form.estado.toLowerCase().includes('retir')))) && (
                     <button type="button" className="btn btn-sm btn-rojo fw-bold me-2" onClick={() => handleGenerarComprobante(form.nroDeOrden)}>
                       <i className="bi bi-file-earmark-pdf me-1"></i>Comprobante de retiro
                     </button>
