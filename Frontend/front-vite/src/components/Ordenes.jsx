@@ -24,10 +24,12 @@ function Ordenes() {
   const _canDelete = hasPermission(identity, 32);
   const isSalesAdmin = identity?.idCargo === 3; // Asistente de ventas -> idCargo 3
   const isTecnico = identity?.idCargo === 2; // Técnico -> idCargo 2
+  const isPurchaseAdmin = identity?.idCargo === 3; // Administrador de compras -> idCargo 3 (mismo que asistente de ventas en esta app)
   // Nota: 'Atención al público' no se usa aquí — solo Asistente de ventas (idCargo === 3) mostrará el comprobante.
   const [showOnlyEnDiagnostico, setShowOnlyEnDiagnostico] = useState(false);
   const [showOnlyEnReparacion, setShowOnlyEnReparacion] = useState(false);
   const [showOnlyPendienteAprobacion, setShowOnlyPendienteAprobacion] = useState(false);
+  const [showOnlyPendienteRetiro, setShowOnlyPendienteRetiro] = useState(false);
   const [ordenes, setOrdenes] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [empleados, setEmpleados] = useState([]);
@@ -389,6 +391,31 @@ function Ordenes() {
         setPresupuestoDetalles([]);
   setPresupuestoCalc(0);
         setPresupuestoModalVisible(true);
+      });
+  };
+
+  const handleMarcarRetirada = (nro) => {
+    if (!nro) return;
+    // Llamamos al nuevo endpoint que marca la orden como Retirada
+    fetch(`${API_URL}/${nro}/marcar-retirada`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario: identity?.nombre || 'web' })
+    })
+      .then(async res => {
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '');
+          throw new Error(`HTTP ${res.status} ${txt}`);
+        }
+        return res.json().catch(() => ({}));
+      })
+      .then(data => {
+        setMensaje(`Orden #${nro} marcada como Retirada.`);
+        fetchOrdenes();
+      })
+      .catch(err => {
+        console.error('Error al marcar retirada:', err);
+        setMensaje(`No se pudo marcar retirada: ${err.message}`);
       });
   };
 
@@ -1169,6 +1196,18 @@ function Ordenes() {
                     Pendiente Aprob.
                   </button>
                 )}
+                {isPurchaseAdmin && (
+                  <button
+                    type="button"
+                    className={`btn header-filter-btn ${showOnlyPendienteRetiro ? 'btn-dorado' : 'btn-gris'}`}
+                    onClick={() => setShowOnlyPendienteRetiro(v => !v)}
+                    title="Filtrar órdenes pendientes de retiro"
+                    style={{ marginRight: 8 }}
+                  >
+                    Pendiente Retiro
+                  </button>
+                )}
+                {/* único botón Pendiente Retiro (visible para idCargo === 3 a través de isPurchaseAdmin) */}
                 {canCreate ? <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar Orden</button> : <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear órdenes"><i className="bi bi-plus-lg"></i> Agregar Orden</button>}
               </div>
             </div>
@@ -1202,12 +1241,13 @@ function Ordenes() {
                     {ordenes
                       .filter(o => {
                         // If no filter toggles are active, show all
-                        if (!showOnlyEnDiagnostico && !showOnlyEnReparacion && !showOnlyPendienteAprobacion) return true;
+                        if (!showOnlyEnDiagnostico && !showOnlyEnReparacion && !showOnlyPendienteAprobacion && !showOnlyPendienteRetiro) return true;
                         const estado = _normalize(o.estado || '');
                         const matchesDiagnostico = showOnlyEnDiagnostico && estado.includes('diagnost');
                         const matchesReparacion = showOnlyEnReparacion && estado.includes('reparacion');
                         const matchesPendiente = showOnlyPendienteAprobacion && estado.includes('pendientedeaprobacion');
-                        return Boolean(matchesDiagnostico || matchesReparacion || matchesPendiente);
+                        const matchesPendienteRetiro = showOnlyPendienteRetiro && (estado.includes('pendientederetiro') || estado.includes('retiro'));
+                        return Boolean(matchesDiagnostico || matchesReparacion || matchesPendiente || matchesPendienteRetiro);
                       })
                       .map((o) => (
                         showOnlyEnReparacion ? (
@@ -1248,6 +1288,24 @@ function Ordenes() {
                                   </button>
                                 )
                               )}
+                            </td>
+                          </tr>
+                        ) : showOnlyPendienteRetiro ? (
+                          <tr key={String(o.nroDeOrden)}>
+                            <td>{o.nroDeOrden}</td>
+                            <td>{o.dispositivo_info}</td>
+                            <td>{o.cliente_info ? o.cliente_info.split('(')[0].trim() : (o.dispositivo_info ? o.dispositivo_info.split('(')[0].trim() : '')}</td>
+                            <td>{o.empleado_info}</td>
+                            <td>{o.fecha}</td>
+                            <td>{o.estado}</td>
+                            <td>{o.diagnostico}</td>
+                            <td>
+                              <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
+                                <i className="bi bi-search me-1"></i>Consultar
+                              </button>
+                              <button className="btn btn-sm btn-dorado fw-bold me-1" style={{ padding: '0.25rem .5rem', fontSize: '0.85rem' }} onClick={() => handleMarcarRetirada(o.nroDeOrden)}>
+                                <i className="bi bi-box-arrow-in-right me-1"></i>Marcar retirada
+                              </button>
                             </td>
                           </tr>
                         ) : (
