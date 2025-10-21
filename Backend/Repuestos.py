@@ -104,12 +104,32 @@ def agregar_repuestoxproveedor():
 def listar_repuestoxproveedor():
     try:
         relaciones = mostrar_repuestoxproveedor()
-        return jsonify([{
-            'idRepuesto': r.idRepuesto,
-            'idProveedor': r.idProveedor,
-            'costo': r.costo,
-            'cantidad': r.cantidad
-        } for r in relaciones])
+        # Devolver información suficiente para que el frontend pueda resolver
+        # la relación repuesto-proveedor (incluyendo el id de la relación y el CUIL)
+        resultado = []
+        for r in relaciones:
+            proveedor_cuil = None
+            codigo_repuesto = None
+            try:
+                proveedor_cuil = getattr(r.proveedor, 'cuil', None)
+            except Exception:
+                proveedor_cuil = None
+            try:
+                codigo_repuesto = getattr(r.repuesto, 'idRepuesto', None)
+            except Exception:
+                codigo_repuesto = None
+            resultado.append({
+                'id': getattr(r, 'id', None),
+                'idRepuesto': getattr(r, 'idRepuesto', None),
+                'codigoRepuesto': codigo_repuesto,
+                'idProveedor': getattr(r, 'idProveedor', None),
+                'cuilProveedor': proveedor_cuil,
+                'razonSocial': getattr(getattr(r, 'proveedor', None), 'razonSocial', None),
+                'cuil': proveedor_cuil,  # alias por compatibilidad
+                'costo': getattr(r, 'costo', None),
+                'cantidad': getattr(r, 'cantidad', None)
+            })
+        return jsonify(resultado)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -131,7 +151,16 @@ def obtener_repuesto(idRepuesto):
     # Find proveedores for this repuesto
     relaciones = mostrar_repuestoxproveedor()
     proveedores_rel = [r for r in relaciones if r.idRepuesto == idRepuesto]
-    proveedores_data = [{'cuilProveedor': r.idProveedor, 'costo': r.costo, 'cantidad': r.cantidad} for r in proveedores_rel]
+    proveedores_data = []
+    for r in proveedores_rel:
+        proveedores_data.append({
+            'id': getattr(r, 'id', None),
+            'idProveedor': getattr(r, 'idProveedor', None),
+            'cuilProveedor': getattr(getattr(r, 'proveedor', None), 'cuil', None),
+            'razonSocial': getattr(getattr(r, 'proveedor', None), 'razonSocial', None),
+            'costo': getattr(r, 'costo', None),
+            'cantidad': getattr(r, 'cantidad', None)
+        })
     return jsonify({
         'idRepuesto': repuesto.idRepuesto,
         'marca': repuesto.marca,

@@ -164,17 +164,96 @@ def modificar_orden_existente(nroDeOrden):
     print(f"Datos recibidos para modificar orden {nroDeOrden}: {data}") # Log para depurar
     print(f"Detalles recibidos: {detalles_data}") # Log para depurar
 
-    resultado = modificar_orden( # <--- CORRECCIÓN AQUÍ
+    # ######### Control de permisos por cargo (servidor) #########
+    # Permitimos que el frontend incluya el idSesion en el payload o en el header
+    id_sesion = None
+    try:
+        # Prefer header 'X-Id-Sesion' (frontend can set this); fallback to JSON field
+        id_sesion = request.headers.get('X-Id-Sesion') or data.get('idSesion')
+        if id_sesion is not None:
+            id_sesion = int(id_sesion)
+    except Exception:
+        id_sesion = None
+
+    # Determinar idCargo del usuario que realiza la modificación
+    idCargo = None
+    try:
+        from ABMC_db import mostrar_sesion_por_id, obtener_empleado_por_usuario
+        ses = None
+        if id_sesion:
+            ses = mostrar_sesion_por_id(id_sesion)
+        if ses:
+            # ses.idUsuario -> obtener empleado para conocer idCargo
+            empleado = obtener_empleado_por_usuario(ses.idUsuario)
+            if empleado:
+                idCargo = getattr(empleado, 'idCargo', None)
+                try:
+                    print(f"[Ordenes.modificar_orden_existente] ses found: idSesion={getattr(ses,'idSesion', None)}, idUsuario={getattr(ses,'idUsuario', None)}")
+                    print(f"[Ordenes.modificar_orden_existente] empleado resolved: idEmpleado={getattr(empleado,'idEmpleado', None)}, idCargo={getattr(empleado,'idCargo', None)}")
+                except Exception:
+                    pass
+    except Exception:
+        # En caso de error no bloqueamos: continuamos sin idCargo (se aplicarán permisos por defecto)
+        idCargo = None
+
+    # Campos que el 'asistente de ventas' (idCargo == 3) puede modificar.
+    # Por política: el asistente solo puede cambiar el dispositivo, el empleado y la descripción de daños.
+    campos_iniciales = {
+        'idDispositivo', 'idEmpleado', 'descripcionDanos'
+    }
+
+    # Si el usuario es asistente de ventas, filtramos los datos entrantes
+    sanitized = {}
+    if idCargo == 3:
+        print(f"Usuario con idCargo=3 (asistente de ventas) intenta modificar orden {nroDeOrden}. Filtrando campos...")
+        for k in campos_iniciales:
+            if k in data:
+                sanitized[k] = data.get(k)
+        # Ignorar explícitamente cualquier intento de modificar detalles u otros campos
+        if 'detalles' in data:
+            print(f"Asistente intentó modificar 'detalles' en orden {nroDeOrden} — campo ignorado.")
+    else:
+        # Para otros cargos aceptamos todos los campos explícitos usados por modificar_orden
+        sanitized = {
+            'idDispositivo': data.get('idDispositivo'),
+            'fecha': data.get('fecha'),
+            'descripcionDanos': data.get('descripcionDanos'),
+            'diagnostico': data.get('diagnostico'),
+            'presupuesto': data.get('presupuesto'),
+            'idEmpleado': data.get('idEmpleado'),
+            'resultado': data.get('resultado'),
+            'informacionAdicional': data.get('informacionAdicional'),
+            'detalles': detalles_data
+        }
+
+    # Preparar los argumentos para modificar_orden, convirtiendo formatos si es necesario
+    fecha_arg = None
+    if sanitized.get('fecha'):
+        try:
+            fecha_arg = datetime.strptime(sanitized.get('fecha'), '%Y-%m-%d').date()
+        except Exception:
+            # Si la fecha no coincide con el formato esperado, ignorarla (la función DB podrá manejar None)
+            fecha_arg = None
+
+    # Debug: log sanitized payload and idCargo before calling modificar_orden
+    try:
+        print(f"[Ordenes.modificar_orden_existente] idCargo={idCargo}, sanitized keys={list(sanitized.keys())}")
+        print(f"[Ordenes.modificar_orden_existente] diagnostico in sanitized? {'diagnostico' in sanitized}")
+        print(f"[Ordenes.modificar_orden_existente] detalles in sanitized? {'detalles' in sanitized}")
+    except Exception:
+        pass
+
+    resultado = modificar_orden(
         nroDeOrden=nroDeOrden,
-        idDispositivo=data.get('idDispositivo'),
-        fecha=datetime.strptime(data.get('fecha'), '%Y-%m-%d').date() if data.get('fecha') else None,
-        descripcionDanos=data.get('descripcionDanos'),
-        diagnostico=data.get('diagnostico'),
-        presupuesto=data.get('presupuesto'),
-        idEmpleado=data.get('idEmpleado'),
-        resultado=data.get('resultado'),
-        informacionAdicional=data.get('informacionAdicional'),
-        detalles=detalles_data  # <-- Pasar la lista de detalles
+        idDispositivo=sanitized.get('idDispositivo'),
+        fecha=fecha_arg,
+        descripcionDanos=sanitized.get('descripcionDanos'),
+        diagnostico=sanitized.get('diagnostico'),
+        presupuesto=sanitized.get('presupuesto'),
+        idEmpleado=sanitized.get('idEmpleado'),
+        resultado=sanitized.get('resultado'),
+        informacionAdicional=sanitized.get('informacionAdicional'),
+        detalles=sanitized.get('detalles')  # <-- Pasar la lista de detalles si está permitida
     )
 
     if "error" in resultado:

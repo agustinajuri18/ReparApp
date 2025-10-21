@@ -837,22 +837,50 @@ def mostrar_ordenes_de_reparacion():
         )
         return q.all()
 
-def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, detalles=None, resultado=None, informacionAdicional=None):
+def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos=None, diagnostico=None, presupuesto=None, idEmpleado=None, detalles=None, resultado=None, informacionAdicional=None, fechaInicioRetiro=None, **kwargs):
+    """
+    Modifica una orden existente. Parámetros aceptados:
+    - campos habituales (idDispositivo, descripcionDanos, diagnostico, presupuesto, idEmpleado, resultado, informacionAdicional)
+    - detalles: lista de dicts con idDetalle/idServicio/repuesto_proveedor_id/costoServicio/costoRepuesto/subtotal
+    - fechaInicioRetiro: (opcional) si se pasa, se intentará setear este campo en la orden.
+
+    Se aceptan kwargs extra por compatibilidad con llamadas que puedan incluir campos no manejados.
+    """
     with session_scope() as session:
         try:
             orden = session.query(OrdenDeReparacion).filter_by(nroDeOrden=nroDeOrden).first()
             if not orden:
                 return {"error": "Orden no encontrada"}
 
+            # Debug: log incoming main fields for tracing
+            try:
+                print(f"[ABMC_db.modificar_orden] nroDeOrden={nroDeOrden} recibidos: idDispositivo={idDispositivo}, descripcionDanos={descripcionDanos!r}, diagnostico={diagnostico!r}, presupuesto={presupuesto}, idEmpleado={idEmpleado}, resultado={resultado!r}, informacionAdicional={informacionAdicional!r}, fechaInicioRetiro={fechaInicioRetiro}")
+            except Exception:
+                pass
+
             # Actualizar campos principales de la orden
             if idDispositivo is not None:
                 orden.idDispositivo = idDispositivo
             # No permitir modificación de la fecha de la orden vía API: siempre conservar la fecha original
             # (Ignoramos el parámetro `fecha` si viene)
+            # Only update descripcionDanos/diagnostico if non-empty (avoid clearing existing values
+            # when the frontend sends empty strings). This prevents accidental overwrites.
             if descripcionDanos is not None:
-                orden.descripcionDanos = descripcionDanos
+                try:
+                    if isinstance(descripcionDanos, str) and descripcionDanos.strip() == "":
+                        print(f"[ABMC_db.modificar_orden] Skipping update of descripcionDanos because empty string received")
+                    else:
+                        orden.descripcionDanos = descripcionDanos
+                except Exception:
+                    orden.descripcionDanos = descripcionDanos
             if diagnostico is not None:
-                orden.diagnostico = diagnostico
+                try:
+                    if isinstance(diagnostico, str) and diagnostico.strip() == "":
+                        print(f"[ABMC_db.modificar_orden] Skipping update of diagnostico because empty string received")
+                    else:
+                        orden.diagnostico = diagnostico
+                except Exception:
+                    orden.diagnostico = diagnostico
             if presupuesto is not None:
                 orden.presupuesto = presupuesto
             if idEmpleado is not None:
@@ -862,9 +890,58 @@ def modificar_orden(nroDeOrden, idDispositivo=None, fecha=None, descripcionDanos
                 orden.resultado = resultado
             if informacionAdicional is not None:
                 orden.informacionAdicional = informacionAdicional
+            # Si nos pasaron fechaInicioRetiro, intentar setearla (campo puede no existir en algunas migraciones)
+            if fechaInicioRetiro is not None:
+                try:
+                    # Solo setear si el atributo existe en el modelo
+                    if hasattr(orden, 'fechaInicioRetiro'):
+                        orden.fechaInicioRetiro = fechaInicioRetiro
+                except Exception:
+                    # no crítico
+                    pass
 
             # --- Lógica para sincronizar detalles ---
             if detalles is not None:
+                try:
+                    print(f"[ABMC_db.modificar_orden] detalles recibidos (count={len(detalles) if hasattr(detalles, '__len__') else 'unknown'}): {detalles}")
+                except Exception:
+                    pass
+                # Normalizar tipos en los detalles recibidos para evitar problemas
+                # cuando el frontend envía ids como strings (p.ej. '123') o marcadores 'new_...'.
+                detalles_normalizados = []
+                for d in detalles:
+                    nd = dict(d) if isinstance(d, dict) else d
+                    # idDetalle: if string that starts with 'new_' -> treat as None
+                    id_det = nd.get('idDetalle')
+                    if isinstance(id_det, str) and id_det.startswith('new_'):
+                        nd['idDetalle'] = None
+                    else:
+                        # try to coerce numeric strings to int
+                        try:
+                            if isinstance(id_det, str) and id_det.isdigit():
+                                nd['idDetalle'] = int(id_det)
+                        except Exception:
+                            pass
+                    # idServicio: coerce numeric strings to int when possible
+                    try:
+                        if isinstance(nd.get('idServicio'), str) and nd.get('idServicio').isdigit():
+                            nd['idServicio'] = int(nd.get('idServicio'))
+                    except Exception:
+                        pass
+                    # repuesto_proveedor_id: coerce numeric strings to int when possible
+                    try:
+                        rp = nd.get('repuesto_proveedor_id')
+                        if isinstance(rp, str) and rp.isdigit():
+                            nd['repuesto_proveedor_id'] = int(rp)
+                    except Exception:
+                        pass
+                    detalles_normalizados.append(nd)
+                # replace detalles with normalized list for subsequent processing
+                detalles = detalles_normalizados
+                try:
+                    print(f"[ABMC_db.modificar_orden] detalles normalizados ids: {[d.get('idDetalle') for d in detalles]}")
+                except Exception:
+                    pass
                 # Obtener los IDs de los detalles existentes en la BD para esta orden
                 detalles_actuales_ids = {d.idDetalle for d in orden.detalles}
                 # Obtener los IDs de los detalles que vienen del frontend

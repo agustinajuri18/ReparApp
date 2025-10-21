@@ -31,6 +31,7 @@ function Ordenes() {
   const [showOnlyPendienteAprobacion, setShowOnlyPendienteAprobacion] = useState(false);
   const [showOnlyPendienteRetiro, setShowOnlyPendienteRetiro] = useState(false);
   const [ordenes, setOrdenes] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [clientes, setClientes] = useState([]);
   const [empleados, setEmpleados] = useState([]);
   const [dispositivos, setDispositivos] = useState([]);
@@ -67,13 +68,40 @@ function Ordenes() {
     }
   };
 
+  // Helper for search: normalize but preserve spaces (so we can tokenize by words)
+  const _normalizeForSearch = (s) => {
+    if (!s && s !== 0) return '';
+    try {
+      return String(s)
+        .normalize('NFKD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toLowerCase()
+        .trim();
+    } catch (e) {
+      return String(s)
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+    }
+  };
+
+  // Helper para comprobar si un estado corresponde a "PendienteDeRetiro" o "Retirada"
+  const isRetiroEstado = (estado) => {
+    if (!estado) return false;
+    const n = _normalize(estado);
+    return n === 'pendientederetiro' || n === 'retirada';
+  };
+
   const [proveedoresFiltrados, setProveedoresFiltrados] = useState([]);
 
   const [modalMensaje, setModalMensaje] = useState(null);
+  const [modalMensajeGlobal, setModalMensajeGlobal] = useState(null);
   const [emitirMode, setEmitirMode] = useState(false);
   const [emitirDestinatario, setEmitirDestinatario] = useState('');
   const [emitirCaption, setEmitirCaption] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isSavingOrden, setIsSavingOrden] = useState(false);
   const [terminarModalOpen, setTerminarModalOpen] = useState(false);
   const [terminarOrden, setTerminarOrden] = useState(null);
   const [terminarComentario, setTerminarComentario] = useState("");
@@ -94,6 +122,29 @@ function Ordenes() {
     idEmpleado: "",
     estado: "EnDiagnostico" // Estado por defecto
   });
+
+  // Helper para notificar cambios de estado de una orden de forma consistente
+  const notifyEstadoCambio = (nro, nuevoEstado, viejoEstado = null, options = {}) => {
+    try {
+      const readableNuevo = String(nuevoEstado || '').replace(/([A-Z])/g, ' $1').trim();
+      const readableViejo = viejoEstado ? String(viejoEstado).replace(/([A-Z])/g, ' $1').trim() : null;
+      const message = readableViejo
+        ? `Orden #${nro}: ${readableViejo} → ${readableNuevo}`
+        : `Orden #${nro} ahora está en estado: ${readableNuevo}`;
+
+      // Mensaje global en la UI principal
+      setMensaje(message);
+
+      // Si estamos dentro de un modal o se solicita, mostrar también el mensaje en el modal
+      if (options.inModal) {
+        setModalMensaje({ tipo: 'success', texto: message });
+      }
+      // refrescar la lista si se pidió
+      if (options.refresh !== false) fetchOrdenes();
+    } catch (e) {
+      console.error('notifyEstadoCambio error', e);
+    }
+  };
 
   const [detalles, setDetalles] = useState([]);
   const [nuevoDetalle, setNuevoDetalle] = useState({
@@ -170,6 +221,18 @@ function Ordenes() {
     fetchServicios();
     fetchRepuestosProveedores();
   }, [canView]);
+
+  // Auto limpiar mensaje global después de unos segundos para que no quede persistente
+  useEffect(() => {
+    if (!_mensaje) return;
+    // Mostrar en modal global y limpiar estado _mensaje
+    setModalMensajeGlobal({ tipo: 'info', texto: _mensaje });
+    const t = setTimeout(() => {
+      setMensaje('');
+      setModalMensajeGlobal(null);
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [_mensaje]);
 
   const fetchClientes = () => {
     fetch(CLIENTES_URL)
@@ -353,7 +416,8 @@ function Ordenes() {
         setFormErrors({});
         setMensaje("");
         setModalVisible(true);
-        setShowAddDetalle(true);
+          // Mostrar formulario de agregar detalle solo si no es Asistente de ventas
+          setShowAddDetalle(!isSalesAdmin);
         setAvailableRepuestos([]);
         setProveedoresFiltrados([]);
         setEditingDetalleId(null);
@@ -414,12 +478,14 @@ function Ordenes() {
         return res.json().catch(() => ({}));
       })
       .then(data => {
-        setMensaje(`Orden #${nro} marcada como Retirada.`);
-        fetchOrdenes();
+        // Usar notificación consistente
+        const nuevoEstado = (data && data.estado) ? data.estado : 'Retirada';
+        notifyEstadoCambio(nro, nuevoEstado, null, { refresh: true });
       })
       .catch(err => {
         console.error('Error al marcar retirada:', err);
         setMensaje(`No se pudo marcar retirada: ${err.message}`);
+        setModalMensaje({ tipo: 'danger', texto: `No se pudo marcar retirada: ${err.message}` });
       });
   };
 
@@ -443,9 +509,9 @@ function Ordenes() {
       .then(data => {
         console.log('Respuesta aceptar presupuesto:', data);
         if (data && data.success) {
-          setModalMensaje({ tipo: 'success', texto: `Orden #${nro} marcada como ${data.estado || 'En Reparación'}` });
+          const nuevoEstado = data.estado || 'En Reparación';
+          notifyEstadoCambio(nro, nuevoEstado, null, { inModal: true, refresh: true });
           setPresupuestoModalVisible(false);
-          fetchOrdenes();
         } else {
           setModalMensaje({ tipo: 'danger', texto: data.error || 'No se pudo aceptar el presupuesto.' });
         }
@@ -474,9 +540,9 @@ function Ordenes() {
       .then(data => {
         console.log('Respuesta rechazar presupuesto:', data);
         if (data && data.success) {
-          setModalMensaje({ tipo: 'success', texto: `Orden #${nro} marcada como ${data.estado || 'PendienteDeRetiro'}` });
+          const nuevoEstado = data.estado || 'PendienteDeRetiro';
+          notifyEstadoCambio(nro, nuevoEstado, null, { inModal: true, refresh: true });
           setPresupuestoModalVisible(false);
-          fetchOrdenes();
         } else {
           setModalMensaje({ tipo: 'danger', texto: data.error || 'No se pudo rechazar el presupuesto.' });
         }
@@ -572,28 +638,15 @@ function Ordenes() {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          // En lugar de usar setMensaje global, usamos un estado local para el modal
-          setModalMensaje({
-            tipo: 'success',
-            texto: `Presupuesto ${aceptado ? 'aceptado' : 'rechazado'} correctamente.`
-          });
-          fetchOrdenes();
-          setForm(prev => ({
-            ...prev,
-            estado: data.nuevoEstado
-          }));
+          const nuevoEstado = data.nuevoEstado || (aceptado ? 'En Reparación' : 'PendienteDeRetiro');
+          notifyEstadoCambio(form.nroDeOrden, nuevoEstado, form.estado, { inModal: true, refresh: true });
+          setForm(prev => ({ ...prev, estado: nuevoEstado }));
         } else {
-          setModalMensaje({
-            tipo: 'danger',
-            texto: data.error || 'Ocurrió un error'
-          });
+          setModalMensaje({ tipo: 'danger', texto: data.error || 'Ocurrió un error' });
         }
       })
-      .catch(() => {
-        setModalMensaje({
-          tipo: 'danger',
-          texto: 'Error de red'
-        });
+      .catch((err) => {
+        setModalMensaje({ tipo: 'danger', texto: 'Error de red: ' + (err?.message || '') });
       });
   };
 
@@ -803,13 +856,26 @@ function Ordenes() {
         encontrado = availableRepuestos.find(r => String(r.idRepuesto) === String(codRepuesto));
       }
       if (!encontrado) {
-        // fallback local
-        encontrado = repuestosProveedores.find(r => String(r.idRepuesto) === String(codRepuesto) || String(r.codigoRepuesto) === String(codRepuesto));
-      }
-      if (encontrado && Array.isArray(encontrado.proveedores)) {
-        setProveedoresFiltrados(encontrado.proveedores);
+        // fallback local: repuestosProveedores is a flat list of relations
+        // build a proveedores array from matching relations
+        const relacionados = repuestosProveedores.filter(rp => String(rp.idRepuesto) === String(codRepuesto) || String(rp.codigoRepuesto) === String(codRepuesto));
+        if (relacionados.length > 0) {
+          const provs = relacionados.map(rp => ({
+            idProveedor: rp.idProveedor ?? rp.idProveedor,
+            cuilProveedor: rp.cuilProveedor ?? rp.cuil ?? null,
+            razonSocial: rp.razonSocial ?? `Proveedor ${rp.idProveedor}`,
+            costo: rp.costo ?? 0
+          }));
+          setProveedoresFiltrados(provs);
+        } else {
+          setProveedoresFiltrados([]);
+        }
       } else {
-        setProveedoresFiltrados([]);
+        if (encontrado && Array.isArray(encontrado.proveedores)) {
+          setProveedoresFiltrados(encontrado.proveedores);
+        } else {
+          setProveedoresFiltrados([]);
+        }
       }
       updatedDetalle.repuestoProveedor = "";
       updatedDetalle.costoRepuesto = "";
@@ -851,10 +917,10 @@ function Ordenes() {
       .then(res => res.json())
       .then(data => {
         if (data && data.success) {
-          setModalMensaje({ tipo: 'success', texto: 'Orden marcada como Pendiente de Aprobación.' });
-          fetchOrdenes();
+          const nuevoEstado = data.estado || 'PendienteDeAprobacion';
+          notifyEstadoCambio(nro, nuevoEstado, form.estado, { inModal: true, refresh: true });
           // actualizar estado local del form para reflejar el cambio
-          setForm(prev => ({ ...prev, estado: data.estado || 'PendienteDeAprobacion' }));
+          setForm(prev => ({ ...prev, estado: nuevoEstado }));
         } else {
           setModalMensaje({ tipo: 'danger', texto: data.error || 'No se pudo solicitar aprobación.' });
         }
@@ -867,85 +933,124 @@ function Ordenes() {
 
 
   // --- Acciones CRUD ---
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setModalMensaje({ tipo: 'info', texto: 'Guardando...' });
+    setIsSavingOrden(true);
+    try {
+      await saveOrden();
+      // Notificar cambio de estado de forma consistente. Intentamos leer el nro y estado del form.
+      const nro = form?.nroDeOrden || 'nueva';
+      const nuevoEstado = form?.estado || (modalModo === 'alta' ? 'En Diagnóstico' : 'Actualizada');
+      notifyEstadoCambio(nro, nuevoEstado, null, { inModal: true, refresh: true });
+      handleModalClose();
+    } catch (err) {
+      console.error('[Ordenes.jsx] handleSubmit error:', err);
+      // Mostrar el error en el modal (más visible)
+      setModalMensaje({ tipo: 'danger', texto: err.message || 'Error al guardar la orden' });
+    } finally {
+      setIsSavingOrden(false);
+    }
+  };
+
+  // Helper para guardar la orden (separa la lógica para poder llamarla antes de confirmar)
+  const saveOrden = async () => {
+    // Validaciones previas
     const errors = validarOrden(form);
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) {
-      return;
+      console.warn('[Ordenes.jsx] saveOrden: validación fallida', errors);
+      throw new Error('Validación fallida: ' + JSON.stringify(errors));
     }
+
+    const preparedDetalles = detalles.map(d => {
+      let finalRepuestoProveedorId = d.repuesto_proveedor_id;
+      if (d.isNew || editingDetalleId === d.idDetalle || !finalRepuestoProveedorId) {
+        // Be tolerant with field names returned by backend: relation may contain
+        // 'id' (relation id), 'idRepuesto' or 'codigoRepuesto', and provider CUIL
+        // may be under 'cuilProveedor' or 'cuil' or provider id under 'idProveedor'.
+        let repuestoProveedorRel = repuestosProveedores.find(rp => {
+          const rpIdRepuesto = rp.idRepuesto ?? rp.codigoRepuesto ?? rp.idRepuesto;
+          const rpCuil = rp.cuilProveedor ?? rp.cuil ?? null;
+          const rpIdProveedor = rp.idProveedor ?? rp.idProveedor ?? null;
+          return String(rpIdRepuesto) === String(d.codRepuestos) && (String(rpCuil) === String(d.cuitProveedor) || String(rpIdProveedor) === String(d.cuitProveedor));
+        });
+        if (repuestoProveedorRel) {
+          finalRepuestoProveedorId = repuestoProveedorRel.id;
+        }
+      }
+
+      return {
+        idDetalle: typeof d.idDetalle === 'string' && d.idDetalle.startsWith('new_') ? null : d.idDetalle,
+        idServicio: d.codigoServicio || d.idServicio,
+        repuesto_proveedor_id: finalRepuestoProveedorId ?? null,
+        costoServicio: parseFloat(d.costoServicio || 0),
+        costoRepuesto: parseFloat(d.costoRepuesto || 0),
+        subtotal: parseFloat(d.subtotal || 0)
+      };
+    });
+
+    const shouldSendDiagnostico = (modalModo !== 'alta') && (!isSalesAdmin) && (typeof form.diagnostico === 'string' ? form.diagnostico.trim().length > 0 : Boolean(form.diagnostico));
 
     const payload = {
       ...form,
-      // Nota: no enviar 'fecha' al backend en ninguna operación; el backend gestiona la fecha
       fecha: undefined,
-      ...(modalModo === 'alta' && { diagnostico: undefined }), // Excluir diagnóstico en modo alta
+      ...(shouldSendDiagnostico ? { diagnostico: form.diagnostico } : {}),
       presupuesto: parseFloat(form.presupuesto) || 0,
-      detalles: detalles.map(d => {
-        let finalRepuestoProveedorId = d.repuesto_proveedor_id;
-
-        // Si el detalle es nuevo o fue editado, necesitamos encontrar el ID de la relación.
-        if (d.isNew || editingDetalleId === d.idDetalle || !finalRepuestoProveedorId) {
-          // Intentar por cuilProveedor (legacy)
-          let repuestoProveedorRel = repuestosProveedores.find(rp =>
-            String(rp.idRepuesto) === String(d.codRepuestos) &&
-            (String(rp.cuilProveedor) === String(d.cuitProveedor) || String(rp.cuil) === String(d.cuitProveedor))
-          );
-          // Si no se encontró, intentar por idProveedor
-          if (!repuestoProveedorRel) {
-            repuestoProveedorRel = repuestosProveedores.find(rp =>
-              String(rp.idRepuesto) === String(d.codRepuestos) &&
-              (String(rp.idProveedor) === String(d.cuitProveedor) || String(rp.idProveedor) === String(d.idProveedor))
-            );
-          }
-          if (repuestoProveedorRel) {
-            finalRepuestoProveedorId = repuestoProveedorRel.id;
-          }
-        }
-
-        return {
-          idDetalle: typeof d.idDetalle === 'string' && d.idDetalle.startsWith('new_') ? null : d.idDetalle,
-          idServicio: d.codigoServicio || d.idServicio,
-          repuesto_proveedor_id: finalRepuestoProveedorId ?? null,
-          costoServicio: parseFloat(d.costoServicio || 0),
-          costoRepuesto: parseFloat(d.costoRepuesto || 0),
-          subtotal: parseFloat(d.subtotal || 0)
-        };
-      })
+      ...(isSalesAdmin ? {} : { detalles: preparedDetalles })
     };
 
     const url = modalModo === 'alta' ? API_URL : `${API_URL}/${form.nroDeOrden}`;
     const method = modalModo === 'alta' ? 'POST' : 'PUT';
+    const idSesionHeader = localStorage.getItem('idSesion');
+    const headers = { 'Content-Type': 'application/json' };
+    if (idSesionHeader) headers['X-Id-Sesion'] = idSesionHeader;
 
-    fetch(url, {
-      method: method,
-      headers: { "Content-Type": "application/json" },
+    // Ejecutar fetch y retornar respuesta JSON o lanzar error
+    // Debug: log payload and target URL before sending
+    try { console.log('[Ordenes.jsx] saveOrden -> URL:', url, 'method:', method, 'payload:', payload); } catch (e) {}
+
+    const resp = await fetch(url, {
+      method,
+      headers,
       body: JSON.stringify(payload)
-    })
-      .then(async res => {
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          const errMsg = body?.error || body?.detail || `Error ${res.status}`;
-          return Promise.reject(new Error(errMsg));
-        }
-        return res.json();
-      })
-      .then(() => {
-        setMensaje(`Orden ${modalModo === 'alta' ? 'creada' : 'actualizada'} correctamente.`);
-        // --- CORRECCIÓN ---
-        // Mueve el cierre del modal y la recarga de datos aquí, al final del proceso exitoso.
-        handleModalClose();
-        fetchOrdenes();
-      })
-      .catch(err => {
-        setMensaje(err.message || 'Error de red');
-        // No cierres el modal si hay un error, para que el usuario pueda corregir.
-      });
+    });
+    if (!resp.ok) {
+      let body = {};
+      try { body = await resp.json(); } catch (e) { body = {}; }
+      throw new Error(body?.error || body?.detail || `HTTP ${resp.status}`);
+    }
+    return resp.json().catch(() => ({}));
+  };
+
+  // Handler que guarda cambios y luego solicita aprobación (usado por el botón Confirmar)
+  const handleConfirmarYGuardar = async () => {
+    console.log('[Ordenes.jsx] handleConfirmarYGuardar clicked. detalles.length=', detalles ? detalles.length : 0, 'form.nroDeOrden=', form?.nroDeOrden);
+    setIsSavingOrden(true);
+    setModalMensaje({ tipo: 'info', texto: 'Guardando...' });
+    try {
+      await saveOrden();
+      console.log('[Ordenes.jsx] saveOrden succeeded, now requesting approval for', form.nroDeOrden);
+      // Después de guardar correctamente solicitamos aprobación
+      handleSolicitarAprobacion(form.nroDeOrden);
+      // Cerrar modal (la notificación de cambio será manejada por handleSolicitarAprobacion)
+      handleModalClose();
+    } catch (err) {
+      console.error('[Ordenes.jsx] handleConfirmarYGuardar error:', err);
+      // Mostrar error en el modal para que el usuario lo vea claramente
+      setModalMensaje({ tipo: 'danger', texto: err.message || 'Error al guardar antes de confirmar' });
+    } finally {
+      setIsSavingOrden(false);
+    }
   };
 
 
   const handleAgregarDetalleLocal = (e) => {
     e.preventDefault();
+    if (isSalesAdmin) {
+      setMensaje('No tenés permiso para agregar detalles.');
+      return;
+    }
     const errors = validarNuevoDetalle(nuevoDetalle);
     setNuevoDetalleErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -956,15 +1061,18 @@ function Ordenes() {
     const codRepuestos = nuevoDetalle.codigoRepuesto || codRepuestosFromValue || "";
     const cuitProveedor = cuitProveedorFromValue || "";
 
-    const servicioObj = servicios.find(s => String(s.idServicio) === String(nuevoDetalle.codigoServicio));
-    const repuestoObj = availableRepuestos.find(r => String(r.idRepuesto) === String(codRepuestos));
-    const proveedorObj = proveedoresFiltrados.find(p => String(p.cuilProveedor) === String(cuitProveedor));
+  const servicioObj = servicios.find(s => String(s.idServicio) === String(nuevoDetalle.codigoServicio));
+  const repuestoObj = availableRepuestos.find(r => String(r.idRepuesto) === String(codRepuestos));
+  // Match provider either by cuil or by idProveedor (frontend passes idProveedor in the select value)
+  const proveedorObj = proveedoresFiltrados.find(p => String(p.cuilProveedor) === String(cuitProveedor) || String(p.idProveedor) === String(cuitProveedor));
 
-    // --- CORRECCIÓN: Buscar el ID de la relación aquí ---
-    const repuestoProveedorRel = repuestosProveedores.find(rp =>
-      String(rp.idRepuesto) === String(codRepuestos) &&
-      String(rp.cuilProveedor) === String(cuitProveedor)
-    );
+    // --- CORRECCIÓN: Buscar el ID de la relación aquí (tolerante a nombres de campo)
+    const repuestoProveedorRel = repuestosProveedores.find(rp => {
+      const rpIdRepuesto = rp.idRepuesto ?? rp.codigoRepuesto ?? rp.idRepuesto;
+      const rpCuil = rp.cuilProveedor ?? rp.cuil ?? null;
+      const rpIdProveedor = rp.idProveedor ?? null;
+      return String(rpIdRepuesto) === String(codRepuestos) && (String(rpCuil) === String(cuitProveedor) || String(rpIdProveedor) === String(cuitProveedor));
+    });
 
     const detalleCompleto = {
       idDetalle: editingDetalleId || `new_${Date.now()}`,
@@ -1000,6 +1108,10 @@ function Ordenes() {
   const [confirmRemoveDetalle, setConfirmRemoveDetalle] = useState({ open: false, id: null });
 
   const handleRemoveDetalleLocal = (idDetalle) => {
+    if (isSalesAdmin) {
+      setMensaje('No tenés permiso para eliminar detalles.');
+      return;
+    }
     setConfirmRemoveDetalle({ open: true, id: idDetalle });
   };
 
@@ -1013,6 +1125,10 @@ function Ordenes() {
   };
 
   const handleEditarDetalleClick = (detalle) => {
+    if (isSalesAdmin) {
+      setMensaje('No tenés permiso para editar detalles.');
+      return;
+    }
     console.log("Editando detalle:", detalle); // Para depuración
     setNuevoDetalle({
       codigoServicio: String(detalle.codigoServicio || ''),
@@ -1038,10 +1154,16 @@ function Ordenes() {
           if (encontrado && Array.isArray(encontrado.proveedores)) {
             setProveedoresFiltrados(encontrado.proveedores);
           } else {
-            // Fallback a repuestosProveedores
-            const encontradoFallback = repuestosProveedores.find(r => String(r.idRepuesto) === String(cod) || String(r.codigoRepuesto) === String(cod));
-            if (encontradoFallback && Array.isArray(encontradoFallback.proveedores)) {
-              setProveedoresFiltrados(encontradoFallback.proveedores);
+            // Fallback a repuestosProveedores (flat relations) -> construir lista de proveedores
+            const relacionados = repuestosProveedores.filter(rp => String(rp.idRepuesto) === String(cod) || String(rp.codigoRepuesto) === String(cod) || String(rp.id) === String(cod));
+            if (relacionados.length > 0) {
+              const provs = relacionados.map(rp => ({
+                idProveedor: rp.idProveedor ?? rp.idProveedor,
+                cuilProveedor: rp.cuilProveedor ?? rp.cuil ?? null,
+                razonSocial: rp.razonSocial ?? `Proveedor ${rp.idProveedor}`,
+                costo: rp.costo ?? 0
+              }));
+              setProveedoresFiltrados(provs);
             } else {
               setProveedoresFiltrados([]);
             }
@@ -1237,7 +1359,17 @@ function Ordenes() {
               </div>
             </div>
             <div className="card-body">
-              {/* quitar el alert de mensaje general */}
+              {/* Search input */}
+              <div className="mb-3">
+                <input type="text" className="form-control" placeholder="Buscar por Nro Orden o Cliente..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+              </div>
+              {/* alert global para mensajes de cambio de estado / errores */}
+              {_mensaje && (
+                <div className={`alert alert-info alert-dismissible fade show mx-3 mt-3 mb-0`} role="alert">
+                  {_mensaje}
+                  <button type="button" className="btn-close" onClick={() => setMensaje('')}></button>
+                </div>
+              )}
               <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-hover align-middle">
                   <thead>
@@ -1265,6 +1397,22 @@ function Ordenes() {
                   <tbody>
                     {ordenes
                       .filter(o => {
+                        // If there's a search query, search by nroDeOrden or cliente (name only, without DNI)
+                        if (searchQuery && String(searchQuery).trim().length > 0) {
+                          const q = _normalizeForSearch(String(searchQuery).trim());
+                          // search by nroDeOrden anywhere (contains)
+                          if (String(o.nroDeOrden).toLowerCase().includes(q)) return true;
+
+                          // Tokenize query and ensure all tokens appear in cliente_info (name part only)
+                          const tokens = q.split(/\s+/).filter(Boolean);
+                          const clienteRaw = o.cliente_info ? String(o.cliente_info).split('(')[0].trim() : '';
+                          const clienteText = clienteRaw ? _normalizeForSearch(clienteRaw) : '';
+                          const allTokensMatch = tokens.every(t => clienteText && clienteText.includes(t));
+                          if (allTokensMatch) return true;
+
+                          return false;
+                        }
+
                         // If no filter toggles are active, show all
                         if (!showOnlyEnDiagnostico && !showOnlyEnReparacion && !showOnlyPendienteAprobacion && !showOnlyPendienteRetiro) return true;
                         const estado = _normalize(o.estado || '');
@@ -1288,7 +1436,7 @@ function Ordenes() {
                               <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleOpenActualizarHistorial(o)}>
                                 <i className="bi bi-arrow-clockwise me-1"></i>Actualizar historial
                               </button>
-                              {((o.fechaInicioRetiro) || (o.estado && ((o.estado.toLowerCase().includes('pendiente') && o.estado.toLowerCase().includes('retiro')) || o.estado.toLowerCase().includes('retir')))) && (
+                              {isRetiroEstado(o.estado) && (
                                 <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarComprobante(o.nroDeOrden)}>
                                   <i className="bi bi-file-earmark-pdf me-1"></i>Comprobante retiro
                                 </button>
@@ -1303,12 +1451,12 @@ function Ordenes() {
                               </button>
                               {/* Agregar botón Modificar también en la vista En Reparación */}
                               {!showOnlyPendienteAprobacion && (
-                                (isTecnico || (canModify && !isSalesAdmin)) ? (
+                                (isTecnico || canModify || isSalesAdmin) ? (
                                   <button className="btn btn-sm btn-dorado fw-bold ms-2" onClick={() => handleModificar(o)}>
                                     <i className="bi bi-pencil-square me-1"></i>Modificar
                                   </button>
                                 ) : (
-                                  <button className="btn btn-sm btn-dorado fw-bold ms-2" disabled title={isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para modificar órdenes'}>
+                                  <button className="btn btn-sm btn-dorado fw-bold ms-2" disabled title={'No tenés permiso para modificar órdenes'}>
                                     <i className="bi bi-pencil-square me-1"></i>Modificar
                                   </button>
                                 )
@@ -1348,19 +1496,15 @@ function Ordenes() {
                               <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
                                 <i className="bi bi-search me-1"></i>Consultar
                               </button>
-                              {!isTecnico && (
-                                <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => { handleConsultar(o); setEmitirMode(true); }}>
-                                  <i className="bi bi-file-earmark-pdf me-1"></i>Emitir
-                                </button>
-                              )}
+                              {/* 'Emitir' button removed as requested */}
                               {/* Ocultar el botón Modificar cuando se está filtrando por PendienteDeAprobacion */}
                               {!showOnlyPendienteAprobacion && (
-                                (isTecnico || (canModify && !isSalesAdmin)) ? (
+                                (isTecnico || canModify || isSalesAdmin) ? (
                                   <button className="btn btn-sm btn-dorado fw-bold" onClick={() => handleModificar(o)}>
                                     <i className="bi bi-pencil-square me-1"></i>Modificar
                                   </button>
                                 ) : (
-                                  <button className="btn btn-sm btn-dorado fw-bold" disabled title={isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para modificar órdenes'}>
+                                  <button className="btn btn-sm btn-dorado fw-bold" disabled title={'No tenés permiso para modificar órdenes'}>
                                     <i className="bi bi-pencil-square me-1"></i>Modificar
                                   </button>
                                 )
@@ -1518,7 +1662,16 @@ function Ordenes() {
                       {modalModo !== 'alta' && (
                         <div className="col-md-8">
                           <label>Diagnóstico</label>
-                          <input name="diagnostico" value={form.diagnostico} onChange={handleFormChange} className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar'} />
+                          <input
+                            name="diagnostico"
+                            value={form.diagnostico}
+                            onChange={handleFormChange}
+                            className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`}
+                            disabled={modalModo === 'consultar' || (modalModo === 'modificar' && isSalesAdmin)}
+                          />
+                          {(modalModo === 'modificar' && isSalesAdmin) && (
+                            <div className="form-text text-muted">No tenés permiso para modificar el diagnóstico.</div>
+                          )}
                         </div>
                       )}
                       <div className="col-md-4">
@@ -1528,18 +1681,7 @@ function Ordenes() {
                     </div>
 
                     {/* Botones de confirmación de presupuesto (solo si está pendiente) */}
-                    {modalModo === 'consultar' &&
-                      (form.estado === 'PendienteDeAprobacion' ||
-                        form.estado?.toLowerCase().includes('pendiente') && form.estado?.toLowerCase().includes('aprob')) && (
-                        <div className="my-3">
-                          <button type="button" className="btn btn-success me-2" onClick={() => confirmarPresupuesto(true)}>
-                            Aceptar Presupuesto
-                          </button>
-                          <button type="button" className="btn btn-danger" onClick={() => confirmarPresupuesto(false)}>
-                            Rechazar Presupuesto
-                          </button>
-                        </div>
-                      )}
+                    {/* En modo consulta ya no mostramos botones de aceptar/rechazar presupuesto (se maneja desde el modal de presupuesto) */}
                   </fieldset>
 
                   {/* Sección Emitir: mostrar SOLO cuando NO estamos en modo 'modificar' */}
@@ -1621,7 +1763,8 @@ function Ordenes() {
                   <fieldset className="mt-4">
                     <div className="d-flex justify-content-between align-items-center mb-2">
                       <legend className="mb-0">Detalles de la Orden</legend>
-                      {modalModo !== 'consultar' && (
+                      {/* Solo permitir toggle de agregar detalle si no es Asistente de ventas */}
+                      {modalModo !== 'consultar' && !isSalesAdmin && (
                         <button type="button" className="btn btn-verdeAgua btn-sm" onClick={() => setShowAddDetalle(v => !v)}>
                           {showAddDetalle ? 'Ocultar formulario' : 'Agregar detalle'}
                         </button>
@@ -1648,7 +1791,8 @@ function Ordenes() {
                             <td>{detalle.costoServicio}</td>
                             <td>{detalle.costoRepuesto}</td>
                             <td>{detalle.subtotal}</td>
-                            {modalModo !== 'consultar' && (
+                            {/* Ocultar acciones si es Asistente de ventas */}
+                            {modalModo !== 'consultar' && !isSalesAdmin && (
                               <td>
                                 {modalModo === 'modificar' && (
                                   <button type="button" className="btn btn-sm btn-dorado fw-bold me-2" onClick={(e) => { e.preventDefault(); handleEditarDetalleClick(detalle); }}>
@@ -1666,7 +1810,7 @@ function Ordenes() {
                     </table>
                     {detalles.length === 0 && <p className="text-muted">No hay detalles para esta orden.</p>}
 
-                    {modalModo !== 'consultar' && showAddDetalle && (
+                    {modalModo !== 'consultar' && showAddDetalle && !isSalesAdmin && (
                       <div className="row g-2 mt-2 align-items-end">
                         <div className="col">
                           <label>Servicio</label>
@@ -1697,8 +1841,12 @@ function Ordenes() {
                           >
                             <option value="">Seleccione un repuesto</option>
                             {availableRepuestos.map((r, index) => (
-                              <option key={`${r.idRepuesto}-${index}`} value={r.idRepuesto}>
-                                {r.marca} {r.modelo}
+                              <option
+                                key={`${r.idRepuesto}-${index}`}
+                                value={r.idRepuesto || r.codigoRepuesto || `${r.marca}-${r.modelo}-${index}`}
+                                title={`${r.marca || ''} ${r.modelo || ''} ${r.descripcion ? '- ' + r.descripcion : ''}`}
+                              >
+                                {`${r.marca || ''} ${r.modelo || ''}`.trim()} {r.descripcion ? ` - ${r.descripcion}` : ''}
                               </option>
                             ))}
                           </select>
@@ -1716,8 +1864,12 @@ function Ordenes() {
                           >
                             <option value="">Seleccione un proveedor</option>
                             {proveedoresFiltrados.map((p, index) => (
-                              <option key={`${p.idProveedor}-${index}`} value={`${nuevoDetalle.codigoRepuesto}/${p.idProveedor}`}>
-                                {p.razonSocial} - ${p.costo}
+                              <option
+                                key={`${p.idProveedor}-${index}`}
+                                value={`${nuevoDetalle.codigoRepuesto}/${p.idProveedor}`}
+                                title={`${p.razonSocial || ''}${p.cuilProveedor ? ' (CUIL: ' + p.cuilProveedor + ')' : ''} - $${p.costo || 0}`}
+                              >
+                                {`${p.razonSocial || ''}${p.cuilProveedor ? ' (' + p.cuilProveedor + ')' : ''} - $${p.costo || 0}`}
                               </option>
                             ))}
                           </select>
@@ -1771,8 +1923,8 @@ function Ordenes() {
                   </fieldset>
 
 
-                  {/* Sección de Avances Técnicos - Visible en todos los estados EXCEPTO En Diagnóstico y PendienteDeAprobacion */}
-                  {(!form.estado.includes('Diagnóstico') && !form.estado.includes('PendienteDeAprobacion')) && (
+                  {/* Sección de Avances Técnicos - SOLO visible cuando la orden está En Reparación */}
+                  {form.estado === 'En Reparación' && (
                     <fieldset className="mt-4">
                       <legend>Avances Técnicos</legend>
 
@@ -1798,7 +1950,7 @@ function Ordenes() {
                         </div>
                       )}
 
-                      {/* Historial de avances - visible para todos los usuarios */}
+                      {/* Historial de avances */}
                       <div className="d-flex justify-content-between align-items-center mb-3">
                         <h5 className="mb-0">Historial de avances</h5>
                         <button
@@ -1828,7 +1980,7 @@ function Ordenes() {
                       ) : (
                         <div className="alert alert-light text-center">
                           No hay avances registrados para esta orden.
-                          {isTecnico && modalModo !== 'consultar' ? ' Utilice el formulario superior para registrar un nuevo avance.' : ''}
+                          {isTecnico ? ' Utilice el formulario superior para registrar un nuevo avance.' : ''}
                         </div>
                       )}
                     </fieldset>
@@ -1838,7 +1990,7 @@ function Ordenes() {
                 <div className="modal-footer">
                   <button type="button" className="btn btn-dorado" onClick={handleModalClose}>Cerrar</button>
                   {/* Botón para comprobante de retiro: sólo visible en modo 'consultar' si hay fechaInicioRetiro o estado PendienteDeRetiro/Retirada */}
-                  {modalModo === 'consultar' && ((form.fechaInicioRetiro) || (form.estado && ((form.estado.toLowerCase().includes('pendiente') && form.estado.toLowerCase().includes('retiro')) || form.estado.toLowerCase().includes('retir')))) && (
+                  {modalModo === 'consultar' && isRetiroEstado(form.estado) && (
                     <button type="button" className="btn btn-sm btn-rojo fw-bold me-2" onClick={() => handleGenerarComprobante(form.nroDeOrden)}>
                       <i className="bi bi-file-earmark-pdf me-1"></i>Comprobante de retiro
                     </button>
@@ -1847,19 +1999,30 @@ function Ordenes() {
                     <button
                       type="button"
                       className="btn btn-dorado me-2"
-                      onClick={() => handleSolicitarAprobacion(form.nroDeOrden)}
-                      disabled={!(detalles && detalles.length >= 1)}
+                      onClick={() => handleConfirmarYGuardar()}
+                      disabled={isSavingOrden || !(detalles && detalles.length >= 1)}
                       title={!(detalles && detalles.length >= 1) ? 'Debe agregar al menos 1 detalle antes de confirmar' : ''}
                     >
-                      Confirmar
+                      {isSavingOrden ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                          Guardando...
+                        </>
+                      ) : 'Confirmar'}
                     </button>
                   )}
                   {modalModo !== 'consultar' && (
                     <button
                       type="submit"
                       className="btn btn-azul"
+                      disabled={isSavingOrden}
                     >
-                      Guardar
+                      {isSavingOrden ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                          Guardando...
+                        </>
+                      ) : 'Guardar'}
                     </button>
                   )}
                 </div>
@@ -1868,6 +2031,14 @@ function Ordenes() {
           </div>
         </div>
       )}
+
+      {/* Modal global para mensajes (_mensaje) usando ConfirmModal */}
+      <ConfirmModal
+        open={!!modalMensajeGlobal}
+        title={modalMensajeGlobal ? (modalMensajeGlobal.tipo === 'danger' ? 'Error' : modalMensajeGlobal.tipo === 'warning' ? 'Atención' : 'Mensaje') : 'Mensaje'}
+        message={modalMensajeGlobal ? modalMensajeGlobal.texto : ''}
+        onCancel={() => { setModalMensajeGlobal(null); setMensaje(''); }}
+      />
 
       {showAddClienteModal && (
         <div className="modal" style={{ display: "block", backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1060 }}>
@@ -2045,8 +2216,7 @@ function Ordenes() {
 
                       // Éxito: cerrar modal, refrescar lista y mostrar mensaje
                       setTerminarModalOpen(false);
-                      setMensaje(`Orden #${nro} marcada como reparada y pendiente de retiro.`);
-                      fetchOrdenes();
+                      notifyEstadoCambio(nro, 'PendienteDeRetiro', null, { refresh: true });
                     } catch (err) {
                       console.error('Error al terminar orden:', err);
                       // Mantener el modal abierto para que el usuario pueda reintentar o editar el comentario
@@ -2084,8 +2254,7 @@ function Ordenes() {
                       }
 
                       setTerminarModalOpen(false);
-                      setMensaje(`Orden #${nro} marcada como NO reparada y pendiente de retiro.`);
-                      fetchOrdenes();
+                      notifyEstadoCambio(nro, 'PendienteDeRetiro', null, { refresh: true });
                     } catch (err) {
                       console.error('Error al marcar no reparada:', err);
                       setModalMensaje({ tipo: 'danger', texto: `No se pudo marcar la orden como no reparada: ${err.message}` });

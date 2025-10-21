@@ -3,7 +3,6 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from 'react-dom';
 import MenuLateral from './MenuLateral';
 import ConfirmModal from './ConfirmModal';
-import PiePagina from './PiePagina';
 import { usePermission } from '../auth/PermissionContext';
 import { hasPermission } from '../utils/permissions';
 
@@ -713,7 +712,6 @@ export default function Dispositivos() {
                     </div>
                 </div>
             )}
-            <PiePagina />
             <ConfirmModal
                 open={confirmDeleteDispositivo.open}
                 title="Confirmar eliminación"
