@@ -311,12 +311,32 @@ def registrar_actualizacion_orden(nroDeOrden):
     orden = buscar_por_id(OrdenDeReparacion, nroDeOrden)
     if not orden:
         return jsonify({'error': 'Orden no encontrada'}), 404
+    # Debug: log raw descripcion recibida (temporal)
+    try:
+        print(f"[Ordenes.py] registrar_actualizacion_orden - recibido descripcion: {descripcion!r}")
+    except Exception:
+        pass
+
+    # Limpieza defensiva: si por alguna razón el frontend ya incluyó
+    # "(Registrado por ... en ...)" al final de la descripción, lo removemos
+    # para almacenar sólo el texto ingresado.
+    try:
+        import re
+        descripcion_limpia = re.sub(r"\s*\(?\s*Registrado por[^)\n]*\)?\s*$", '', descripcion, flags=re.IGNORECASE)
+        descripcion_limpia = descripcion_limpia.strip()
+    except Exception:
+        descripcion_limpia = descripcion
+
+    try:
+        print(f"[Ordenes.py] registrar_actualizacion_orden - descripcion limpia: {descripcion_limpia!r}")
+    except Exception:
+        pass
 
     historial = alta_historial_arreglos(
         nroDeOrden=nroDeOrden,
         idDispositivo=orden.idDispositivo,
         fechaArreglo=fechaArreglo,
-        descripcion=f"{descripcion}\n(Registrado por {usuario} en {fechaArreglo.strftime('%Y-%m-%d %H:%M')})"
+        descripcion=descripcion_limpia
     )
 
     return jsonify({'success': True})

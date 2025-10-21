@@ -71,6 +71,10 @@ function Ordenes() {
   const [terminarModalOpen, setTerminarModalOpen] = useState(false);
   const [terminarOrden, setTerminarOrden] = useState(null);
   const [terminarComentario, setTerminarComentario] = useState("");
+  // Estado para el modal de "Actualizar historial" (desde la tabla)
+  const [showActualizarHistorialModal, setShowActualizarHistorialModal] = useState(false);
+  const [actualizarHistorialOrden, setActualizarHistorialOrden] = useState(null);
+  const [actualizarHistorialTexto, setActualizarHistorialTexto] = useState('');
   const [showAddDetalle, setShowAddDetalle] = useState(false);
   const [availableRepuestos, setAvailableRepuestos] = useState([]); // <-- repuestos filtrados por servicio
 
@@ -668,6 +672,28 @@ function Ordenes() {
       });
   };
 
+  // Cargar historial de avances para una orden específica desde la tabla (En Reparación)
+  const handleActualizarHistorialRow = (nro) => {
+    // Mostrar indicador de carga en la UI principal
+    setMensaje('Actualizando historial de avances...');
+    fetch(`${API_URL}/${nro}/actualizaciones`)
+      .then(res => {
+        if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        // Mostrar feedback al usuario con la cantidad de avances encontrados
+        const count = Array.isArray(data) ? data.length : 0;
+        setMensaje(`Historial actualizado para orden #${nro}. Encontrados ${count} avances.`);
+        // opcional: log para depuración
+        console.debug(`Avances para orden ${nro}:`, data);
+      })
+      .catch(err => {
+        console.error('Error al actualizar historial desde la tabla:', err);
+        setMensaje(`Error al actualizar historial de la orden #${nro}: ${err.message}`);
+      });
+  };
+
   // --- Manejadores de Formularios ---
   const handleFormChange = (e) => {
     const { name, value } = e.target;
@@ -985,6 +1011,43 @@ function Ordenes() {
     setMensaje('Edite los campos y presione "Actualizar" para guardar.');
   };
 
+  const handleOpenActualizarHistorial = (orden) => {
+    setActualizarHistorialOrden(orden);
+    setActualizarHistorialTexto('');
+    setShowActualizarHistorialModal(true);
+  };
+
+  const handleEnviarHistorial = () => {
+    if (!actualizarHistorialOrden) return;
+    if (!actualizarHistorialTexto || !actualizarHistorialTexto.trim()) {
+      setMensaje('Ingrese una descripción para el historial.');
+      return;
+    }
+    const nro = actualizarHistorialOrden.nroDeOrden;
+    setMensaje('Guardando historial...');
+    fetch(`${API_URL}/${nro}/actualizaciones`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ descripcion: actualizarHistorialTexto, usuario: identity?.nombre || 'web' })
+    })
+      .then(res => {
+        if (!res.ok) return res.json().then(b => Promise.reject(new Error(b?.error || b || `HTTP ${res.status}`)));
+        return res.json().catch(() => ({}));
+      })
+      .then(() => {
+        setMensaje(`Historial guardado para orden #${nro}`);
+        setShowActualizarHistorialModal(false);
+        setActualizarHistorialOrden(null);
+        setActualizarHistorialTexto('');
+        // refrescar avances y lista de ordenes
+        fetchOrdenes();
+      })
+      .catch(err => {
+        console.error('Error guardando historial:', err);
+        setMensaje(`No se pudo guardar el historial: ${err.message}`);
+      });
+  };
+
   const handleNuevoClienteChange = (e) => {
     const { name, value } = e.target;
     setNuevoCliente(prev => ({ ...prev, [name]: value }));
@@ -1157,6 +1220,9 @@ function Ordenes() {
                               <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
                                 <i className="bi bi-search me-1"></i>Consultar
                               </button>
+                              <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleOpenActualizarHistorial(o)}>
+                                <i className="bi bi-arrow-clockwise me-1"></i>Actualizar historial
+                              </button>
                               {((o.fechaInicioRetiro) || (o.estado && ((o.estado.toLowerCase().includes('pendiente') && o.estado.toLowerCase().includes('retiro')) || o.estado.toLowerCase().includes('retir')))) && (
                                 <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarComprobante(o.nroDeOrden)}>
                                   <i className="bi bi-file-earmark-pdf me-1"></i>Comprobante retiro
@@ -1170,6 +1236,18 @@ function Ordenes() {
                               >
                                 <i className="bi bi-flag-fill me-1"></i>Terminar
                               </button>
+                              {/* Agregar botón Modificar también en la vista En Reparación */}
+                              {!showOnlyPendienteAprobacion && (
+                                (isTecnico || (canModify && !isSalesAdmin)) ? (
+                                  <button className="btn btn-sm btn-dorado fw-bold ms-2" onClick={() => handleModificar(o)}>
+                                    <i className="bi bi-pencil-square me-1"></i>Modificar
+                                  </button>
+                                ) : (
+                                  <button className="btn btn-sm btn-dorado fw-bold ms-2" disabled title={isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para modificar órdenes'}>
+                                    <i className="bi bi-pencil-square me-1"></i>Modificar
+                                  </button>
+                                )
+                              )}
                             </td>
                           </tr>
                         ) : (
@@ -1545,8 +1623,8 @@ function Ordenes() {
                   <fieldset className="mt-4">
                     <legend>Avances Técnicos</legend>
 
-                    {/* Solo muestra la entrada si está en reparación */}
-                    {form.estado === 'En Reparación' && (
+                    {/* Solo muestra la entrada si NO estamos en modo 'consultar' y la orden está en reparación */}
+                    {modalModo !== 'consultar' && form.estado === 'En Reparación' && (
                       <div className="mb-3">
                         <div className="input-group">
                           <input
@@ -1959,6 +2037,32 @@ function Ordenes() {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-dorado" onClick={() => setTerminarModalOpen(false)}>Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal para Actualizar Historial (invocado desde la tabla En Reparación) */}
+      {showActualizarHistorialModal && actualizarHistorialOrden && (
+        <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1066 }}>
+          <div className="modal-dialog modal-md modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Actualizar historial - Orden #{actualizarHistorialOrden.nroDeOrden}</h5>
+                <button type="button" className="btn-close" onClick={() => setShowActualizarHistorialModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-2"><strong>Orden:</strong> #{actualizarHistorialOrden.nroDeOrden}</div>
+                <div className="mb-2"><strong>Dispositivo:</strong> {actualizarHistorialOrden.dispositivo_info || '-'}</div>
+                <div className="mb-2"><strong>Fecha:</strong> {new Date().toISOString().split('T')[0]}</div>
+                <div className="mb-3">
+                  <label className="form-label">Descripción / Nota</label>
+                  <textarea className="form-control" rows={5} value={actualizarHistorialTexto} onChange={(e) => setActualizarHistorialTexto(e.target.value)} />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-dorado" onClick={() => setShowActualizarHistorialModal(false)}>Cancelar</button>
+                <button type="button" className="btn btn-azul" onClick={handleEnviarHistorial}>Guardar</button>
               </div>
             </div>
           </div>
