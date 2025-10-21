@@ -1771,8 +1771,8 @@ function Ordenes() {
                   </fieldset>
 
 
-                  {/* Sección de Avances Técnicos - SOLO visible cuando la orden está En Reparación */}
-                  {form.estado === 'En Reparación' && (
+                  {/* Sección de Avances Técnicos - Visible en todos los estados EXCEPTO En Diagnóstico y PendienteDeAprobacion */}
+                  {(!form.estado.includes('Diagnóstico') && !form.estado.includes('PendienteDeAprobacion')) && (
                     <fieldset className="mt-4">
                       <legend>Avances Técnicos</legend>
 
@@ -1798,7 +1798,7 @@ function Ordenes() {
                         </div>
                       )}
 
-                      {/* Historial de avances */}
+                      {/* Historial de avances - visible para todos los usuarios */}
                       <div className="d-flex justify-content-between align-items-center mb-3">
                         <h5 className="mb-0">Historial de avances</h5>
                         <button
@@ -1828,7 +1828,7 @@ function Ordenes() {
                       ) : (
                         <div className="alert alert-light text-center">
                           No hay avances registrados para esta orden.
-                          {isTecnico ? ' Utilice el formulario superior para registrar un nuevo avance.' : ''}
+                          {isTecnico && modalModo !== 'consultar' ? ' Utilice el formulario superior para registrar un nuevo avance.' : ''}
                         </div>
                       )}
                     </fieldset>
