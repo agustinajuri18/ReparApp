@@ -73,8 +73,14 @@ def modificar_datos_dispositivo(idDispositivo):
         return jsonify({'success': True})
     return jsonify({'error': 'Dispositivo no encontrado'}), 404
 
+
 @bp.route('/dispositivos/<int:idDispositivo>', methods=['DELETE'])
 def baja_logica_dispositivo(idDispositivo):
+    # Verificar si el dispositivo tiene órdenes activas
+    ordenes = obtener_ordenes(mode='summary', idDispositivo=idDispositivo) or []
+    ordenes_activas = [o for o in ordenes if o.get('estado', '').lower() not in ['retirado', 'abandonado']]
+    if ordenes_activas:
+        return jsonify({'error': 'No se puede eliminar el dispositivo porque está asociado a una orden activa.'}), 400
     dispositivo = baja_dispositivo(idDispositivo)
     if dispositivo:
         return jsonify({'success': True})

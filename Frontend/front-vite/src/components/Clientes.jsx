@@ -167,9 +167,27 @@ export default function Clientes() {
 
   const confirmDeleteClienteCancel = () => setConfirmDeleteCliente({ open: false, id: null });
 
+  const [bloqueoModal, setBloqueoModal] = useState({ open: false, message: '' });
+
   const confirmDeleteClienteConfirm = async () => {
-    const id = confirmDeleteCliente.id; if (!canDelete) { setMensaje('No tenés permiso para eliminar clientes.'); setConfirmDeleteCliente({ open: false, id: null }); return; }
-    try { const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' }); if (res.ok) { setMensaje('Cliente eliminado'); fetchClientes(); } else setMensaje('Error al eliminar cliente'); } catch (err) { console.warn(err); setMensaje('Error de conexión'); } finally { setConfirmDeleteCliente({ open: false, id: null }); }
+    const id = confirmDeleteCliente.id;
+    if (!canDelete) { setMensaje('No tenés permiso para eliminar clientes.'); setConfirmDeleteCliente({ open: false, id: null }); return; }
+    try {
+      const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+      const resultado = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setMensaje('Cliente eliminado');
+        fetchClientes();
+      } else if (res.status === 400 && resultado.error) {
+        setBloqueoModal({ open: true, message: resultado.error });
+      } else {
+        setMensaje(resultado.error || resultado.detail || resultado.mensaje || 'Error al eliminar cliente');
+      }
+    } catch (err) {
+      console.warn(err); setMensaje('Error de conexión');
+    } finally {
+      setConfirmDeleteCliente({ open: false, id: null });
+    }
   };
 
   const handleReactivar = async (idCliente) => { try { const res = await fetch(`${API_URL}/${idCliente}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activo: 1 }) }); if (res.ok) { setMensaje('Cliente reactivado exitosamente'); fetchClientes(); } else setMensaje('Error al reactivar cliente'); } catch (err) { console.warn(err); setMensaje('Error de conexión'); } };
@@ -284,7 +302,8 @@ export default function Clientes() {
 
       {historialVisible && (<div className="modal" style={{ display: 'block' }}><div className="modal-dialog modal-lg modal-dialog-centered"><div className="modal-content"><div className="modal-header"><h5 className="modal-title"><i className="bi bi-clock-history me-2"></i>Historial de Órdenes</h5><button className="btn-close" onClick={() => setHistorialVisible(false)}></button></div><div className="modal-body">{historialOrdenes.length === 0 ? (<div className="text-muted">No se encontraron órdenes para este cliente.</div>) : (<div className="table-responsive"><table className="table table-sm"><thead><tr><th>Nro Orden</th><th>Fecha</th><th>Dispositivo</th><th>Diagnóstico</th><th>Precio Total</th></tr></thead><tbody>{historialOrdenes.map(o => (<tr key={o.nroDeOrden}><td>{o.nroDeOrden}</td><td>{o.fecha}</td><td>{o.dispositivo_info}</td><td>{o.diagnostico}</td><td>{o.precioTotal}</td></tr>))}</tbody></table></div>)}</div><div className="modal-footer"><button className="btn btn-dorado" onClick={() => setHistorialVisible(false)}>Cerrar</button></div></div></div></div>)}
 
-      <ConfirmModal open={confirmDeleteCliente.open} title="Confirmar eliminación" message="¿Estás seguro de eliminar este cliente?" onCancel={confirmDeleteClienteCancel} onConfirm={confirmDeleteClienteConfirm} />
+  <ConfirmModal open={confirmDeleteCliente.open} title="Confirmar eliminación" message="¿Estás seguro de eliminar este cliente?" onCancel={confirmDeleteClienteCancel} onConfirm={confirmDeleteClienteConfirm} />
+  <ConfirmModal open={bloqueoModal.open} title="No se puede eliminar" message={bloqueoModal.message} onCancel={() => setBloqueoModal({ open: false, message: '' })} onConfirm={() => setBloqueoModal({ open: false, message: '' })} />
     </div>
   );
 }

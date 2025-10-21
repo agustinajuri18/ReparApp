@@ -1335,17 +1335,10 @@ function Ordenes() {
                           </tr>
                         ) : (
                           <tr key={String(o.nroDeOrden)}>
-                            <td>{o.nroDeOrden}</td>
-                            <td>{o.dispositivo_info}</td>
-                            <td>{
+                            <td>{o.nroDeOrden}</td><td>{o.dispositivo_info}</td><td>{
                               // cliente_info has format 'Nombre Apellido (numeroDoc)'. We show only the name part.
                               o.cliente_info ? o.cliente_info.split('(')[0].trim() : (o.dispositivo_info ? o.dispositivo_info.split('(')[0].trim() : '')
-                            }</td>
-                            <td>{o.empleado_info}</td>
-                            <td>{o.fecha}</td>
-                            <td>{o.estado}</td> {/* Mostramos el estado actual */}
-                            <td>{o.diagnostico}</td>
-                            <td>
+                            }</td><td>{o.empleado_info}</td><td>{o.fecha}</td><td>{o.estado}</td><td>{o.diagnostico}</td><td>
                               {/* Mostrar botón calcular presupuesto SOLO cuando el filtro PendienteAprobación está activo */}
                               {showOnlyPendienteAprobacion && (
                                 <button className="btn btn-sm btn-azul fw-bold me-1" onClick={() => handleAbrirCalcularPresupuesto(o)}>
@@ -1372,8 +1365,7 @@ function Ordenes() {
                                   </button>
                                 )
                               )}
-                            </td>
-                          </tr>
+                            </td></tr>
                         )
                       ))}
                   </tbody>

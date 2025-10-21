@@ -128,8 +128,14 @@ def cliente_existe():
     existe = True if buscar_cliente_por_doc(idTipoDoc, numeroDoc) else False
     return jsonify({'exists': existe})
 
+
 @bp.route("/clientes/<int:idCliente>", methods=["DELETE"])
 def eliminar_cliente(idCliente):
+    # Verificar si el cliente tiene órdenes activas
+    ordenes = obtener_ordenes(mode='summary', idCliente=idCliente) or []
+    ordenes_activas = [o for o in ordenes if o.get('estado', '').lower() not in ['retirado', 'abandonado']]
+    if ordenes_activas:
+        return jsonify({'error': 'No se puede eliminar el cliente porque está asociado a una orden activa.'}), 400
     cliente = baja_cliente(idCliente)
     if cliente:
         return jsonify({'success': True})

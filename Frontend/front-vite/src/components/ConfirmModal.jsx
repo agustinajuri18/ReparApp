@@ -14,12 +14,18 @@ function ConfirmModal({ open, title = 'Confirmar', message = '', onCancel, onCon
             <p>{message}</p>
           </div>
           <div className="modal-footer d-flex justify-content-end gap-2">
-            <button className="btn btn-dorado" onClick={onCancel}>
-              Cancelar
-            </button>
-            <button className="btn btn-rojo" onClick={onConfirm}>
-              Confirmar
-            </button>
+            {onConfirm ? (
+              <>
+                <button className="btn btn-dorado" onClick={onCancel}>
+                  Cancelar
+                </button>
+                <button className="btn btn-rojo" onClick={onConfirm}>
+                  Confirmar
+                </button>
+              </>
+            ) : (
+              <button className="btn btn-dorado" onClick={onCancel}>Cerrar</button>
+            )}
           </div>
         </div>
       </div>

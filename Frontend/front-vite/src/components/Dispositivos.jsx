@@ -159,12 +159,26 @@ export default function Dispositivos() {
 
     const confirmDeleteDispositivoCancel = () => setConfirmDeleteDispositivo({ open: false, id: null });
 
+    const [bloqueoModal, setBloqueoModal] = useState({ open: false, message: '' });
+
     const confirmDeleteDispositivoConfirm = async () => {
         const id = confirmDeleteDispositivo.id;
         if (!canDelete) { setMensaje('No tenés permiso para eliminar dispositivos.'); setConfirmDeleteDispositivo({ open: false, id: null }); return; }
-        await fetch(`${API_URL}/${id}`, { method: "DELETE" });
-        fetchDispositivos();
-        setConfirmDeleteDispositivo({ open: false, id: null });
+        try {
+            const res = await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+            const resultado = await res.json().catch(() => ({}));
+            if (res.ok) {
+                fetchDispositivos();
+            } else if (res.status === 400 && resultado.error) {
+                setBloqueoModal({ open: true, message: resultado.error });
+            } else {
+                setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido del servidor");
+            }
+        } catch (err) {
+            setMensaje("Error de red: " + (err.message || String(err)));
+        } finally {
+            setConfirmDeleteDispositivo({ open: false, id: null });
+        }
     };
 
     const handleReactivar = async (idDispositivo) => {
@@ -706,6 +720,13 @@ export default function Dispositivos() {
                 message="¿Seguro que desea eliminar este dispositivo?"
                 onCancel={confirmDeleteDispositivoCancel}
                 onConfirm={confirmDeleteDispositivoConfirm}
+            />
+            <ConfirmModal
+                open={bloqueoModal.open}
+                title="No se puede eliminar"
+                message={bloqueoModal.message}
+                onCancel={() => setBloqueoModal({ open: false, message: '' })}
+                onConfirm={() => setBloqueoModal({ open: false, message: '' })}
             />
         </div>
     );
