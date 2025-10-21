@@ -24,10 +24,12 @@ function Ordenes() {
   const _canDelete = hasPermission(identity, 32);
   const isSalesAdmin = identity?.idCargo === 3; // Asistente de ventas -> idCargo 3
   const isTecnico = identity?.idCargo === 2; // Técnico -> idCargo 2
+  const isPurchaseAdmin = identity?.idCargo === 3; // Administrador de compras -> idCargo 3 (mismo que asistente de ventas en esta app)
   // Nota: 'Atención al público' no se usa aquí — solo Asistente de ventas (idCargo === 3) mostrará el comprobante.
   const [showOnlyEnDiagnostico, setShowOnlyEnDiagnostico] = useState(false);
   const [showOnlyEnReparacion, setShowOnlyEnReparacion] = useState(false);
   const [showOnlyPendienteAprobacion, setShowOnlyPendienteAprobacion] = useState(false);
+  const [showOnlyPendienteRetiro, setShowOnlyPendienteRetiro] = useState(false);
   const [ordenes, setOrdenes] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [empleados, setEmpleados] = useState([]);
@@ -75,6 +77,10 @@ function Ordenes() {
   const [terminarModalOpen, setTerminarModalOpen] = useState(false);
   const [terminarOrden, setTerminarOrden] = useState(null);
   const [terminarComentario, setTerminarComentario] = useState("");
+  // Estado para el modal de "Actualizar historial" (desde la tabla)
+  const [showActualizarHistorialModal, setShowActualizarHistorialModal] = useState(false);
+  const [actualizarHistorialOrden, setActualizarHistorialOrden] = useState(null);
+  const [actualizarHistorialTexto, setActualizarHistorialTexto] = useState('');
   const [showAddDetalle, setShowAddDetalle] = useState(false);
   const [availableRepuestos, setAvailableRepuestos] = useState([]); // <-- repuestos filtrados por servicio
 
@@ -392,6 +398,31 @@ function Ordenes() {
       });
   };
 
+  const handleMarcarRetirada = (nro) => {
+    if (!nro) return;
+    // Llamamos al nuevo endpoint que marca la orden como Retirada
+    fetch(`${API_URL}/${nro}/marcar-retirada`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario: identity?.nombre || 'web' })
+    })
+      .then(async res => {
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '');
+          throw new Error(`HTTP ${res.status} ${txt}`);
+        }
+        return res.json().catch(() => ({}));
+      })
+      .then(data => {
+        setMensaje(`Orden #${nro} marcada como Retirada.`);
+        fetchOrdenes();
+      })
+      .catch(err => {
+        console.error('Error al marcar retirada:', err);
+        setMensaje(`No se pudo marcar retirada: ${err.message}`);
+      });
+  };
+
   // Acciones desde el modal de presupuesto para administradores de ventas
   const handlePresupuestoAceptar = (nro) => {
     console.log('Llamando a aceptar presupuesto para orden', nro);
@@ -677,6 +708,28 @@ function Ordenes() {
           tipo: 'warning',
           texto: `No se pudieron cargar los avances: ${err.message}`
         });
+      });
+  };
+
+  // Cargar historial de avances para una orden específica desde la tabla (En Reparación)
+  const handleActualizarHistorialRow = (nro) => {
+    // Mostrar indicador de carga en la UI principal
+    setMensaje('Actualizando historial de avances...');
+    fetch(`${API_URL}/${nro}/actualizaciones`)
+      .then(res => {
+        if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        // Mostrar feedback al usuario con la cantidad de avances encontrados
+        const count = Array.isArray(data) ? data.length : 0;
+        setMensaje(`Historial actualizado para orden #${nro}. Encontrados ${count} avances.`);
+        // opcional: log para depuración
+        console.debug(`Avances para orden ${nro}:`, data);
+      })
+      .catch(err => {
+        console.error('Error al actualizar historial desde la tabla:', err);
+        setMensaje(`Error al actualizar historial de la orden #${nro}: ${err.message}`);
       });
   };
 
@@ -997,6 +1050,43 @@ function Ordenes() {
     setMensaje('Edite los campos y presione "Actualizar" para guardar.');
   };
 
+  const handleOpenActualizarHistorial = (orden) => {
+    setActualizarHistorialOrden(orden);
+    setActualizarHistorialTexto('');
+    setShowActualizarHistorialModal(true);
+  };
+
+  const handleEnviarHistorial = () => {
+    if (!actualizarHistorialOrden) return;
+    if (!actualizarHistorialTexto || !actualizarHistorialTexto.trim()) {
+      setMensaje('Ingrese una descripción para el historial.');
+      return;
+    }
+    const nro = actualizarHistorialOrden.nroDeOrden;
+    setMensaje('Guardando historial...');
+    fetch(`${API_URL}/${nro}/actualizaciones`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ descripcion: actualizarHistorialTexto, usuario: identity?.nombre || 'web' })
+    })
+      .then(res => {
+        if (!res.ok) return res.json().then(b => Promise.reject(new Error(b?.error || b || `HTTP ${res.status}`)));
+        return res.json().catch(() => ({}));
+      })
+      .then(() => {
+        setMensaje(`Historial guardado para orden #${nro}`);
+        setShowActualizarHistorialModal(false);
+        setActualizarHistorialOrden(null);
+        setActualizarHistorialTexto('');
+        // refrescar avances y lista de ordenes
+        fetchOrdenes();
+      })
+      .catch(err => {
+        console.error('Error guardando historial:', err);
+        setMensaje(`No se pudo guardar el historial: ${err.message}`);
+      });
+  };
+
   const handleNuevoClienteChange = (e) => {
     const { name, value } = e.target;
     setNuevoCliente(prev => ({ ...prev, [name]: value }));
@@ -1118,6 +1208,18 @@ function Ordenes() {
                     Pendiente Aprob.
                   </button>
                 )}
+                {isPurchaseAdmin && (
+                  <button
+                    type="button"
+                    className={`btn header-filter-btn ${showOnlyPendienteRetiro ? 'btn-dorado' : 'btn-gris'}`}
+                    onClick={() => setShowOnlyPendienteRetiro(v => !v)}
+                    title="Filtrar órdenes pendientes de retiro"
+                    style={{ marginRight: 8 }}
+                  >
+                    Pendiente Retiro
+                  </button>
+                )}
+                {/* único botón Pendiente Retiro (visible para idCargo === 3 a través de isPurchaseAdmin) */}
                 {canCreate ? <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar Orden</button> : <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear órdenes"><i className="bi bi-plus-lg"></i> Agregar Orden</button>}
               </div>
             </div>
@@ -1151,12 +1253,13 @@ function Ordenes() {
                     {ordenes
                       .filter(o => {
                         // If no filter toggles are active, show all
-                        if (!showOnlyEnDiagnostico && !showOnlyEnReparacion && !showOnlyPendienteAprobacion) return true;
+                        if (!showOnlyEnDiagnostico && !showOnlyEnReparacion && !showOnlyPendienteAprobacion && !showOnlyPendienteRetiro) return true;
                         const estado = _normalize(o.estado || '');
                         const matchesDiagnostico = showOnlyEnDiagnostico && estado.includes('diagnost');
                         const matchesReparacion = showOnlyEnReparacion && estado.includes('reparacion');
                         const matchesPendiente = showOnlyPendienteAprobacion && estado.includes('pendientedeaprobacion');
-                        return Boolean(matchesDiagnostico || matchesReparacion || matchesPendiente);
+                        const matchesPendienteRetiro = showOnlyPendienteRetiro && (estado.includes('pendientederetiro') || estado.includes('retiro'));
+                        return Boolean(matchesDiagnostico || matchesReparacion || matchesPendiente || matchesPendienteRetiro);
                       })
                       .map((o) => (
                         showOnlyEnReparacion ? (
@@ -1168,6 +1271,9 @@ function Ordenes() {
                             <td>
                               <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
                                 <i className="bi bi-search me-1"></i>Consultar
+                              </button>
+                              <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleOpenActualizarHistorial(o)}>
+                                <i className="bi bi-arrow-clockwise me-1"></i>Actualizar historial
                               </button>
                               {((o.fechaInicioRetiro) || (o.estado && ((o.estado.toLowerCase().includes('pendiente') && o.estado.toLowerCase().includes('retiro')) || o.estado.toLowerCase().includes('retir')))) && (
                                 <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarComprobante(o.nroDeOrden)}>
@@ -1181,6 +1287,36 @@ function Ordenes() {
                                 title="Terminar"
                               >
                                 <i className="bi bi-flag-fill me-1"></i>Terminar
+                              </button>
+                              {/* Agregar botón Modificar también en la vista En Reparación */}
+                              {!showOnlyPendienteAprobacion && (
+                                (isTecnico || (canModify && !isSalesAdmin)) ? (
+                                  <button className="btn btn-sm btn-dorado fw-bold ms-2" onClick={() => handleModificar(o)}>
+                                    <i className="bi bi-pencil-square me-1"></i>Modificar
+                                  </button>
+                                ) : (
+                                  <button className="btn btn-sm btn-dorado fw-bold ms-2" disabled title={isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para modificar órdenes'}>
+                                    <i className="bi bi-pencil-square me-1"></i>Modificar
+                                  </button>
+                                )
+                              )}
+                            </td>
+                          </tr>
+                        ) : showOnlyPendienteRetiro ? (
+                          <tr key={String(o.nroDeOrden)}>
+                            <td>{o.nroDeOrden}</td>
+                            <td>{o.dispositivo_info}</td>
+                            <td>{o.cliente_info ? o.cliente_info.split('(')[0].trim() : (o.dispositivo_info ? o.dispositivo_info.split('(')[0].trim() : '')}</td>
+                            <td>{o.empleado_info}</td>
+                            <td>{o.fecha}</td>
+                            <td>{o.estado}</td>
+                            <td>{o.diagnostico}</td>
+                            <td>
+                              <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(o)}>
+                                <i className="bi bi-search me-1"></i>Consultar
+                              </button>
+                              <button className="btn btn-sm btn-dorado fw-bold me-1" style={{ padding: '0.25rem .5rem', fontSize: '0.85rem' }} onClick={() => handleMarcarRetirada(o.nroDeOrden)}>
+                                <i className="bi bi-box-arrow-in-right me-1"></i>Marcar retirada
                               </button>
                             </td>
                           </tr>
@@ -1633,8 +1769,8 @@ function Ordenes() {
                   <fieldset className="mt-4">
                     <legend>Avances Técnicos</legend>
 
-                    {/* Solo muestra la entrada si está en reparación */}
-                    {form.estado === 'En Reparación' && (
+                    {/* Solo muestra la entrada si NO estamos en modo 'consultar' y la orden está en reparación */}
+                    {modalModo !== 'consultar' && form.estado === 'En Reparación' && (
                       <div className="mb-3">
                         <div className="input-group">
                           <input
@@ -2047,6 +2183,32 @@ function Ordenes() {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-dorado" onClick={() => setTerminarModalOpen(false)}>Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal para Actualizar Historial (invocado desde la tabla En Reparación) */}
+      {showActualizarHistorialModal && actualizarHistorialOrden && (
+        <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1066 }}>
+          <div className="modal-dialog modal-md modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Actualizar historial - Orden #{actualizarHistorialOrden.nroDeOrden}</h5>
+                <button type="button" className="btn-close" onClick={() => setShowActualizarHistorialModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-2"><strong>Orden:</strong> #{actualizarHistorialOrden.nroDeOrden}</div>
+                <div className="mb-2"><strong>Dispositivo:</strong> {actualizarHistorialOrden.dispositivo_info || '-'}</div>
+                <div className="mb-2"><strong>Fecha:</strong> {new Date().toISOString().split('T')[0]}</div>
+                <div className="mb-3">
+                  <label className="form-label">Descripción / Nota</label>
+                  <textarea className="form-control" rows={5} value={actualizarHistorialTexto} onChange={(e) => setActualizarHistorialTexto(e.target.value)} />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-dorado" onClick={() => setShowActualizarHistorialModal(false)}>Cancelar</button>
+                <button type="button" className="btn btn-azul" onClick={handleEnviarHistorial}>Guardar</button>
               </div>
             </div>
           </div>

@@ -311,12 +311,32 @@ def registrar_actualizacion_orden(nroDeOrden):
     orden = buscar_por_id(OrdenDeReparacion, nroDeOrden)
     if not orden:
         return jsonify({'error': 'Orden no encontrada'}), 404
+    # Debug: log raw descripcion recibida (temporal)
+    try:
+        print(f"[Ordenes.py] registrar_actualizacion_orden - recibido descripcion: {descripcion!r}")
+    except Exception:
+        pass
+
+    # Limpieza defensiva: si por alguna razón el frontend ya incluyó
+    # "(Registrado por ... en ...)" al final de la descripción, lo removemos
+    # para almacenar sólo el texto ingresado.
+    try:
+        import re
+        descripcion_limpia = re.sub(r"\s*\(?\s*Registrado por[^)\n]*\)?\s*$", '', descripcion, flags=re.IGNORECASE)
+        descripcion_limpia = descripcion_limpia.strip()
+    except Exception:
+        descripcion_limpia = descripcion
+
+    try:
+        print(f"[Ordenes.py] registrar_actualizacion_orden - descripcion limpia: {descripcion_limpia!r}")
+    except Exception:
+        pass
 
     historial = alta_historial_arreglos(
         nroDeOrden=nroDeOrden,
         idDispositivo=orden.idDispositivo,
         fechaArreglo=fechaArreglo,
-        descripcion=f"{descripcion}\n(Registrado por {usuario} en {fechaArreglo.strftime('%Y-%m-%d %H:%M')})"
+        descripcion=descripcion_limpia
     )
 
     return jsonify({'success': True})
@@ -426,6 +446,48 @@ def presupuesto_rechazar(nroDeOrden):
             idEstado=id_retiro,
             fechaCambio=datetime.now(),
             observaciones='Presupuesto rechazado por Administrador de Ventas'
+        )
+        return jsonify({'success': True, 'estado': nombre}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/ordenes/<int:nroDeOrden>/marcar-retirada', methods=['POST', 'OPTIONS'])
+@cross_origin()
+def marcar_retirada(nroDeOrden):
+    """
+    Marca la orden directamente como 'Retirada'.
+    Body (JSON) opcional: { "usuario": "nombre" }
+    """
+    # Responder preflight
+    if request.method == 'OPTIONS':
+        return make_response('', 200)
+
+    data = request.get_json() or {}
+    usuario = data.get('usuario', 'SinUsuario')
+
+    try:
+        id_retirada, nombre = encontrar_estado_id('Retirada')
+        if not id_retirada:
+            return jsonify({'error': 'Estado Retirada no configurado en la BD'}), 500
+
+        # Intentar establecer fechaInicioRetiro en la orden (si la función está disponible)
+        try:
+            from ABMC_db import modificar_orden
+            fecha_hoy = datetime.now().date()
+            modificar_orden(nroDeOrden=nroDeOrden, fechaInicioRetiro=fecha_hoy)
+        except Exception:
+            # No interrumpir si falla la actualización secundaria
+            import traceback
+            traceback.print_exc()
+
+        historial = asignar_estado_orden(
+            nroDeOrden=nroDeOrden,
+            idEstado=id_retirada,
+            fechaCambio=datetime.now(),
+            observaciones=f'Marcada como retirada por {usuario}'
         )
         return jsonify({'success': True, 'estado': nombre}), 200
     except Exception as e:
