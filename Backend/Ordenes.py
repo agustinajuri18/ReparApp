@@ -128,6 +128,11 @@ def registrar_orden():
                 fechaCambio=datetime.now(),
                 observaciones=f"Estado inicial: {nombre_estado_real or 'En Diagnóstico'}"
             )
+            # Enviar notificación por WhatsApp sobre el estado inicial (no bloqueante)
+            try:
+                _notify_estado_whatsapp(orden.nroDeOrden)
+            except Exception:
+                pass
 
         return jsonify({
             'nroDeOrden': orden.nroDeOrden,
@@ -367,6 +372,12 @@ def confirmar_presupuesto(nroDeOrden):
         observaciones=f"Presupuesto {'aceptado' if aceptado else 'rechazado'} por {usuario} en {fecha.strftime('%Y-%m-%d %H:%M')}"
     )
 
+    # Intentar notificar por WhatsApp sobre el cambio de estado (no bloqueante)
+    try:
+        _notify_estado_whatsapp(nroDeOrden)
+    except Exception:
+        pass
+
     return jsonify({'success': True, 'nuevoEstado': nombre_reparacion if aceptado else nombre_desestimada})
 
 @bp.route('/ordenes/<int:nroDeOrden>/actualizaciones', methods=['POST'])
@@ -457,6 +468,12 @@ def solicitar_aprobacion(nroDeOrden):
             fechaCambio=datetime.now(),
             observaciones=f'Solicitado para aprobación'
         )
+        # Notificar por WhatsApp (no bloqueante)
+        try:
+            _notify_estado_whatsapp(nroDeOrden)
+        except Exception:
+            pass
+
         return jsonify({'success': True, 'estado': nombre_pendiente}), 200
     except Exception as e:
         import traceback
@@ -484,6 +501,12 @@ def presupuesto_aceptar(nroDeOrden):
             fechaCambio=datetime.now(),
             observaciones='Presupuesto aceptado por Administrador de Ventas'
         )
+        # Notificar por WhatsApp (no bloqueante)
+        try:
+            _notify_estado_whatsapp(nroDeOrden)
+        except Exception:
+            pass
+
         return jsonify({'success': True, 'estado': nombre}), 200
     except Exception as e:
         import traceback
@@ -526,6 +549,12 @@ def presupuesto_rechazar(nroDeOrden):
             fechaCambio=datetime.now(),
             observaciones='Presupuesto rechazado por Administrador de Ventas'
         )
+        # Notificar por WhatsApp (no bloqueante)
+        try:
+            _notify_estado_whatsapp(nroDeOrden)
+        except Exception:
+            pass
+
         return jsonify({'success': True, 'estado': nombre}), 200
     except Exception as e:
         import traceback
@@ -568,6 +597,12 @@ def marcar_retirada(nroDeOrden):
             fechaCambio=datetime.now(),
             observaciones=f'Marcada como retirada por {usuario}'
         )
+        # Notificar por WhatsApp (no bloqueante)
+        try:
+            _notify_estado_whatsapp(nroDeOrden)
+        except Exception:
+            pass
+
         return jsonify({'success': True, 'estado': nombre}), 200
     except Exception as e:
         import traceback
@@ -1036,6 +1071,64 @@ def _build_pdf_bytes(nroDeOrden):
     doc.build(elements)
     buffer.seek(0)
     return buffer.getvalue()
+
+
+def _notify_estado_whatsapp(nroDeOrden):
+    """
+    Helper: envía un mensaje de texto por WhatsApp notificando el último estado de la orden.
+    No debe bloquear la operación principal: captura excepciones y devuelve True/False.
+    """
+    try:
+        from ABMC_db import obtener_ordenes
+        from whatsapp import send_text
+        ordenes = obtener_ordenes(mode='detail', nroDeOrden=nroDeOrden)
+        if not ordenes:
+            return False
+        orden = ordenes[0]
+
+        # Determinar número de destinatario desde cliente o dispositivo.cliente
+        cliente = orden.get('cliente') if isinstance(orden.get('cliente'), dict) else None
+        if not cliente and isinstance(orden.get('dispositivo'), dict):
+            cliente = orden.get('dispositivo', {}).get('cliente') if isinstance(orden.get('dispositivo', {}).get('cliente'), dict) else None
+
+        destinatario = None
+        if cliente:
+            destinatario = cliente.get('telefono') or cliente.get('telefonoCelular') or cliente.get('telefonoContacto') or cliente.get('telefono_fijo')
+
+        if not destinatario:
+            # No hay teléfono conocido, salir silenciosamente
+            return False
+
+        # Normalizar solo dígitos
+        import re
+        numero = re.sub(r'\D', '', str(destinatario or ''))
+        if not numero:
+            return False
+
+        # Determinar el nombre del último estado guardado en la orden
+        estado_nombre = None
+        try:
+            hs = orden.get('historial_estados') or []
+            if hs:
+                ultimo = hs[-1]
+                estado_nombre = ultimo.get('estado_nombre') or ultimo.get('estado') or None
+        except Exception:
+            estado_nombre = None
+        if not estado_nombre:
+            estado_nombre = orden.get('estado') or 'actualizado'
+
+        texto = f"Orden #{nroDeOrden}: su estado fue actualizado a '{estado_nombre}'. Para más información responda este mensaje."
+        try:
+            send_text(numero, texto)
+            return True
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            return False
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 @bp.route('/ordenes/<int:nroDeOrden>/pdf/download', methods=['GET'])

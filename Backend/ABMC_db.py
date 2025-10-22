@@ -603,7 +603,7 @@ def buscar_repuesto(idRepuesto):
     with session_scope() as s:
         return s.get(Repuesto, idRepuesto)
 
-def alta_repuestoxproveedor(idRepuesto, idProveedor, costo, cantidad):
+def alta_repuestoxproveedor(idRepuesto, idProveedor, costo):
     with session_scope() as session:  # <--- CORRECCIÓN: Cambiar get_session por session_scope
         try:
             # Buscar si la relación ya existe
@@ -613,16 +613,14 @@ def alta_repuestoxproveedor(idRepuesto, idProveedor, costo, cantidad):
             ).first()
 
             if existente:
-                # Si existe, actualizar costo y cantidad
+                # Si existe, actualizar costo (cantidad ya no se maneja)
                 existente.costo = costo
-                existente.cantidad = cantidad
                 session.commit()
                 return {
                     "id": existente.id,
                     "idRepuesto": existente.idRepuesto,
                     "idProveedor": existente.idProveedor,
                     "costo": existente.costo,
-                    "cantidad": existente.cantidad,
                     "message": "Relación actualizada"
                 }
             else:
@@ -630,8 +628,7 @@ def alta_repuestoxproveedor(idRepuesto, idProveedor, costo, cantidad):
                 nueva_relacion = RepuestoxProveedor(
                     idRepuesto=idRepuesto,
                     idProveedor=idProveedor,
-                    costo=costo,
-                    cantidad=cantidad
+                    costo=costo
                 )
                 session.add(nueva_relacion)
                 session.commit()
@@ -642,7 +639,6 @@ def alta_repuestoxproveedor(idRepuesto, idProveedor, costo, cantidad):
                     "idRepuesto": nueva_relacion.idRepuesto,
                     "idProveedor": nueva_relacion.idProveedor,
                     "costo": nueva_relacion.costo,
-                    "cantidad": nueva_relacion.cantidad,
                     "message": "Relación creada"
                 }
         except Exception as e:
@@ -660,13 +656,18 @@ def baja_repuestoxproveedor(idRepuesto, idProveedor):
 
 def mostrar_repuestoxproveedor():
     with session_scope() as s:
-        return s.query(RepuestoxProveedor).all()
+        # Eager-load related proveedor and repuesto so callers can access attributes
+        # after the session is closed without triggering lazy-load errors.
+        return s.query(RepuestoxProveedor).options(
+            joinedload(RepuestoxProveedor.proveedor),
+            joinedload(RepuestoxProveedor.repuesto)
+        ).all()
 
 
 # ----------- ServicioxRepuesto -----------
-def alta_servicioxrepuesto(idServicio, idRepuesto, cantidad=None):
+def alta_servicioxrepuesto(idServicio, idRepuesto):
     with session_scope() as s:
-        rel = ServicioxRepuesto(idServicio=idServicio, idRepuesto=idRepuesto, cantidad=cantidad)
+        rel = ServicioxRepuesto(idServicio=idServicio, idRepuesto=idRepuesto)
         s.add(rel)
         s.commit()
         s.refresh(rel)
@@ -677,8 +678,7 @@ def modificar_servicioxrepuesto(id, cantidad=None):
         rel = s.get(ServicioxRepuesto, id)
         if not rel:
             return None
-        if cantidad is not None:
-            rel.cantidad = cantidad
+        # cantidad parameter accepted for compatibility but ignored (no stock tracking)
         s.commit()
         return rel
 
@@ -698,7 +698,7 @@ def mostrar_repuestos_por_servicio(idServicio):
     """Devuelve lista de Repuesto asociados a un Servicio (idServicio)."""
     with session_scope() as s:
         rows = (
-            s.query(Repuesto, ServicioxRepuesto.cantidad)
+            s.query(Repuesto)
             .join(ServicioxRepuesto, Repuesto.idRepuesto == ServicioxRepuesto.idRepuesto)
             .filter(ServicioxRepuesto.idServicio == idServicio)
             .all()
@@ -708,10 +708,9 @@ def mostrar_repuestos_por_servicio(idServicio):
             {
                 "idRepuesto": r.idRepuesto,
                 "marca": r.marca,
-                "modelo": r.modelo,
-                "cantidad": cantidad
+                "modelo": r.modelo
             }
-            for r, cantidad in rows
+            for r in rows
         ]
         return resultado
 

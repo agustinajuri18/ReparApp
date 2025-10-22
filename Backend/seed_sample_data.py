@@ -168,10 +168,7 @@ def add_historial(session, nroDeOrden, estado_nombre, observaciones=None):
 def find_repuestoxproveedor_for_repuesto(session, idRepuesto, prefer_stock=True):
     """Busca un RepuestoxProveedor disponible para el idRepuesto dado."""
     q = session.query(RepuestoxProveedor).filter(RepuestoxProveedor.idRepuesto == idRepuesto)
-    if prefer_stock:
-        rp = q.filter(RepuestoxProveedor.cantidad > 0).order_by(RepuestoxProveedor.costo.asc()).first()
-        if rp:
-            return rp
+    # cantidad no existe: simplemente devolver el menor costo
     return q.order_by(RepuestoxProveedor.costo.asc()).first()
 
 def get_repuestos_for_service(session, idServicio):
@@ -531,8 +528,7 @@ def seed(cli_args=None):
                     session.add(RepuestoxProveedor(
                         idRepuesto=r.idRepuesto, 
                         idProveedor=p.idProveedor, 
-                        costo=randint(500, 10000), 
-                        cantidad=randint(3, 50)
+                        costo=randint(500, 10000)
                     ))
                     rels += 1
             session.commit()
@@ -580,8 +576,7 @@ def seed(cli_args=None):
                 if not exists:
                     session.add(ServicioxRepuesto(
                         idServicio=s.idServicio, 
-                        idRepuesto=candidate.idRepuesto, 
-                        cantidad=randint(1, 3)
+                        idRepuesto=candidate.idRepuesto
                     ))
                     sxr += 1
         session.commit()
@@ -868,9 +863,7 @@ def seed(cli_args=None):
                     detalles_created += 1
                     
                     # Decrementar stock
-                    if chosen_rp and hasattr(chosen_rp, 'cantidad') and chosen_rp.cantidad > 0:
-                        chosen_rp.cantidad = max(0, chosen_rp.cantidad - 1)
-                        session.add(chosen_rp)
+                    # cantidad removed: no decrement needed
                 
                 if not args.dry_run:
                     session.commit()

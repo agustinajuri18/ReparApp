@@ -106,9 +106,10 @@ export default function Servicios() {
         return fetch(`${API_URL}/${servicio.idServicio}/repuestos`);
       })
       .then(res => res.json())
-      .then(reps => {
-        setServicioActual(prev => ({ ...prev, repuestos: reps.map(r => ({ idRepuesto: r.idRepuesto, cantidad: r.cantidad ?? 1 })) }));
-        setOriginalRepuestos(reps.map(r => ({ idRepuesto: r.idRepuesto, cantidad: r.cantidad ?? 1 })));
+        .then(reps => {
+        // cantidad is no longer provided by API; keep only idRepuesto
+        setServicioActual(prev => ({ ...prev, repuestos: reps.map(r => ({ idRepuesto: r.idRepuesto })) }));
+        setOriginalRepuestos(reps.map(r => ({ idRepuesto: r.idRepuesto })));
         setModalModo('modificar');
         setModalVisible(true);
         setMensaje("");
@@ -124,8 +125,8 @@ export default function Servicios() {
         return fetch(`${API_URL}/${servicio.idServicio}/repuestos`);
       })
       .then(res => res.json())
-      .then(reps => {
-        setServicioActual(prev => ({ ...prev, repuestos: reps.map(r => ({ idRepuesto: r.idRepuesto, cantidad: r.cantidad ?? 1 })) }));
+        .then(reps => {
+        setServicioActual(prev => ({ ...prev, repuestos: reps.map(r => ({ idRepuesto: r.idRepuesto })) }));
         setModalModo('consultar');
         setModalVisible(true);
         setMensaje("");
@@ -224,7 +225,7 @@ export default function Servicios() {
         fetch(`${API_URL}-repuestos`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idServicio: idServicio, idRepuesto: r.idRepuesto, cantidad: r.cantidad })
+          body: JSON.stringify({ idServicio: idServicio, idRepuesto: r.idRepuesto })
         })
       ));
       setModalVisible(false);
@@ -272,7 +273,7 @@ export default function Servicios() {
       const promesasUpsert = repuestosParaUpsert.map(r => fetch(`${API_URL}-repuestos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idServicio: servicioActual.idServicio, idRepuesto: r.idRepuesto, cantidad: r.cantidad })
+        body: JSON.stringify({ idServicio: servicioActual.idServicio, idRepuesto: r.idRepuesto })
       }));
 
       await Promise.all([...promesasEliminar, ...promesasUpsert]);
@@ -293,7 +294,7 @@ export default function Servicios() {
 
   // Repuestos handlers
   const handleAgregarRepuesto = () => {
-    setServicioActual(prev => ({ ...prev, repuestos: [...prev.repuestos, { idRepuesto: '', cantidad: 1 }] }));
+    setServicioActual(prev => ({ ...prev, repuestos: [...prev.repuestos, { idRepuesto: '' }] }));
   };
 
   // Remove repuesto from the servicio after confirmation (confirmation handled by confirmDeleteRepuesto state)

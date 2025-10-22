@@ -234,7 +234,7 @@ class RepuestoxProveedor(Base):
     idRepuesto = Column(Integer, ForeignKey("Repuesto.idRepuesto"), nullable=False)
     idProveedor = Column(Integer, ForeignKey("Proveedor.idProveedor"), nullable=False)
     costo = Column(Integer)
-    cantidad = Column(Integer)
+    # cantidad removed: we no longer track local stock amount
 
     repuesto = relationship("Repuesto", back_populates="proveedores")
     proveedor = relationship("Proveedor", back_populates="repuestos")
@@ -311,7 +311,7 @@ class ServicioxRepuesto(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     idServicio = Column(Integer, ForeignKey("Servicio.idServicio"), nullable=False)
     idRepuesto = Column(Integer, ForeignKey("Repuesto.idRepuesto"), nullable=False)
-    cantidad = Column(Integer)
+    # cantidad removed: association no longer holds a fixed stock amount
 
     servicio = relationship("Servicio", back_populates="repuestos_asociados")
     repuesto = relationship("Repuesto", back_populates="servicios_asociados")

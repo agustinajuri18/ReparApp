@@ -51,10 +51,15 @@ function Repuestos() {
   };
 
   const fetchProveedores = () => {
-    fetch(PROVEEDORES_URL)
+    // Return the fetch promise so callers can await providers being loaded
+    return fetch(PROVEEDORES_URL)
       .then(res => res.json())
-      .then(data => setProveedores(Array.isArray(data) ? data : []))
-  .catch(err => { console.warn('Repuestos: fetch proveedores error', err); setMensaje("Error al cargar proveedores"); });
+      .then(data => {
+        const arr = Array.isArray(data) ? data : [];
+        setProveedores(arr);
+        return arr;
+      })
+      .catch(err => { console.warn('Repuestos: fetch proveedores error', err); setMensaje("Error al cargar proveedores"); return []; });
   };
 
   // Fetch repuestos whenever mostrarInactivos or searchTerm changes (debounced) so toggle works on first click
@@ -81,15 +86,15 @@ function Repuestos() {
     // Obtiene los IDs ya seleccionados en OTRAS filas
     const selectedIds = form.proveedores
       .filter((_, index) => index !== rowIndex)
-      .map(p => p.cuilProveedor);
+      .map(p => String(p.cuilProveedor));
 
-    // Filtra la lista principal de proveedores
-    return proveedores.filter(p => !selectedIds.includes(p.idProveedor));
+    // Filtra la lista principal de proveedores comparando strings
+    return proveedores.filter(p => !selectedIds.includes(String(p.idProveedor)));
   };
 
   const availableProveedoresCount = () => {
-    const selectedIds = form.proveedores.map(p => p.cuilProveedor);
-    return proveedores.filter(p => !selectedIds.includes(p.idProveedor)).length;
+    const selectedIds = form.proveedores.map(p => String(p.cuilProveedor));
+    return proveedores.filter(p => !selectedIds.includes(String(p.idProveedor))).length;
   };
   // --- Fin de la lógica de filtrado ---
 
@@ -109,7 +114,7 @@ function Repuestos() {
       for (const p of data.proveedores) {
         if (!p.cuilProveedor) errors.proveedorDetalle = "El proveedor es obligatorio.";
         if (p.costo === "" || isNaN(p.costo) || p.costo < 0) errors.proveedorDetalle = "El costo debe ser un número positivo.";
-        if (p.cantidad === "" || isNaN(p.cantidad) || !Number.isInteger(Number(p.cantidad)) || p.cantidad < 0) errors.proveedorDetalle = "La cantidad debe ser un número entero positivo.";
+        // cantidad is no longer managed in the local stock model
       }
     }
     return errors;
@@ -133,7 +138,13 @@ function Repuestos() {
     fetch(`${API_URL}/${repuesto.idRepuesto}`)
       .then(res => res.json())
       .then(data => {
-        const proveedoresData = data.proveedores || [];
+        // Normalize proveedores coming from API: ensure cuilProveedor is numeric id and costo is number or null
+        const proveedoresData = (data.proveedores || []).map(p => ({
+          ...p,
+          // prefer the idProveedor; store as string so it matches select option values
+          cuilProveedor: String(p.idProveedor ?? p.cuilProveedor ?? p.cuil ?? ''),
+          costo: p.costo === undefined || p.costo === null ? null : Number(p.costo)
+        }));
         if (!canModify) {
           // If user cannot modify, open in consult mode
           setModalModo('consultar');
@@ -144,16 +155,14 @@ function Repuestos() {
           return;
         }
         setModalModo('modificar');
-        setForm({
-          idRepuesto: data.idRepuesto,
-          marca: data.marca,
-          modelo: data.modelo,
-          proveedores: proveedoresData
+        // Ensure proveedores list is loaded so the select can show names
+        fetchProveedores().then(() => {
+          setForm({ idRepuesto: data.idRepuesto, marca: data.marca, modelo: data.modelo, proveedores: proveedoresData });
+          setOriginalProveedores(proveedoresData);
+          setFormErrors({});
+          setMensaje("");
+          setModalVisible(true);
         });
-        setOriginalProveedores(proveedoresData);
-        setFormErrors({});
-        setMensaje("");
-        setModalVisible(true);
       });
   };
 
@@ -161,11 +170,21 @@ function Repuestos() {
     fetch(`${API_URL}/${repuesto.idRepuesto}`)
       .then(res => res.json())
       .then(data => {
-        setModalModo('consultar');
-        setForm({ ...data, proveedores: data.proveedores || [] });
-        setFormErrors({});
-        setMensaje("");
-        setModalVisible(true);
+        // Normalize proveedores for consistent form shape when consulting
+        const proveedoresData = (data.proveedores || []).map(p => ({
+          ...p,
+          // prefer idProveedor and stringify it
+          cuilProveedor: String(p.idProveedor ?? p.cuilProveedor ?? p.cuil ?? ''),
+          costo: p.costo === undefined || p.costo === null ? null : Number(p.costo)
+        }));
+        // Ensure proveedores are loaded so names render in the select
+        fetchProveedores().then(() => {
+          setModalModo('consultar');
+          setForm({ ...data, proveedores: proveedoresData });
+          setFormErrors({});
+          setMensaje("");
+          setModalVisible(true);
+        });
       });
   };
 
@@ -177,8 +196,9 @@ function Repuestos() {
   const handleProveedorChange = (idx, field, value) => {
     const updatedProveedores = [...form.proveedores];
     if (field === 'cuilProveedor') {
-      updatedProveedores[idx][field] = Number(value);
-    } else if (field === 'costo' || field === 'cantidad') {
+      // keep id as string (select option values are strings)
+      updatedProveedores[idx][field] = String(value);
+    } else if (field === 'costo') {
       updatedProveedores[idx][field] = value === '' ? null : Number(value);
     } else {
       updatedProveedores[idx][field] = value;
@@ -187,7 +207,8 @@ function Repuestos() {
   };
 
   const handleAddProveedor = () => {
-    setForm(prev => ({ ...prev, proveedores: [...prev.proveedores, { cuilProveedor: '', costo: null, cantidad: null }] }));
+    // cantidad not tracked anymore; only store proveedor id and costo
+    setForm(prev => ({ ...prev, proveedores: [...prev.proveedores, { cuilProveedor: '', costo: null }] }));
   };
 
   const handleRemoveProveedor = (idx) => {
@@ -273,8 +294,7 @@ function Repuestos() {
               body: JSON.stringify({ 
                 idRepuesto: Number(idRepuesto), 
                 idProveedor: Number(p.cuilProveedor), 
-                costo: Number(p.costo || 0),      // Asegurar que sea número 
-                cantidad: Number(p.cantidad || 0)  // Asegurar que sea número
+                costo: Number(p.costo || 0)      // cantidad removed
               })
             })
           ));
@@ -312,8 +332,7 @@ function Repuestos() {
             body: JSON.stringify({ 
               idRepuesto: Number(form.idRepuesto), 
               idProveedor: Number(p.cuilProveedor), 
-              costo: Number(p.costo || 0),      // Asegurar que sea número
-              cantidad: Number(p.cantidad || 0)  // Asegurar que sea número
+              costo: Number(p.costo || 0)      // cantidad removed
             })
           }));
 
@@ -342,8 +361,7 @@ function Repuestos() {
           acc[id].proveedores.push({
             razonSocial: provMap[rel.idProveedor]?.razonSocial || '',
             cuilProveedor: rel.idProveedor,
-            costo: rel.costo,
-            cantidad: rel.cantidad
+            costo: rel.costo
           });
           return acc;
         }, {});
@@ -521,7 +539,7 @@ function Repuestos() {
                                 disabled={modalModo === 'consultar'}
                               >
                                 <option value="">Seleccione proveedor...</option>
-                                {getAvailableProveedoresForRow(idx).map(pr => <option key={pr.idProveedor} value={pr.idProveedor}>{pr.razonSocial} ({pr.cuil})</option>)}
+                                {getAvailableProveedoresForRow(idx).map(pr => <option key={pr.idProveedor} value={String(pr.idProveedor)}>{pr.razonSocial} ({pr.cuil})</option>)}
                               </select>
                             </div>
                             <div className="col-sm-6">
@@ -537,18 +555,7 @@ function Repuestos() {
                                 disabled={modalModo === 'consultar'}
                               />
                             </div>
-                            <div className="col-sm-6">
-                              <label>Cantidad</label>
-                              <input 
-                                type="number" 
-                                className="form-control" 
-                                value={p.cantidad ?? ''} 
-                                onChange={e => handleProveedorChange(idx, "cantidad", e.target.value)} 
-                                required 
-                                min="0" 
-                                disabled={modalModo === 'consultar'}
-                              />
-                            </div>
+                            {/* cantidad removed: not tracked in local stock */}
                             {modalModo !== 'consultar' && (
                               <div className="col-12 d-flex align-items-end mt-2">
                                 <button type="button" className="btn btn-rojo w-100" onClick={() => handleRemoveProveedor(idx)}>Quitar</button>
@@ -614,7 +621,6 @@ function Repuestos() {
                         <th>Repuesto</th>
                         <th>Proveedor</th>
                         <th>Costo</th>
-                        <th>Cantidad</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -624,12 +630,11 @@ function Repuestos() {
                             {i === 0 && <td rowSpan={r.proveedores.length}>{r.marca} {r.modelo}</td>}
                             <td>{p.razonSocial} ({p.cuilProveedor})</td>
                             <td>${p.costo}</td>
-                            <td>{p.cantidad}</td>
                           </tr>
                         )) : (
                           <tr key={r.idRepuesto}>
                             <td>{r.marca} {r.modelo}</td>
-                            <td colSpan="3" className="text-center text-muted">Sin proveedores asignados</td>
+                            <td colSpan="2" className="text-center text-muted">Sin proveedores asignados</td>
                           </tr>
                         )
                       )}

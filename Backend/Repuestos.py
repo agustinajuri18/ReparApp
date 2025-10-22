@@ -78,22 +78,18 @@ def agregar_repuestoxproveedor():
     id_repuesto = data.get('idRepuesto')
     id_proveedor = data.get('idProveedor')
     costo = data.get('costo')
-    cantidad = data.get('cantidad')
-
-    if id_repuesto is None or id_proveedor is None or costo is None or cantidad is None:
-        return jsonify({"error": "Faltan datos requeridos (idRepuesto, idProveedor, costo, cantidad)"}), 400
+    if id_repuesto is None or id_proveedor is None or costo is None:
+        return jsonify({"error": "Faltan datos requeridos (idRepuesto, idProveedor, costo)"}), 400
 
     try:
-        # La función alta_repuestoxproveedor se encarga de la lógica de la base de datos
         resultado = alta_repuestoxproveedor(
             idRepuesto=int(id_repuesto),
             idProveedor=int(id_proveedor),
-            costo=float(costo),
-            cantidad=int(cantidad)
+            costo=float(costo)
         )
-        if "error" in resultado:
-             return jsonify(resultado), 409 # 409 Conflict si ya existe
-        return jsonify(resultado), 201 # 201 Created
+        if isinstance(resultado, dict) and "error" in resultado:
+            return jsonify(resultado), 409  # 409 Conflict si ya existe
+        return jsonify(resultado), 201  # 201 Created
     except (ValueError, TypeError) as e:
         return jsonify({"error": f"Error en el tipo de dato: {str(e)}"}), 400
     except Exception as e:
@@ -127,7 +123,7 @@ def listar_repuestoxproveedor():
                 'razonSocial': getattr(getattr(r, 'proveedor', None), 'razonSocial', None),
                 'cuil': proveedor_cuil,  # alias por compatibilidad
                 'costo': getattr(r, 'costo', None),
-                'cantidad': getattr(r, 'cantidad', None)
+                    # cantidad removed from model
             })
         return jsonify(resultado)
     except Exception as e:
@@ -159,7 +155,7 @@ def obtener_repuesto(idRepuesto):
             'cuilProveedor': getattr(getattr(r, 'proveedor', None), 'cuil', None),
             'razonSocial': getattr(getattr(r, 'proveedor', None), 'razonSocial', None),
             'costo': getattr(r, 'costo', None),
-            'cantidad': getattr(r, 'cantidad', None)
+                # cantidad removed from model
         })
     return jsonify({
         'idRepuesto': repuesto.idRepuesto,

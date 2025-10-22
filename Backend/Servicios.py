@@ -76,7 +76,8 @@ def agregar_servicioxrepuesto():
     if request.method == 'OPTIONS':
         return '', 200
     data = request.get_json()
-    alta_servicioxrepuesto(int(data['idServicio']), int(data['idRepuesto']), int(data['cantidad']))
+    # cantidad no se utiliza: asociamos repuesto al servicio sin stock local
+    alta_servicioxrepuesto(int(data['idServicio']), int(data['idRepuesto']))
     return jsonify({'success': True})
 
 @bp.route('/servicios-repuestos/', methods=['GET'])
@@ -87,7 +88,7 @@ def listar_servicioxrepuesto():
             'id': r.id,
             'idServicio': r.idServicio,
             'idRepuesto': r.idRepuesto,
-            'cantidad': r.cantidad
+            # cantidad removed
         } for r in relaciones
     ])
 
@@ -97,7 +98,7 @@ def actualizar_servicioxrepuesto(id):
     data = request.json
     relacion = modificar_servicioxrepuesto(
         id=id,
-        cantidad=data.get('cantidad')
+        # cantidad ignored
     )
     if relacion:
         return jsonify({'success': True})
