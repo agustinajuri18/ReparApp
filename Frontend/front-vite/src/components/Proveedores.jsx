@@ -406,11 +406,7 @@ function Proveedores() {
                   <i className="bi bi-list-ul me-1"></i>Ver todos los proveedores
                 </button>
                 
-                {canCreate ? (
-                  <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar proveedor</button>
-                ) : (
-                  <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear proveedores"><i className="bi bi-plus-lg"></i> Agregar proveedor</button>
-                )}
+                {canCreate && <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar proveedor</button>}
               </div>
             </div>
             <div className="card-body">
@@ -443,12 +439,15 @@ function Proveedores() {
                         <td>{prov.telefonoResponsable || prov.telefono}</td>
                         <td>{prov.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
-                          <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(prov)} disabled={!canView} title={!canView ? 'No tenés permiso para ver proveedores' : ''}><i className="bi bi-search me-1"></i>Consultar</button>
-                          <button className={`btn btn-sm fw-bold me-1 ${prov.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => prov.activo === 1 && handleModificar(prov)} disabled={prov.activo !== 1 || !canModify} title={!canModify ? 'No tenés permiso para modificar proveedores' : ''}><i className="bi bi-pencil-square me-1"></i>Modificar</button>
-                          {prov.activo === 1 ? (
-                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleDelete(prov.cuil)} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para eliminar proveedores' : ''}><i className="bi bi-trash me-1"></i>Eliminar</button>
-                          ) : (
-                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(prov.cuil)} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para reactivar proveedores' : ''}><i className="bi bi-arrow-clockwise me-1"></i>Reactivar</button>
+                          {canView && <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(prov)}><i className="bi bi-search me-1"></i>Consultar</button>}
+                          {prov.activo === 1 && canModify && (
+                            <button className={`btn btn-sm fw-bold me-1 btn-dorado`} onClick={() => handleModificar(prov)}><i className="bi bi-pencil-square me-1"></i>Modificar</button>
+                          )}
+                          {prov.activo === 1 && canDelete && (
+                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleDelete(prov.cuil)}><i className="bi bi-trash me-1"></i>Eliminar</button>
+                          )}
+                          {prov.activo !== 1 && canDelete && (
+                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(prov.cuil)}><i className="bi bi-arrow-clockwise me-1"></i>Reactivar</button>
                           )}
                         </td>
                       </tr>

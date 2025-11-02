@@ -202,7 +202,7 @@ export default function Clientes() {
               <h4 className="mb-0"><i className="bi bi-person-badge me-2"></i>Gestión de Clientes</h4>
               <div className="d-flex gap-2">
                 <button className="btn btn-dorado" onClick={() => setMostrarInactivos(!mostrarInactivos)}>{mostrarInactivos ? 'Ver activos' : 'Ver inactivos'}</button>
-                {canCreate ? <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar cliente</button> : <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear clientes"><i className="bi bi-plus-lg"></i> Agregar cliente</button>}
+                {canCreate && <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar cliente</button>}
               </div>
             </div>
             <div className="card-body">
@@ -221,8 +221,8 @@ export default function Clientes() {
                         <td>{c.mail}</td>
                         <td>{c.activo === 1 ? 'Activo' : 'Inactivo'}</td>
                         <td style={{ position: 'relative', overflow: 'visible' }}>
-                          <div className="d-flex align-items-center gap-2" style={{ overflow: 'visible' }}>
-                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleConsultar(c)}><i className="bi bi-search me-1"></i>Consultar</button>
+                            <div className="d-flex align-items-center gap-2" style={{ overflow: 'visible' }}>
+                            {canView && <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleConsultar(c)}><i className="bi bi-search me-1"></i>Consultar</button>}
                             <button className="btn btn-sm btn-azul fw-bold" onClick={async () => { try { const res = await fetch(`${API_URL}/${c.idCliente}/historial-ordenes`); const data = await res.json().catch(()=>[]); setHistorialOrdenes(Array.isArray(data)?data:[]); setHistorialVisible(true);} catch(err){ console.warn(err); setMensaje('Error al cargar historial'); } }}><i className="bi bi-clock-history me-1"></i>Historial</button>
                             <div style={{ position: 'relative', overflow: 'visible' }}>
                               <button ref={el => { if (el) menuAnchorRefs.current[c.idCliente] = el }} className="btn btn-sm btn-outline-secondary" onClick={(e) => { e.stopPropagation(); setOpenMenuFor(openMenuFor === c.idCliente ? null : c.idCliente); }} aria-expanded={openMenuFor === c.idCliente}><i className="bi bi-three-dots-vertical"></i></button>
@@ -317,8 +317,9 @@ function ActionMenuPortal({ anchorEl, onClose, onModificar, onEliminar, onReacti
     <div id="action-menu-portal" style={{ position: 'absolute', left: pos.left, top: pos.top, zIndex: 2147483647, minWidth: 140 }}>
       <div className="card" style={{ overflow: 'visible' }}>
         <ul className="list-group list-group-flush p-2">
-          <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar} disabled={!activo || !canModify} title={!canModify ? 'No tenés permiso para modificar clientes' : ''}>Modificar</button></li>
-          {activo ? (<li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100 fw-bold" onClick={onEliminar} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para eliminar clientes' : ''}>Eliminar</button></li>) : (<li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100 fw-bold" onClick={onReactivar} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para reactivar clientes' : ''}>Reactivar</button></li>)}
+          {activo && canModify && (<li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar}>Modificar</button></li>)}
+          {activo && canDelete && (<li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100 fw-bold" onClick={onEliminar}>Eliminar</button></li>)}
+          {!activo && canDelete && (<li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100 fw-bold" onClick={onReactivar}>Reactivar</button></li>)}
         </ul>
       </div>
     </div>, document.body

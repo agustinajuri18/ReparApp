@@ -21,6 +21,38 @@ export default function Reportes() {
       URL.revokeObjectURL(urlBlob);
     };
 
+    // Open a new window with an inline PDF preview and a download button
+    const openPreviewWindow = (url, filename) => {
+      const win = window.open('', '_blank', 'width=1000,height=800');
+      if (!win) return alert('No se pudo abrir la ventana de previsualización. Verificá el bloqueador de ventanas.');
+      const escapedUrl = url.replace(/'/g, "\\'");
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Previsualización - ${filename}</title></head><body style="margin:0;display:flex;flex-direction:column;height:100vh">` +
+        `<div style="padding:10px;background:#f8f9fa;display:flex;gap:8px;align-items:center;border-bottom:1px solid #ddd;">` +
+        `<button id="downloadBtn" style="padding:.35rem .6rem">Descargar PDF</button>` +
+        `<button id="closeBtn" style="padding:.35rem .6rem">Cerrar</button>` +
+        `</div>` +
+        `<iframe src="${escapedUrl}" style="flex:1;width:100%;border:none"></iframe>` +
+        `<script>
+          (function(){
+            const url = '${escapedUrl}';
+            const filename = '${filename}';
+            document.getElementById('downloadBtn').addEventListener('click', async function(){
+              try{
+                const r = await fetch(url);
+                if(!r.ok){ alert('Error al obtener el PDF: HTTP ' + r.status); return; }
+                const blob = await r.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = blobUrl; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(blobUrl);
+              }catch(e){ alert('Error al descargar: ' + (e.message || e)); }
+            });
+            document.getElementById('closeBtn').addEventListener('click', function(){ window.close(); });
+          })();
+        <\/script></body></html>`;
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    };
+
     // Helper: validar rango
     const validateRange = (d, h) => {
       if (d && h) {
@@ -38,9 +70,8 @@ export default function Reportes() {
       const d = q('#desdeReparados').value;
       const h = q('#hastaReparados').value;
       if (!validateRange(d, h)) return alert('Rango inválido: la fecha "desde" no puede ser posterior a "hasta"');
-      if (!confirm('Previsualizar reporte en PDF?')) return;
       const url = `${API_BASE}/reportes/reparados?format=pdf${d?`&desde=${d}`:''}${h?`&hasta=${h}`:''}`;
-      window.open(url, '_blank');
+      openPreviewWindow(url, 'reparados.pdf');
     };
     q('#btnReparadosPdf')?.addEventListener('click', onReparadosPdf);
 
@@ -68,9 +99,8 @@ export default function Reportes() {
       const d = q('#desdeNoReparados').value;
       const h = q('#hastaNoReparados').value;
       if (!validateRange(d, h)) return alert('Rango inválido: la fecha "desde" no puede ser posterior a "hasta"');
-      if (!confirm('Previsualizar reporte no reparados en PDF?')) return;
       const url = `${API_BASE}/reportes/no-reparados?format=pdf${d?`&desde=${d}`:''}${h?`&hasta=${h}`:''}`;
-      window.open(url, '_blank');
+      openPreviewWindow(url, 'no_reparados.pdf');
     };
     q('#btnNoReparadosPdf')?.addEventListener('click', onNoReparadosPdf);
 

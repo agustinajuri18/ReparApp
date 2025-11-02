@@ -368,13 +368,27 @@ function Ordenes() {
 
   // En handleModificar, cambiar setShowAddDetalle(false) a setShowAddDetalle(true) para permitir añadir detalles en modificar
   const handleModificar = (orden) => {
-    // Allow Técnicos (idCargo === 2) to modify even if they don't have the canModify permiso.
+    // Allow Técnicos (idCargo === 2) to modify even if they don't have the canModify permiso,
+    // but only when the order is in Diagnóstico or Reparación. Otherwise open in consulta.
     if (!canModify && !isTecnico) {
       setModalModo('consultar');
       setModalVisible(true);
       setForm({ ...orden });
       setMensaje('No tenés permiso para modificar órdenes. Abriendo en modo consulta.');
       return;
+    }
+
+    if (isTecnico) {
+      const est = _normalize(orden.estado || '');
+      const allowedForTecnico = est.includes('diagnost') || est.includes('reparacion');
+      if (!allowedForTecnico && !canModify) {
+        // Técnicos no pueden modificar órdenes que no estén en diagnóstico o reparación
+        setModalModo('consultar');
+        setModalVisible(true);
+        setForm({ ...orden });
+        setMensaje('No podés modificar esta orden: sólo se pueden modificar órdenes en Diagnóstico o Reparación. Abriendo en modo consulta.');
+        return;
+      }
     }
     // Configura el modal en modo modificar y carga detalles
     setModalModo('modificar');
@@ -1302,6 +1316,19 @@ function Ordenes() {
     return rel ? rel.id : null;
   }
 
+  // Flags to restrict what a technician can edit inside the modal
+  const normalizedFormEstado = _normalize(form.estado || '');
+  const isTechModifyingDiagnostico = isTecnico && modalModo === 'modificar' && normalizedFormEstado.includes('diagnost');
+  const isTechModifyingReparacion = isTecnico && modalModo === 'modificar' && normalizedFormEstado.includes('reparacion');
+  const technicianRestrictedMainFields = isTechModifyingDiagnostico || isTechModifyingReparacion;
+  // Diagnóstico editable for técnicos únicamente cuando están diagnosticando, or when user has canModify
+  const diagnosticoDisabled = modalModo === 'consultar' || (modalModo === 'modificar' && !(isTechModifyingDiagnostico || canModify));
+  const modalTitle = modalModo === 'alta'
+    ? 'Nueva Orden'
+    : modalModo === 'modificar'
+      ? (isTecnico ? (isTechModifyingDiagnostico ? 'Diagnosticar Orden' : (isTechModifyingReparacion ? 'Editar Detalles' : 'Modificar Orden')) : 'Modificar Orden')
+      : 'Consultar Orden';
+
   return (
     <div className="container-fluid main-background" style={{ minHeight: '100vh' }}>
       <div className="row flex-nowrap">
@@ -1355,7 +1382,7 @@ function Ordenes() {
                   </button>
                 )}
                 {/* único botón Pendiente Retiro (visible para idCargo === 3 a través de isPurchaseAdmin) */}
-                {canCreate ? <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar Orden</button> : <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear órdenes"><i className="bi bi-plus-lg"></i> Agregar Orden</button>}
+                {canCreate && <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar Orden</button>}
               </div>
             </div>
             <div className="card-body">
@@ -1450,16 +1477,10 @@ function Ordenes() {
                                 <i className="bi bi-flag-fill me-1"></i>Terminar
                               </button>
                               {/* Agregar botón Modificar también en la vista En Reparación */}
-                              {!showOnlyPendienteAprobacion && (
-                                (isTecnico || canModify || isSalesAdmin) ? (
+                              {!showOnlyPendienteAprobacion && (canModify || isSalesAdmin || (isTecnico && (_normalize(o.estado || '').includes('diagnost') || _normalize(o.estado || '').includes('reparacion')))) && (
                                   <button className="btn btn-sm btn-dorado fw-bold ms-2" onClick={() => handleModificar(o)}>
-                                    <i className="bi bi-pencil-square me-1"></i>Modificar
+                                    <i className="bi bi-pencil-square me-1"></i>{isTecnico ? (_normalize(o.estado).includes('diagnost') ? 'Diagnosticar' : (_normalize(o.estado).includes('reparacion') ? 'Editar detalles' : 'Modificar')) : 'Modificar'}
                                   </button>
-                                ) : (
-                                  <button className="btn btn-sm btn-dorado fw-bold ms-2" disabled title={'No tenés permiso para modificar órdenes'}>
-                                    <i className="bi bi-pencil-square me-1"></i>Modificar
-                                  </button>
-                                )
                               )}
                             </td>
                           </tr>
@@ -1498,16 +1519,10 @@ function Ordenes() {
                               </button>
                               {/* 'Emitir' button removed as requested */}
                               {/* Ocultar el botón Modificar cuando se está filtrando por PendienteDeAprobacion */}
-                              {!showOnlyPendienteAprobacion && (
-                                (isTecnico || canModify || isSalesAdmin) ? (
+                              {!showOnlyPendienteAprobacion && (canModify || isSalesAdmin || (isTecnico && (_normalize(o.estado || '').includes('diagnost') || _normalize(o.estado || '').includes('reparacion')))) && (
                                   <button className="btn btn-sm btn-dorado fw-bold" onClick={() => handleModificar(o)}>
-                                    <i className="bi bi-pencil-square me-1"></i>Modificar
+                                    <i className="bi bi-pencil-square me-1"></i>{isTecnico ? (_normalize(o.estado).includes('diagnost') ? 'Diagnosticar' : (_normalize(o.estado).includes('reparacion') ? 'Editar detalles' : 'Modificar')) : 'Modificar'}
                                   </button>
-                                ) : (
-                                  <button className="btn btn-sm btn-dorado fw-bold" disabled title={'No tenés permiso para modificar órdenes'}>
-                                    <i className="bi bi-pencil-square me-1"></i>Modificar
-                                  </button>
-                                )
                               )}
                             </td></tr>
                         )
@@ -1587,7 +1602,7 @@ function Ordenes() {
               <form onSubmit={handleSubmit}>
 
                 <div className="modal-header">
-                  <h5 className="modal-title">{modalModo === 'alta' ? 'Nueva Orden' : modalModo === 'modificar' ? 'Modificar Orden' : 'Consultar Orden'}</h5>
+                  <h5 className="modal-title">{modalTitle}</h5>
                   <button type="button" className="btn-close" onClick={handleModalClose}></button>
                 </div>
                 {modalMensaje && (
@@ -1611,12 +1626,12 @@ function Ordenes() {
                               onChange={(selected) => setForm(prev => ({ ...prev, idDispositivo: selected ? selected.idDispositivo : "" }))}
                               placeholder="Seleccione un dispositivo"
                               displayFormat={(d) => `${d.marca} ${d.modelo} (${d.nroSerie})`}
-                              className={modalModo === 'consultar' ? 'readonly-field' : ''}
-                              disabled={modalModo === 'consultar'}
+                                className={modalModo === 'consultar' || technicianRestrictedMainFields ? 'readonly-field' : ''}
+                                disabled={modalModo === 'consultar' || technicianRestrictedMainFields}
                               required
                             />
                           </div>
-                          {modalModo !== 'consultar' && (
+                          {modalModo !== 'consultar' && !technicianRestrictedMainFields && (
                             <button type="button" className="btn btn-secondary" onClick={handleAddDispositivo}>
                               Nuevo Dispositivo
                             </button>
@@ -1632,8 +1647,8 @@ function Ordenes() {
                           onChange={(selected) => setForm(prev => ({ ...prev, idEmpleado: selected ? selected.idEmpleado : "" }))}
                           placeholder="Seleccione un Técnico"
                           displayFormat={(e) => `${e.nombre} ${e.apellido}`}
-                          className={modalModo === 'consultar' ? 'readonly-field' : ''}
-                          disabled={modalModo === 'consultar'}
+                          className={modalModo === 'consultar' || technicianRestrictedMainFields ? 'readonly-field' : ''}
+                          disabled={modalModo === 'consultar' || technicianRestrictedMainFields}
                         />
                         {formErrors.idEmpleado && <div className="input-error-message">{formErrors.idEmpleado}</div>}
                       </div>
@@ -1656,7 +1671,7 @@ function Ordenes() {
                       </div>
                       <div className="col-md-8">
                         <label>Descripción de Daños</label>
-                        <input name="descripcionDanos" value={form.descripcionDanos} onChange={handleFormChange} className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar'} />
+                        <input name="descripcionDanos" value={form.descripcionDanos} onChange={handleFormChange} className={`form-control ${modalModo === 'consultar' || technicianRestrictedMainFields ? 'readonly-field' : ''}`} disabled={modalModo === 'consultar' || technicianRestrictedMainFields} />
                         {formErrors.descripcionDanos && <div className="input-error-message">{formErrors.descripcionDanos}</div>}
                       </div>
                       {modalModo !== 'alta' && (
@@ -1666,10 +1681,10 @@ function Ordenes() {
                             name="diagnostico"
                             value={form.diagnostico}
                             onChange={handleFormChange}
-                            className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`}
-                            disabled={modalModo === 'consultar' || (modalModo === 'modificar' && isSalesAdmin)}
+                            className={`form-control ${diagnosticoDisabled ? 'readonly-field' : ''}`}
+                            disabled={diagnosticoDisabled}
                           />
-                          {(modalModo === 'modificar' && isSalesAdmin) && (
+                          {(modalModo === 'modificar' && isSalesAdmin && diagnosticoDisabled) && (
                             <div className="form-text text-muted">No tenés permiso para modificar el diagnóstico.</div>
                           )}
                         </div>
@@ -1851,6 +1866,10 @@ function Ordenes() {
                             ))}
                           </select>
                           {nuevoDetalleErrors.codigoRepuesto && <div className="input-error-message">{nuevoDetalleErrors.codigoRepuesto}</div>}
+                          {/* Hint when repuesto select is disabled because no servicio selected */}
+                          {!nuevoDetalle.codigoServicio && modalModo !== 'consultar' ? (
+                            <div className="form-text text-muted">Seleccione un servicio antes de elegir un repuesto.</div>
+                          ) : null}
                         </div>
 
                         <div className="col">
@@ -1874,6 +1893,10 @@ function Ordenes() {
                             ))}
                           </select>
                           {nuevoDetalleErrors.repuestoProveedor && <div className="input-error-message">{nuevoDetalleErrors.repuestoProveedor}</div>}
+                          {/* Hint when proveedor select is disabled because no repuesto selected */}
+                          {!nuevoDetalle.codigoRepuesto && modalModo !== 'consultar' ? (
+                            <div className="form-text text-muted">Seleccione un repuesto antes de elegir un proveedor.</div>
+                          ) : null}
                         </div>
                         <div className="col">
                           <label>Costo Serv.</label>

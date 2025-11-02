@@ -342,11 +342,7 @@ export default function Servicios() {
                 >
                   <i className="bi bi-journal-bookmark me-1"></i>Catálogo de servicios
                 </button>
-                {canCreate ? (
-                  <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar servicio</button>
-                ) : (
-                  <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear servicios"><i className="bi bi-plus-lg"></i> Agregar servicio</button>
-                )}
+                {canCreate && <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar servicio</button>}
               </div>
             </div>
             <div className="card-body">
@@ -369,12 +365,15 @@ export default function Servicios() {
                         <td>${Number(s.precioBase).toLocaleString("es-AR", { minimumFractionDigits: 2 })}</td>
                         <td>{s.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
-                          <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(s)} disabled={!canView} title={!canView ? 'No tenés permiso para ver servicios' : ''}><i className="bi bi-search me-1"></i>Consultar</button>
-                          <button className={`btn btn-sm fw-bold me-1 ${s.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => s.activo === 1 && handleModificar(s)} disabled={s.activo !== 1 || !canModify} title={!canModify ? 'No tenés permiso para modificar servicios' : ''}><i className="bi bi-pencil-square me-1"></i>Modificar</button>
-                          {s.activo === 1 ? (
-                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleEliminar(s.idServicio)} disabled={!canDeleteEffective} title={!canDeleteEffective ? (isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para eliminar servicios') : ''}><i className="bi bi-trash me-1"></i>Eliminar</button>
-                          ) : (
-                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(s.idServicio)} disabled={!canDeleteEffective} title={!canDeleteEffective ? (isSalesAdmin ? 'Acción no disponible para Asistente de ventas' : 'No tenés permiso para reactivar servicios') : ''}><i className="bi bi-arrow-clockwise me-1"></i>Reactivar</button>
+                          {canView && <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(s)}><i className="bi bi-search me-1"></i>Consultar</button>}
+                          {s.activo === 1 && canModify && (
+                            <button className={`btn btn-sm fw-bold me-1 btn-dorado`} onClick={() => handleModificar(s)}><i className="bi bi-pencil-square me-1"></i>Modificar</button>
+                          )}
+                          {s.activo === 1 && canDeleteEffective && (
+                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleEliminar(s.idServicio)}><i className="bi bi-trash me-1"></i>Eliminar</button>
+                          )}
+                          {s.activo !== 1 && canDeleteEffective && (
+                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(s.idServicio)}><i className="bi bi-arrow-clockwise me-1"></i>Reactivar</button>
                           )}
                         </td>
                       </tr>

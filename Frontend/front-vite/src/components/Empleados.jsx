@@ -240,12 +240,14 @@ export default function Empleados() {
                 >
                   {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                 </button>
-                <button
-                  className="btn btn-verdeAgua"
-                  onClick={handleAgregar}
-                >
-                  <i className="bi bi-plus-lg"></i> Agregar empleado
-                </button>
+                {canCreate ? (
+                  <button
+                    className="btn btn-verdeAgua"
+                    onClick={handleAgregar}
+                  >
+                    <i className="bi bi-plus-lg"></i> Agregar empleado
+                  </button>
+                ) : null}
               </div>
             </div>
             <div className="card-body">
@@ -274,33 +276,42 @@ export default function Empleados() {
                         <td>{e.telefono || ''}</td>
                         <td>{e.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
-                          <button
-                            className="btn btn-sm btn-verdeAgua fw-bold me-1"
-                            onClick={() => handleConsultar(e)}
-                          >
-                            <i className="bi bi-search me-1"></i>Consultar
-                          </button>
-                          <button
-                            className={`btn btn-sm fw-bold me-1 ${e.activo === 1 ? 'btn-dorado' : 'btn-secondary'}`}
-                            onClick={() => e.activo === 1 && handleModificar(e)}
-                            disabled={e.activo !== 1}
-                          >
-                            <i className="bi bi-pencil-square me-1"></i>Modificar
-                          </button>
+                          {canView ? (
+                            <button
+                              className="btn btn-sm btn-verdeAgua fw-bold me-1"
+                              onClick={() => handleConsultar(e)}
+                            >
+                              <i className="bi bi-search me-1"></i>Consultar
+                            </button>
+                          ) : null}
+
+                          {e.activo === 1 && canModify ? (
+                            <button
+                              className={`btn btn-sm fw-bold me-1 btn-dorado`}
+                              onClick={() => handleModificar(e)}
+                            >
+                              <i className="bi bi-pencil-square me-1"></i>Modificar
+                            </button>
+                          ) : null}
+
                           {e.activo === 1 ? (
-                            <button
-                              className="btn btn-sm btn-rojo fw-bold"
-                              onClick={() => handleDelete(e.idEmpleado)}
-                            >
-                              <i className="bi bi-trash me-1"></i>Eliminar
-                            </button>
+                            canDelete ? (
+                              <button
+                                className="btn btn-sm btn-rojo fw-bold"
+                                onClick={() => handleDelete(e.idEmpleado)}
+                              >
+                                <i className="bi bi-trash me-1"></i>Eliminar
+                              </button>
+                            ) : null
                           ) : (
-                            <button
-                              className="btn btn-sm btn-verdeAgua fw-bold"
-                              onClick={() => handleReactivar(e.idEmpleado)}
-                            >
-                              <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
-                            </button>
+                            canDelete ? (
+                              <button
+                                className="btn btn-sm btn-verdeAgua fw-bold"
+                                onClick={() => handleReactivar(e.idEmpleado)}
+                              >
+                                <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
+                              </button>
+                            ) : null
                           )}
                         </td>
                       </tr>

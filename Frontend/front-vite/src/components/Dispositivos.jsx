@@ -288,11 +288,7 @@ export default function Dispositivos() {
                                 >
                                     {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                                 </button>
-                                {canCreate ? (
-                                    <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar dispositivo</button>
-                                ) : (
-                                    <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear dispositivos"><i className="bi bi-plus-lg"></i> Agregar dispositivo</button>
-                                )}
+                                {canCreate && <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar dispositivo</button>}
                             </div>
                         </div>
                         <div className="card-body">
@@ -323,7 +319,7 @@ export default function Dispositivos() {
                                                 <td>{d.activo ? "Activo" : "Inactivo"}</td>
                                                 <td style={{ position: 'relative', overflow: 'visible' }}>
                                                     <div className="d-flex align-items-center gap-2">
-                                                        <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleConsultar(d)} disabled={!canView} title={!canView ? 'No tenés permiso para ver dispositivos' : ''}><i className="bi bi-search me-1"></i>Consultar</button>
+                                                        {canView && <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleConsultar(d)}><i className="bi bi-search me-1"></i>Consultar</button>}
                                                         <button
                                                             className="btn btn-sm btn-azul fw-bold"
                                                             onClick={async () => {
@@ -765,17 +761,26 @@ export default function Dispositivos() {
 
             if (!anchorEl) return null;
 
-            return ReactDOM.createPortal(
+                return ReactDOM.createPortal(
                 <div id="action-menu-portal" style={{ position: 'absolute', left: pos.left, top: pos.top, zIndex: 2147483647, minWidth: 140 }}>
                     <div className="card" style={{ overflow: 'visible' }}>
-                                                                <ul className="list-group list-group-flush p-2">
-                                                                    <li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar} disabled={!activo || !canModify}>{/* fallback - will be set by parent */}Modificar</button></li>
-                                                                    {activo ? (
-                                                                        <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-rojo w-100" onClick={onEliminar} disabled={!canDelete}>Eliminar</button></li>
-                                                                    ) : (
-                                                                        <li className="list-group-item border-0 p-0"><button className="btn btn-sm btn-verdeAgua w-100" onClick={onReactivar} disabled={!canDelete}>Reactivar</button></li>
-                                                                    )}
-                                                                </ul>
+                        <ul className="list-group list-group-flush p-2">
+                            {activo && canModify && (
+                                <li className="list-group-item border-0 p-0 mb-1">
+                                    <button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar}>{/* enabled */}Modificar</button>
+                                </li>
+                            )}
+                            {activo && canDelete && (
+                                <li className="list-group-item border-0 p-0">
+                                    <button className="btn btn-sm btn-rojo w-100" onClick={onEliminar}>Eliminar</button>
+                                </li>
+                            )}
+                            {!activo && canDelete && (
+                                <li className="list-group-item border-0 p-0">
+                                    <button className="btn btn-sm btn-verdeAgua w-100" onClick={onReactivar}>Reactivar</button>
+                                </li>
+                            )}
+                        </ul>
                     </div>
                 </div>,
                 document.body

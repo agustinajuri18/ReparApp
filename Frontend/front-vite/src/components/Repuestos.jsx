@@ -385,12 +385,8 @@ function Repuestos() {
                 >
                   {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                 </button>
-                {canCreate ? (
+                {canCreate && (
                   <button className="btn btn-verdeAgua" onClick={handleAgregarClick}>
-                    <i className="bi bi-plus-lg"></i> Agregar repuesto
-                  </button>
-                ) : (
-                  <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear repuestos">
                     <i className="bi bi-plus-lg"></i> Agregar repuesto
                   </button>
                 )}
@@ -433,15 +429,18 @@ function Repuestos() {
                           <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(r)}>
                             <i className="bi bi-search me-1"></i>Consultar
                           </button>
-                          <button className={`btn btn-sm fw-bold me-1 ${r.activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => r.activo && handleModificar(r)} disabled={!r.activo || !canModify} title={!canModify ? 'No tenés permiso para modificar repuestos' : ''}>
-                            <i className="bi bi-pencil-square me-1"></i>Modificar
-                          </button>
-                          {r.activo ? (
-                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleDelete(r.idRepuesto)} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para eliminar repuestos' : ''}>
+                          {r.activo && canModify && (
+                            <button className={`btn btn-sm fw-bold me-1 btn-dorado`} onClick={() => handleModificar(r)}>
+                              <i className="bi bi-pencil-square me-1"></i>Modificar
+                            </button>
+                          )}
+                          {r.activo && canDelete && (
+                            <button className="btn btn-sm btn-rojo fw-bold" onClick={() => handleDelete(r.idRepuesto)}>
                               <i className="bi bi-trash me-1"></i>Eliminar
                             </button>
-                          ) : (
-                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(r.idRepuesto)} disabled={!canDelete} title={!canDelete ? 'No tenés permiso para reactivar repuestos' : ''}>
+                          )}
+                          {!r.activo && canDelete && (
+                            <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleReactivar(r.idRepuesto)}>
                               <i className="bi bi-arrow-clockwise me-1"></i>Reactivar
                             </button>
                           )}
