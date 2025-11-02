@@ -1768,7 +1768,48 @@ function Ordenes() {
                               {isSending ? 'Enviando...' : 'Enviar por WhatsApp'}
                             </button>
 
-                            <button type="button" className="btn btn-secondary" disabled title="Email no configurado aún">Enviar por Email</button>
+                            <button type="button" className="btn btn-secondary" disabled={isSending} onClick={async () => {
+                              setIsSending(true);
+                              setModalMensaje({ tipo: 'info', texto: 'Verificando conexión con el servidor...' });
+                              try {
+                                const pingResp = await fetch('http://localhost:5000/ping', { method: 'GET' });
+                                if (!pingResp.ok) {
+                                  const txt = await pingResp.text().catch(() => '');
+                                  throw new Error(`Ping falló: HTTP ${pingResp.status} ${txt}`);
+                                }
+                              } catch (pingErr) {
+                                console.error('Ping al backend falló (email):', pingErr);
+                                setModalMensaje({ tipo: 'danger', texto: 'No se pudo conectar con el backend. Verificá que el servidor esté corriendo en http://localhost:5000 y que no haya bloqueos CORS o de red. (' + (pingErr.message || String(pingErr)) + ')' });
+                                setIsSending(false);
+                                return;
+                              }
+
+                              setModalMensaje({ tipo: 'info', texto: 'Enviando por Email...' });
+                              try {
+                                const resp = await fetch(`${API_URL}/${form.nroDeOrden}/pdf/send_email`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  // No body required: backend intentará usar el mail del cliente; si querés forzar, pasar { email: 'x@y' }
+                                  body: JSON.stringify({})
+                                });
+
+                                let data = null;
+                                try { data = await resp.json(); } catch (e) { data = null; }
+
+                                if (!resp.ok) {
+                                  console.error('Envío Email error HTTP:', resp.status, data);
+                                  setModalMensaje({ tipo: 'danger', texto: 'Error al enviar por Email: ' + (data?.error || `HTTP ${resp.status}`) });
+                                } else {
+                                  console.log('Envío Email OK:', data);
+                                  setModalMensaje({ tipo: 'success', texto: 'PDF enviado por Email correctamente.' });
+                                }
+                              } catch (err) {
+                                console.error('Error enviando Email (fetch):', err);
+                                setModalMensaje({ tipo: 'danger', texto: 'Error al enviar por Email: fallo de red o CORS. Revisá la consola del navegador para más detalles. (' + (err.message || String(err)) + ')' });
+                              } finally {
+                                setIsSending(false);
+                              }
+                            }}>Enviar por Email</button>
                           </div>
                         </div>
                       )}
