@@ -1117,14 +1117,58 @@ def _notify_estado_whatsapp(nroDeOrden):
         if not estado_nombre:
             estado_nombre = orden.get('estado') or 'actualizado'
 
-        texto = f"Orden #{nroDeOrden}: su estado fue actualizado a '{estado_nombre}'. Para más información responda este mensaje."
+        # Construir saludo incluyendo nombre del cliente cuando esté disponible
+        try:
+            nombre = ''
+            apellido = ''
+            if cliente:
+                nombre = cliente.get('nombre') or ''
+                apellido = cliente.get('apellido') or ''
+            nombre_completo = f"{nombre} {apellido}".strip()
+            saludo = f"Estimado/a {nombre_completo}," if nombre_completo else "Estimado/a cliente,"
+        except Exception:
+            saludo = "Estimado/a cliente,"
+
+        texto = (
+            f"{saludo}\n\n"
+            f"Le informamos que su orden N.º {nroDeOrden} ha sido actualizada al estado: '{estado_nombre}'.\n\n"
+            f"Gracias por confiar en nosotros.\n"
+            f"Atentamente,\n"
+            f"El Mundo del Celular"
+        )
+        any_sent = False
         try:
             send_text(numero, texto)
-            return True
+            any_sent = True
         except Exception:
             import traceback
             traceback.print_exc()
-            return False
+
+        # Intentar notificar por email también (no bloqueante). Se comporta igual que WhatsApp: intento silencioso.
+        try:
+            # Determinar email del cliente
+            destinatario_email = None
+            if cliente:
+                destinatario_email = cliente.get('email') or cliente.get('mail') or cliente.get('mailResponsable')
+
+            if destinatario_email:
+                print(f"[notify] Intentando notificar por Email a: {destinatario_email} para orden {nroDeOrden} estado {estado_nombre}")
+                try:
+                    from gmail import notify_status_change
+                    # Usamos None como old_state porque desde aquí no tenemos el estado anterior; new_state es estado_nombre
+                    notify_status_change(destinatario_email, nroDeOrden, None, estado_nombre)
+                    any_sent = True
+                    print(f"[notify] Email notificación enviada (invocado notify_status_change) a {destinatario_email}")
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    print(f"[notify] Error al enviar notificación por Email a {destinatario_email}: {e}")
+        except Exception:
+            # Cualquier error en la rama de email no debe afectar el flujo
+            import traceback
+            traceback.print_exc()
+
+        return any_sent
     except Exception:
         import traceback
         traceback.print_exc()
@@ -1230,6 +1274,71 @@ def enviar_pdf_por_whatsapp(nroDeOrden):
             return jsonify({'error': f'Error al enviar por WhatsApp (via transfer): {str(e_send)}', 'pdf_url': pdf_url}), 500
 
         return jsonify({'success': True, 'method': 'transfer_sh', 'pdf_url': pdf_url, 'whatsapp_result': result}), 200
+
+
+@bp.route('/ordenes/<int:nroDeOrden>/pdf/send_email', methods=['POST'])
+@cross_origin()
+def enviar_pdf_por_email(nroDeOrden):
+    """
+    Genera el PDF en memoria y lo envía por email al cliente asignado para la orden.
+    Request JSON opcional: { "email": "destinatario@dominio", "subject": "Asunto opcional", "body": "Texto opcional" }
+    Si no se proporciona `email`, se intentará obtener el mail del cliente asociado a la orden.
+    """
+    # Responder a preflight OPTIONS
+    if request.method == 'OPTIONS':
+        return make_response('', 200)
+
+    data = request.get_json() or {}
+    provided_email = data.get('email')
+    subject = data.get('subject')
+    body = data.get('body')
+
+    try:
+        pdf_bytes = _build_pdf_bytes(nroDeOrden)
+    except FileNotFoundError:
+        return jsonify({'error': 'Orden no encontrada'}), 404
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+
+    # Determinar destinatario: prioridad a email provisto en el body, sino obtener del cliente de la orden
+    destinatario = None
+    if provided_email:
+        destinatario = provided_email
+    else:
+        # Reutilizar obtener_ordenes para obtener datos de cliente
+        from ABMC_db import obtener_ordenes
+        ordenes = obtener_ordenes(mode='detail', nroDeOrden=nroDeOrden)
+        if ordenes:
+            orden = ordenes[0]
+            cliente = orden.get('cliente') if isinstance(orden.get('cliente'), dict) else None
+            if not cliente and isinstance(orden.get('dispositivo'), dict):
+                cliente = orden.get('dispositivo', {}).get('cliente') if isinstance(orden.get('dispositivo', {}).get('cliente'), dict) else None
+            if cliente:
+                destinatario = cliente.get('email') or cliente.get('mail')
+
+    if not destinatario:
+        return jsonify({'error': 'No se encontró un email destinatario para esta orden. Pasa {"email": "x@y"} en el body si querés forzar uno.'}), 400
+
+    # Preparar asunto y cuerpo
+    if not subject:
+        subject = f"Comprobante - Orden {nroDeOrden} | El Mundo del Celular"
+    if not body:
+        body = (
+            f"Estimado/a cliente,\n\n"
+            f"Adjuntamos el comprobante correspondiente a la orden número {nroDeOrden}.\n\n"
+            f"Gracias por confiar en nosotros.\n\n"
+            f"Atentamente,\n"
+            f"El Mundo del Celular"
+        )
+
+    # Enviar usando el helper de gmail
+    try:
+        from gmail import send_pdf_bytes
+        send_pdf_bytes(destinatario, nroDeOrden, pdf_bytes, filename=f"Comprobante_Orden_{nroDeOrden}.pdf", body=body)
+    except Exception as e:
+        return jsonify({'error': f'Error al enviar por email: {str(e)}'}), 500
+
+    return jsonify({'success': True, 'email': destinatario}), 200
     
 @bp.route('/ordenes/<int:nroDeOrden>/preview', methods=['GET'])
 @cross_origin()
