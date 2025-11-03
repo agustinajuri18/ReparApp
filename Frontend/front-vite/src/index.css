@@ -511,3 +511,35 @@ button,
   opacity: 0.6;
   background-color: #f8f9fa;
 }
+
+/* --- Ajustes mínimos: sidebar más estrecho y tipografía principal a 17px --- */
+
+/* Aseguramos que la variable de ancho (si se usa) corresponda a 14rem */
+:root {
+  --sidebar-width: 14rem;
+}
+
+/* Aplicar font-size 17px al contenido principal (varios selectores de fallback) */
+.main-with-sidebar,
+main.col-md-10,
+.row.flex-nowrap > main,
+.main, .main-content, .content {
+  font-size: 17px !important;
+}
+
+/* Asegurar que las celdas de la tabla también se vean a 17px */
+.table th,
+.table td {
+  font-size: 17px !important;
+}
+
+/* Ajuste: si el sidebar scrollea, que su footer quede visible (sticky) */
+.menu-lateral {
+  width: var(--sidebar-width) !important;
+  max-width: 16rem !important;
+}
+.menu-lateral .sidebar-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+}

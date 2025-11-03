@@ -35,10 +35,67 @@ function MenuIdentityPanel({ identity }) {
   };
   const roleLabel = roleNames[identity.idCargo] || `Cargo ${identity.idCargo}`;
 
+  // Styling: all four displayed words same font-size (17px),
+  // only the label words ("Usuario:" and "Rol:") bold.
   return (
-    <div className="w-100 p-2 text-start text-white-50" style={{ fontSize: 12, borderTop: '1px dashed rgba(255,255,255,0.08)', marginTop: 8 }}>
-      <div><strong>Usuario:</strong> {displayName || idUsuario || '—'}</div>
-      <div><strong>Rol:</strong> {roleLabel}</div>
+    <div
+      className="w-100 p-2 text-start text-white-50 sidebar-identity-panel"
+      style={{
+        fontSize: 17, // base size for all text inside panel
+        borderTop: '1px dashed rgba(255,255,255,0.08)',
+        marginTop: 8,
+        paddingTop: 8,
+        paddingBottom: 8
+      }}
+      aria-label="panel-identidad-usuario"
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <strong
+          style={{
+            fontSize: 17,
+            fontWeight: 700,   // bold only for the label
+            color: 'inherit'
+          }}
+        >
+          Usuario:
+        </strong>
+        <span
+          className="sidebar-username"
+          style={{
+            fontSize: 17,
+            fontWeight: 400,   // normal weight for the value
+            display: 'inline-block',
+            marginLeft: 4,
+            color: 'inherit'
+          }}
+        >
+          {displayName || idUsuario || '—'}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+        <strong
+          style={{
+            fontSize: 17,
+            fontWeight: 700,   // bold only for the label
+            color: 'inherit'
+          }}
+        >
+          Rol:
+        </strong>
+        <span
+          className="sidebar-role"
+          style={{
+            fontSize: 17,
+            fontWeight: 400,   // normal weight for the value
+            display: 'inline-block',
+            marginLeft: 4,
+            color: 'inherit'
+          }}
+        >
+          {roleLabel}
+        </span>
+      </div>
     </div>
   );
 }
@@ -126,7 +183,7 @@ const MenuLateral = () => {
   return (
     <nav
       className="menu-lateral col-12 col-md-2 d-flex flex-md-column flex-row align-items-center align-items-md-start p-0"
-      style={{ background: colores.azul, minHeight: "100vh", width: 'var(--sidebar-width)', maxWidth: '18rem' }}
+      style={{ background: colores.azul, minHeight: "100vh", width: '14rem', maxWidth: '16rem' }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%' }}>
         {/* Contenido principal scrollable */}
