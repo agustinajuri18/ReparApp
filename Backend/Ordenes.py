@@ -1131,7 +1131,47 @@ def _notify_estado_whatsapp(nroDeOrden):
 
         texto = (
             f"{saludo}\n\n"
-            f"Le informamos que su orden N.º {nroDeOrden} ha sido actualizada al estado: '{estado_nombre}'.\n\n"
+            f"Le informamos que su orden N.º {nroDeOrden} ha sido actualizada al estado: '{estado_nombre}'.\n"
+        )
+
+        # Si el nuevo estado es 'PendienteDeRetiro' agregamos la fecha límite de retiro
+        try:
+            # Normalizar nombre de estado para comparación
+            estado_norm = (estado_nombre or '').replace(' ', '').lower()
+            if 'pendientederetiro' in estado_norm:
+                # Intentar obtener fechaInicioRetiro desde la orden
+                fecha_inicio_retiro = orden.get('fechaInicioRetiro') or None
+                if fecha_inicio_retiro:
+                    # Puede venir como string ISO o como date; intentar parsear
+                    try:
+                        if isinstance(fecha_inicio_retiro, str):
+                            from datetime import datetime as _dt
+                            fecha_obj = _dt.fromisoformat(fecha_inicio_retiro).date()
+                        else:
+                            fecha_obj = fecha_inicio_retiro
+                    except Exception:
+                        fecha_obj = datetime.now().date()
+                else:
+                    # No hay fechaInicioRetiro guardada: usar hoy
+                    fecha_obj = datetime.now().date()
+
+                # Asumir plazo por defecto de 30 días desde que se marca como reparada
+                try:
+                    plazo_dias = 30
+                    fecha_limite = fecha_obj + timedelta(days=plazo_dias)
+                    fecha_limite_str = fecha_limite.strftime('%d/%m/%Y')
+                    texto += f"\n\nFecha límite para retiro: {fecha_limite_str}.\n"
+                except Exception:
+                    fecha_limite_str = None
+                    texto += "\n"
+
+                # Añadir instrucciones amables
+                texto += "Por favor retire su equipo dentro del plazo indicado.\n\n"
+        except Exception:
+            # Si algo falla en el cálculo no rompemos la notificación
+            texto += "\n\n"
+
+        texto += (
             f"Gracias por confiar en nosotros.\n"
             f"Atentamente,\n"
             f"El Mundo del Celular"
@@ -1155,8 +1195,26 @@ def _notify_estado_whatsapp(nroDeOrden):
                 print(f"[notify] Intentando notificar por Email a: {destinatario_email} para orden {nroDeOrden} estado {estado_nombre}")
                 try:
                     from gmail import notify_status_change
+                    # Calcular fecha límite si corresponde al estado PendienteDeRetiro
+                    deadline_str = None
+                    try:
+                        estado_norm = (estado_nombre or '').replace(' ', '').lower()
+                        if 'pendientederetiro' in estado_norm:
+                            fecha_inicio_retiro = orden.get('fechaInicioRetiro') or None
+                            if fecha_inicio_retiro and isinstance(fecha_inicio_retiro, str):
+                                from datetime import datetime as _dt
+                                fecha_obj = _dt.fromisoformat(fecha_inicio_retiro).date()
+                            elif fecha_inicio_retiro:
+                                fecha_obj = fecha_inicio_retiro
+                            else:
+                                fecha_obj = datetime.now().date()
+                            fecha_limite = fecha_obj + timedelta(days=30)
+                            deadline_str = fecha_limite.strftime('%d/%m/%Y')
+                    except Exception:
+                        deadline_str = None
+
                     # Usamos None como old_state porque desde aquí no tenemos el estado anterior; new_state es estado_nombre
-                    notify_status_change(destinatario_email, nroDeOrden, None, estado_nombre)
+                    notify_status_change(destinatario_email, nroDeOrden, None, estado_nombre, deadline_date=deadline_str)
                     any_sent = True
                     print(f"[notify] Email notificación enviada (invocado notify_status_change) a {destinatario_email}")
                 except Exception as e:

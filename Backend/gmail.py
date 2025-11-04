@@ -180,7 +180,7 @@ def send_pdf(email_receiver: str, nroDeOrden: int, pdf_path: str, body: str | No
     send_email(email_receiver, subject, body, attachments=[pdf_path])
 
 
-def notify_status_change(email_receiver: str, nroDeOrden: int, old_state: str | None, new_state: str, pdf_bytes: bytes | None = None, pdf_path: str | None = None):
+def notify_status_change(email_receiver: str, nroDeOrden: int, old_state: str | None, new_state: str, pdf_bytes: bytes | None = None, pdf_path: str | None = None, deadline_date: str | None = None):
     """
     Notifica por email el cambio de estado de una orden.
     Si se proveen `pdf_bytes` se adjuntan los bytes; si se provee `pdf_path` se adjunta el archivo en disco.
@@ -215,6 +215,9 @@ def notify_status_change(email_receiver: str, nroDeOrden: int, old_state: str | 
     if old_state:
         body_lines.append(f"Estado anterior: {old_state}")
     body_lines.append(f"Estado actual: {new_state}")
+    if deadline_date:
+        body_lines.append("")
+        body_lines.append(f"Fecha límite para retiro: {deadline_date}")
     body_lines.append("")
     body_lines.append("Adjuntamos el comprobante cuando corresponda.")
     body_lines.append("")
