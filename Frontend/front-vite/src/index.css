@@ -543,3 +543,19 @@ main.col-md-10,
   bottom: 0;
   z-index: 5;
 }
+
+/* Evitar que los dropdowns se recorten dentro de .table-responsive */
+.table-responsive {
+  overflow: visible !important;
+}
+
+/* Asegurar que el menú desplegable tenga suficiente z-index */
+.dropdown-menu {
+  z-index: 3000 !important;
+}
+
+/* Si usás un botón custom para los tres puntos con clase .three-dots-btn,
+   asegurate que sea position: relative para que el menú se sitúe correctamente. */
+.three-dots-btn {
+  position: relative;
+}

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from 'react-dom';
 import MenuLateral from './MenuLateral';
 import ConfirmModal from './ConfirmModal';
+import PiePagina from './PiePagina';
 import { usePermission } from '../auth/PermissionContext';
 import { hasPermission } from '../utils/permissions';
 
@@ -112,7 +113,11 @@ export default function Dispositivos() {
 
     // Close three-dot menu when clicking outside or pressing Escape
     useEffect(() => {
-        const onDocClick = () => setOpenMenuFor(null);
+        const onDocClick = (e) => {
+            // if clicking outside of any anchor/button or menu, close
+            // but avoid closing when clicking the anchor itself (handled in button onClick)
+            setOpenMenuFor(null);
+        };
         const onEsc = (e) => { if (e.key === 'Escape') setOpenMenuFor(null); };
         document.addEventListener('click', onDocClick);
         document.addEventListener('keydown', onEsc);
@@ -158,26 +163,12 @@ export default function Dispositivos() {
 
     const confirmDeleteDispositivoCancel = () => setConfirmDeleteDispositivo({ open: false, id: null });
 
-    const [bloqueoModal, setBloqueoModal] = useState({ open: false, message: '' });
-
     const confirmDeleteDispositivoConfirm = async () => {
         const id = confirmDeleteDispositivo.id;
         if (!canDelete) { setMensaje('No tenés permiso para eliminar dispositivos.'); setConfirmDeleteDispositivo({ open: false, id: null }); return; }
-        try {
-            const res = await fetch(`${API_URL}/${id}`, { method: "DELETE" });
-            const resultado = await res.json().catch(() => ({}));
-            if (res.ok) {
-                fetchDispositivos();
-            } else if (res.status === 400 && resultado.error) {
-                setBloqueoModal({ open: true, message: resultado.error });
-            } else {
-                setMensaje(resultado.error || resultado.detail || resultado.mensaje || "Error desconocido del servidor");
-            }
-        } catch (err) {
-            setMensaje("Error de red: " + (err.message || String(err)));
-        } finally {
-            setConfirmDeleteDispositivo({ open: false, id: null });
-        }
+        await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+        fetchDispositivos();
+        setConfirmDeleteDispositivo({ open: false, id: null });
     };
 
     const handleReactivar = async (idDispositivo) => {
@@ -288,7 +279,11 @@ export default function Dispositivos() {
                                 >
                                     {mostrarInactivos ? "Ver activos" : "Ver inactivos"}
                                 </button>
-                                {canCreate && <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar dispositivo</button>}
+                                {canCreate ? (
+                                    <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar dispositivo</button>
+                                ) : (
+                                    <button className="btn btn-verdeAgua" disabled title="No tenés permiso para crear dispositivos"><i className="bi bi-plus-lg"></i> Agregar dispositivo</button>
+                                )}
                             </div>
                         </div>
                         <div className="card-body">
@@ -319,7 +314,7 @@ export default function Dispositivos() {
                                                 <td>{d.activo ? "Activo" : "Inactivo"}</td>
                                                 <td style={{ position: 'relative', overflow: 'visible' }}>
                                                     <div className="d-flex align-items-center gap-2">
-                                                        {canView && <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleConsultar(d)}><i className="bi bi-search me-1"></i>Consultar</button>}
+                                                        <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleConsultar(d)} disabled={!canView} title={!canView ? 'No tenés permiso para ver dispositivos' : ''}><i className="bi bi-search me-1"></i>Consultar</button>
                                                         <button
                                                             className="btn btn-sm btn-azul fw-bold"
                                                             onClick={async () => {
@@ -361,9 +356,18 @@ export default function Dispositivos() {
                                                             >
                                                                 <i className="bi bi-three-dots-vertical"></i>
                                                             </button>
-                                                                                                            {openMenuFor === d.idDispositivo && (
-                                                                                                                <ActionMenuPortal anchorEl={menuAnchorRefs.current[d.idDispositivo]} onClose={() => setOpenMenuFor(null)} onModificar={() => { setOpenMenuFor(null); d.activo && (canModify ? handleModificar(d) : setMensaje('No tenés permiso para modificar dispositivos.')) }} onEliminar={() => { setOpenMenuFor(null); d.idDispositivo && (canDelete ? handleEliminar(d.idDispositivo) : setMensaje('No tenés permiso para eliminar dispositivos.')) }} onReactivar={() => { setOpenMenuFor(null); d.idDispositivo && (canDelete ? handleReactivar(d.idDispositivo) : setMensaje('No tenés permiso para reactivar dispositivos.')) }} activo={d.activo} canModify={canModify} canDelete={canDelete} />
-                                                                                                            )}
+                                                            {openMenuFor === d.idDispositivo && (
+                                                                <ActionMenuPortal
+                                                                    anchorEl={menuAnchorRefs.current[d.idDispositivo]}
+                                                                    onClose={() => setOpenMenuFor(null)}
+                                                                    onModificar={() => { setOpenMenuFor(null); d.activo && (canModify ? handleModificar(d) : setMensaje('No tenés permiso para modificar dispositivos.')) }}
+                                                                    onEliminar={() => { setOpenMenuFor(null); d.idDispositivo && (canDelete ? handleEliminar(d.idDispositivo) : setMensaje('No tenés permiso para eliminar dispositivos.')) }}
+                                                                    onReactivar={() => { setOpenMenuFor(null); d.idDispositivo && (canDelete ? handleReactivar(d.idDispositivo) : setMensaje('No tenés permiso para reactivar dispositivos.')) }}
+                                                                    activo={d.activo}
+                                                                    canModify={canModify}
+                                                                    canDelete={canDelete}
+                                                                />
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </td>
@@ -708,19 +712,13 @@ export default function Dispositivos() {
                     </div>
                 </div>
             )}
+            <PiePagina />
             <ConfirmModal
                 open={confirmDeleteDispositivo.open}
                 title="Confirmar eliminación"
                 message="¿Seguro que desea eliminar este dispositivo?"
                 onCancel={confirmDeleteDispositivoCancel}
                 onConfirm={confirmDeleteDispositivoConfirm}
-            />
-            <ConfirmModal
-                open={bloqueoModal.open}
-                title="No se puede eliminar"
-                message={bloqueoModal.message}
-                onCancel={() => setBloqueoModal({ open: false, message: '' })}
-                onConfirm={() => setBloqueoModal({ open: false, message: '' })}
             />
         </div>
     );
@@ -729,23 +727,47 @@ export default function Dispositivos() {
         // Portal component for action menu (copied from Clientes.jsx)
         function ActionMenuPortal({ anchorEl, onClose, onModificar, onEliminar, onReactivar, activo, canModify = true, canDelete = true }) {
             const [pos, setPos] = React.useState({ left: 0, top: 0, transformOrigin: 'top right' });
+            const menuRef = React.useRef(null);
 
-            useEffect(() => {
+            // Set an initial position quickly based on anchor rect (viewport coords).
+            // This avoids using broken left=0; the accurate placement is adjusted after menu mounts.
+            React.useLayoutEffect(() => {
                 if (!anchorEl) return;
                 const rect = anchorEl.getBoundingClientRect();
-                const menuWidth = 160; // approx
-                const left = rect.right - menuWidth;
-                const top = rect.bottom + 6; // 6px gap
-
-                // If there's not enough space below, open upwards
-                const spaceBelow = window.innerHeight - rect.bottom;
-                const menuHeight = 120; // approximate
-                if (spaceBelow < menuHeight) {
-                    setPos({ left: Math.max(8, left), top: rect.top - menuHeight - 6, transformOrigin: 'bottom right' });
-                } else {
-                    setPos({ left: Math.max(8, left), top: top, transformOrigin: 'top right' });
-                }
+                setPos({
+                    left: Math.max(8, rect.right - 160),
+                    top: rect.bottom + 6,
+                    transformOrigin: 'top right'
+                });
             }, [anchorEl]);
+
+            // After the menu DOM is rendered, measure it and adjust if necessary (prevent clipping).
+            React.useLayoutEffect(() => {
+                if (!menuRef.current || !anchorEl) return;
+                const rect = anchorEl.getBoundingClientRect();
+                const menuRect = menuRef.current.getBoundingClientRect();
+                let left = rect.right - menuRect.width; // prefer aligning right edges
+                let top = rect.bottom + 6; // open below by default
+
+                // If not enough space below, open upwards
+                if (rect.bottom + menuRect.height + 8 > window.innerHeight) {
+                    top = rect.top - menuRect.height - 6;
+                    // ensure not negative
+                    if (top < 8) top = 8;
+                }
+
+                // adjust horizontal overflow
+                if (left + menuRect.width > window.innerWidth - 8) {
+                    left = Math.max(8, window.innerWidth - menuRect.width - 8);
+                }
+                if (left < 8) left = Math.max(8, rect.left);
+
+                setPos({
+                    left: Math.round(left),
+                    top: Math.round(top),
+                    transformOrigin: top < rect.top ? 'bottom right' : 'top right'
+                });
+            }, [anchorEl, menuRef.current]); // eslint-disable-line
 
             React.useEffect(() => {
                 const onDocClick = (e) => {
@@ -761,23 +783,20 @@ export default function Dispositivos() {
 
             if (!anchorEl) return null;
 
-                return ReactDOM.createPortal(
-                <div id="action-menu-portal" style={{ position: 'absolute', left: pos.left, top: pos.top, zIndex: 2147483647, minWidth: 140 }}>
-                    <div className="card" style={{ overflow: 'visible' }}>
+            return ReactDOM.createPortal(
+                <div id="action-menu-portal" style={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 2147483647, minWidth: 140 }}>
+                    <div ref={menuRef} className="card" style={{ overflow: 'visible' }}>
                         <ul className="list-group list-group-flush p-2">
-                            {activo && canModify && (
-                                <li className="list-group-item border-0 p-0 mb-1">
-                                    <button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar}>{/* enabled */}Modificar</button>
-                                </li>
-                            )}
-                            {activo && canDelete && (
+                            <li className="list-group-item border-0 p-0 mb-1">
+                                <button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={() => { onModificar && onModificar(); onClose && onClose(); }} disabled={!activo || !canModify}>Modificar</button>
+                            </li>
+                            {activo ? (
                                 <li className="list-group-item border-0 p-0">
-                                    <button className="btn btn-sm btn-rojo w-100" onClick={onEliminar}>Eliminar</button>
+                                    <button className="btn btn-sm btn-rojo w-100" onClick={() => { onEliminar && onEliminar(); onClose && onClose(); }} disabled={!canDelete}>Eliminar</button>
                                 </li>
-                            )}
-                            {!activo && canDelete && (
+                            ) : (
                                 <li className="list-group-item border-0 p-0">
-                                    <button className="btn btn-sm btn-verdeAgua w-100" onClick={onReactivar}>Reactivar</button>
+                                    <button className="btn btn-sm btn-verdeAgua w-100" onClick={() => { onReactivar && onReactivar(); onClose && onClose(); }} disabled={!canDelete}>Reactivar</button>
                                 </li>
                             )}
                         </ul>
