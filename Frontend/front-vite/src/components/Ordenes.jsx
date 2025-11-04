@@ -105,6 +105,7 @@ function Ordenes() {
   const [terminarModalOpen, setTerminarModalOpen] = useState(false);
   const [terminarOrden, setTerminarOrden] = useState(null);
   const [terminarComentario, setTerminarComentario] = useState("");
+  const [terminarSending, setTerminarSending] = useState(false);
   // Estado para el modal de "Actualizar historial" (desde la tabla)
   const [showActualizarHistorialModal, setShowActualizarHistorialModal] = useState(false);
   const [actualizarHistorialOrden, setActualizarHistorialOrden] = useState(null);
@@ -1471,7 +1472,7 @@ function Ordenes() {
                               {/* 'Terminar' button shown instead of 'Modificar' when viewing En Reparación filter. No functionality yet. */}
                               <button
                                 className="btn btn-sm btn-dorado fw-bold"
-                                onClick={() => { setTerminarOrden(o); setTerminarComentario(''); setTerminarModalOpen(true); }}
+                                onClick={() => { setTerminarOrden(o); setTerminarComentario(''); setTerminarSending(false); setTerminarModalOpen(true); }}
                                 title="Terminar"
                               >
                                 <i className="bi bi-flag-fill me-1"></i>Terminar
@@ -2248,9 +2249,12 @@ function Ordenes() {
               <div className="modal-body">
                 <p className="mb-3">Marque el resultado de la reparación y agregue información adicional (opcional):</p>
                 <div className="d-flex gap-2 mb-3">
-                  <button type="button" className="btn btn-success flex-grow-1" onClick={async () => {
+                  <button type="button" className="btn btn-success flex-grow-1" disabled={terminarSending} onClick={async () => {
                     // Marcar orden como reparada: 1) actualizar resultado/informacionAdicional, 2) cambiar estado a PendienteDeRetiro
+                    // Evitar múltiples envíos
+                    if (terminarSending) return;
                     if (!terminarOrden) return;
+                    setTerminarSending(true);
                     const nro = terminarOrden.nroDeOrden;
                     try {
                       // 1) PUT para actualizar resultado e informacionAdicional
@@ -2285,12 +2289,16 @@ function Ordenes() {
                       console.error('Error al terminar orden:', err);
                       // Mantener el modal abierto para que el usuario pueda reintentar o editar el comentario
                       setModalMensaje({ tipo: 'danger', texto: `No se pudo marcar la orden como reparada: ${err.message}` });
+                      setTerminarSending(false);
                     }
                   }}>
+                    {terminarSending && <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>}
                     Reparada
                   </button>
-                  <button type="button" className="btn btn-danger flex-grow-1" onClick={async () => {
+                  <button type="button" className="btn btn-danger flex-grow-1" disabled={terminarSending} onClick={async () => {
+                    if (terminarSending) return;
                     if (!terminarOrden) return;
+                    setTerminarSending(true);
                     const nro = terminarOrden.nroDeOrden;
                     try {
                       const payload = {
@@ -2322,8 +2330,10 @@ function Ordenes() {
                     } catch (err) {
                       console.error('Error al marcar no reparada:', err);
                       setModalMensaje({ tipo: 'danger', texto: `No se pudo marcar la orden como no reparada: ${err.message}` });
+                      setTerminarSending(false);
                     }
                   }}>
+                    {terminarSending && <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>}
                     No reparada
                   </button>
                 </div>
