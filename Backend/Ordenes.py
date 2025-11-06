@@ -609,6 +609,76 @@ def marcar_retirada(nroDeOrden):
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+
+@bp.route('/ordenes/mark-abandoned', methods=['POST', 'OPTIONS'])
+@cross_origin()
+def api_mark_abandoned():
+    """
+    Endpoint para marcar órdenes como 'Abandonada' cuando su fechaInicioRetiro
+    tiene al menos `days` días de antigüedad (por defecto 30).
+    Request JSON opcional: { "days": 30 }
+    Responde JSON: { success: true, changed: <n> }
+    """
+    # Responder preflight
+    if request.method == 'OPTIONS':
+        return make_response('', 200)
+    try:
+        data = request.get_json() or {}
+        try:
+            days = int(data.get('days', 30))
+        except Exception:
+            days = 30
+
+        threshold = datetime.now().date() - timedelta(days=days)
+
+        # Buscar id de estado 'Abandonada' usando el helper local (robusto)
+        id_aband, nombre_aband = encontrar_estado_id('Abandonada')
+        if not id_aband:
+            # intentar búsqueda más laxa: contains 'abandon'
+            # (encontrar_estado_id ya hace contains; si no hay, devolvemos error)
+            return jsonify({'error': 'Estado "Abandonada" no encontrado en la tabla Estados'}), 500
+
+        from ABMC_db import session_scope, asignar_estado_orden
+        from BDD.database import OrdenDeReparacion, HistorialEstadoOrden
+
+        changed = 0
+        marked = []
+        from ABMC_db import obtener_ordenes
+
+        with session_scope() as s:
+            ords = s.query(OrdenDeReparacion).filter(OrdenDeReparacion.fechaInicioRetiro != None).filter(OrdenDeReparacion.fechaInicioRetiro <= threshold).all()
+            for o in ords:
+                nro = getattr(o, 'nroDeOrden', None)
+                if nro is None:
+                    continue
+                existe = s.query(HistorialEstadoOrden).filter(HistorialEstadoOrden.nroDeOrden == nro).filter(HistorialEstadoOrden.idEstado == id_aband).first()
+                if existe:
+                    continue
+                try:
+                    # usar la función central para registrar historial (maneja side-effects)
+                    asignar_estado_orden(nroDeOrden=nro, idEstado=id_aband, fechaCambio=datetime.now(), observaciones='Marcada automáticamente como Abandonada por tiempo de retiro excedido')
+                    changed += 1
+                    # obtener representación detallada de la orden para devolver al frontend
+                    try:
+                        detalles = obtener_ordenes(mode='detail', nroDeOrden=nro)
+                        if detalles and len(detalles) > 0:
+                            marked.append(detalles[0])
+                        else:
+                            marked.append({'nroDeOrden': nro})
+                    except Exception:
+                        # fallback mínimo
+                        marked.append({'nroDeOrden': nro})
+                except Exception:
+                    import traceback
+                    traceback.print_exc()
+                    continue
+
+        return jsonify({'success': True, 'changed': changed, 'marked': marked}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/ordenes/<int:nroDeOrden>/pdf', methods=['GET'])
 @cross_origin()
 def generar_pdf_orden(nroDeOrden):

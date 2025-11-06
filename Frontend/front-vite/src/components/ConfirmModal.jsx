@@ -11,7 +11,9 @@ function ConfirmModal({ open, title = 'Confirmar', message = '', onCancel, onCon
             <button type="button" className="btn-close" onClick={onCancel}></button>
           </div>
           <div className="modal-body">
-            <p>{message}</p>
+            {/* Si message es string lo mostramos dentro de un párrafo para mantener estilo;
+                si es JSX o un nodo React, lo renderizamos directamente para permitir tablas/listas. */}
+            {typeof message === 'string' ? <p>{message}</p> : message}
           </div>
           <div className="modal-footer d-flex justify-content-end gap-2">
             {onConfirm ? (

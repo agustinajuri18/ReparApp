@@ -102,6 +102,8 @@ function Ordenes() {
   const [emitirCaption, setEmitirCaption] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isSavingOrden, setIsSavingOrden] = useState(false);
+  const [isMarkingAbandoned, setIsMarkingAbandoned] = useState(false);
+  const [showMarkAbandonedModal, setShowMarkAbandonedModal] = useState(false);
   const [terminarModalOpen, setTerminarModalOpen] = useState(false);
   const [terminarOrden, setTerminarOrden] = useState(null);
   const [terminarComentario, setTerminarComentario] = useState("");
@@ -226,6 +228,16 @@ function Ordenes() {
   // Auto limpiar mensaje global después de unos segundos para que no quede persistente
   useEffect(() => {
     if (!_mensaje) return;
+    // Si el modal global ya contiene una lista de órdenes marcadas, no la sobrescribimos
+    // y sólo limpiamos el texto `_mensaje` tras el timeout (no cerramos el modal automáticamente).
+    if (modalMensajeGlobal && Array.isArray(modalMensajeGlobal.markedOrders) && modalMensajeGlobal.markedOrders.length > 0) {
+      const t = setTimeout(() => {
+        setMensaje('');
+        // no cerrar modal si contiene la lista marcada; el usuario lo cerrará manualmente
+      }, 6000);
+      return () => clearTimeout(t);
+    }
+
     // Mostrar en modal global y limpiar estado _mensaje
     setModalMensajeGlobal({ tipo: 'info', texto: _mensaje });
     const t = setTimeout(() => {
@@ -503,6 +515,43 @@ function Ordenes() {
         setModalMensaje({ tipo: 'danger', texto: `No se pudo marcar retirada: ${err.message}` });
       });
   };
+
+    // Abre el modal de confirmación para marcar órdenes abandonadas
+    const handleMarkAbandoned = () => {
+      if (!isSalesAdmin) { setMensaje('No tenés permiso para esta acción.'); return; }
+      setShowMarkAbandonedModal(true);
+    };
+
+    // Confirma y ejecuta la acción de marcar órdenes abandonadas
+    const confirmMarkAbandoned = async () => {
+      setShowMarkAbandonedModal(false);
+      setIsMarkingAbandoned(true);
+      try {
+        const resp = await fetch(`${API_URL}/mark-abandoned`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days: 30 })
+        });
+        let data = null;
+        try { data = await resp.json(); } catch (e) { data = null; }
+        if (!resp.ok) {
+          const txt = (data && data.error) ? data.error : (await resp.text().catch(() => ''));
+          throw new Error(txt || `HTTP ${resp.status}`);
+        }
+  const changed = data && (data.changed || 0);
+  const marked = data && Array.isArray(data.marked) ? data.marked : [];
+  // Mostrar modal global con lista de órdenes marcadas (si las hay)
+  setMensaje(`Se marcaron ${changed} órdenes como Abandonada.`);
+  setModalMensajeGlobal({ tipo: 'success', texto: `Se marcaron ${changed} órdenes como Abandonada.`, markedOrders: marked });
+  // refrescar lista
+  fetchOrdenes();
+      } catch (err) {
+        console.error('confirmMarkAbandoned error:', err);
+        setModalMensaje({ tipo: 'danger', texto: err.message || 'Error al marcar órdenes como abandonadas' });
+      } finally {
+        setIsMarkingAbandoned(false);
+      }
+    };
 
   // Acciones desde el modal de presupuesto para administradores de ventas
   const handlePresupuestoAceptar = (nro) => {
@@ -1383,6 +1432,19 @@ function Ordenes() {
                   </button>
                 )}
                 {/* único botón Pendiente Retiro (visible para idCargo === 3 a través de isPurchaseAdmin) */}
+                {isSalesAdmin && (
+                  <button
+                    type="button"
+                    className={`btn header-filter-btn ${isMarkingAbandoned ? 'btn-dorado' : 'btn-gris'}`}
+                    onClick={() => handleMarkAbandoned()}
+                    title="Marcar órdenes como Abandonada (fechaInicioRetiro >= 30 días)"
+                    style={{ marginRight: 8 }}
+                    disabled={isMarkingAbandoned}
+                  >
+                    {isMarkingAbandoned ? 'Marcando...' : 'Marcar Abandonadas'}
+                  </button>
+                )}
+
                 {canCreate && <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar Orden</button>}
               </div>
             </div>
@@ -2101,8 +2163,47 @@ function Ordenes() {
       <ConfirmModal
         open={!!modalMensajeGlobal}
         title={modalMensajeGlobal ? (modalMensajeGlobal.tipo === 'danger' ? 'Error' : modalMensajeGlobal.tipo === 'warning' ? 'Atención' : 'Mensaje') : 'Mensaje'}
-        message={modalMensajeGlobal ? modalMensajeGlobal.texto : ''}
+        message={
+          modalMensajeGlobal ? (
+            <div>
+              <p style={{ marginBottom: 12 }}>{modalMensajeGlobal.texto}</p>
+              {Array.isArray(modalMensajeGlobal.markedOrders) && modalMensajeGlobal.markedOrders.length > 0 ? (
+                <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
+                  <table className="table table-sm">
+                    <thead>
+                      <tr>
+                        <th>Nro</th>
+                        <th>Cliente</th>
+                        <th>Dispositivo</th>
+                        <th>Fecha Inicio Retiro</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {modalMensajeGlobal.markedOrders.map((o, idx) => (
+                        <tr key={o.nroDeOrden || idx}>
+                          <td>{o.nroDeOrden ?? o.nroDeOrden}</td>
+                          <td>{(o.cliente_info && String(o.cliente_info).split('(')[0].trim()) || (o.cliente && ((o.cliente.nombre || '') + ' ' + (o.cliente.apellido || '')).trim()) || '-'}</td>
+                          <td>{o.dispositivo_info || (o.dispositivo && (o.dispositivo.marca || '') + ' ' + (o.dispositivo.modelo || '')) || '-'}</td>
+                          <td>{o.fechaInicioRetiro ? (String(o.fechaInicioRetiro).split('T')[0]) : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          ) : ''
+        }
         onCancel={() => { setModalMensajeGlobal(null); setMensaje(''); }}
+      />
+
+      {/* Confirmación para marcar órdenes Abandonadas */}
+      <ConfirmModal
+        open={showMarkAbandonedModal}
+        title="Confirmar marcado como Abandonada"
+        message="¿Deseás marcar como ABANDONADA todas las órdenes cuya fecha de inicio de retiro tenga 30 días o más? Esta acción registrará un cambio de estado en el historial de cada orden."
+        onCancel={() => setShowMarkAbandonedModal(false)}
+        onConfirm={confirmMarkAbandoned}
       />
 
       {showAddClienteModal && (
