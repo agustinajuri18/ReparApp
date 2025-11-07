@@ -145,6 +145,8 @@ def historial_ordenes_por_dispositivo(idDispositivo):
                 'diagnostico': o.get('diagnostico'),
                 'tipoDocumento': tipo_doc,
                 'numeroDocumento': nro_doc,
+                # Provide both keys: 'precioTotal' (used elsewhere) and 'importeFinal' for compatibility
+                'precioTotal': float(o.get('precioTotal')) if o.get('precioTotal') is not None else None,
                 'importeFinal': float(o.get('precioTotal')) if o.get('precioTotal') is not None else None
             })
 
