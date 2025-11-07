@@ -17,13 +17,23 @@ def registrar_usuario():
     data = request.json
     
     # Validamos datos obligatorios
-    if not all(k in data for k in ['nombreUsuario', 'contraseña']):
-        return jsonify({'error': 'Falta información obligatoria (nombreUsuario, contraseña)'}), 400
-    
+    if not all(k in data for k in ['nombreUsuario', 'contraseña', 'idCargo']):
+        return jsonify({'error': 'Falta información obligatoria (nombreUsuario, contraseña, idCargo)'}), 400
+
+    try:
+        idCargo = int(data.get('idCargo'))
+    except Exception:
+        return jsonify({'error': 'idCargo inválido'}), 400
+
+    # Business rule: new user's cargo must be different from 1
+    if idCargo == 1:
+        return jsonify({'error': 'No está permitido asignar el cargo 1 al crear un usuario'}), 400
+
     usuario = alta_usuario(
         nombreUsuario=data['nombreUsuario'],
         contraseña=data['contraseña'],
-        activo=data.get('activo', 1)
+        activo=data.get('activo', 1),
+        idCargo=idCargo
     )
     return jsonify({
         'idUsuario': usuario.idUsuario,
@@ -40,7 +50,8 @@ def listar_usuarios():
         {
             'idUsuario': u.idUsuario,
             'nombreUsuario': u.nombreUsuario,
-            'activo': u.activo
+            'activo': u.activo,
+            'idCargo': getattr(u, 'idCargo', None)
         } for u in usuarios
     ])
 
@@ -51,18 +62,38 @@ def obtener_usuario(idUsuario):
         return jsonify({
             'idUsuario': usuario.idUsuario,
             'nombreUsuario': usuario.nombreUsuario,
-            'activo': usuario.activo
+            'activo': usuario.activo,
+            'idCargo': getattr(usuario, 'idCargo', None)
         })
     return jsonify({'error': 'Usuario no encontrado'}), 404
 
 @bp.route('/usuarios/<int:idUsuario>', methods=['PUT'])
 def modificar_usuario_endpoint(idUsuario):
     data = request.json
+    # Validate and optionally accept idCargo change
+    nuevo_idCargo = None
+    if 'idCargo' in data:
+        try:
+            nuevo_idCargo = int(data.get('idCargo'))
+        except Exception:
+            return jsonify({'error': 'idCargo inválido'}), 400
+        # Keep business rule: do not allow assigning cargo 1
+        if nuevo_idCargo == 1:
+            return jsonify({'error': 'No está permitido asignar el cargo 1 a un usuario'}), 400
+        # Verify cargo exists in DB
+        try:
+            cargo_obj = db.buscar_por_id(db.Cargo, nuevo_idCargo)
+        except Exception:
+            cargo_obj = None
+        if not cargo_obj:
+            return jsonify({'error': 'idCargo no existe'}), 400
+
     usuario = modificar_usuario_db(
         idUsuario=idUsuario,
         nueva_contraseña=data.get('contraseña'),
         nuevo_activo=data.get('activo'),
-        nuevo_nombreUsuario=data.get('nombreUsuario')
+        nuevo_nombreUsuario=data.get('nombreUsuario'),
+        nuevo_idCargo=nuevo_idCargo
     )
     if usuario:
         return jsonify({'success': True})
@@ -70,6 +101,20 @@ def modificar_usuario_endpoint(idUsuario):
 
 @bp.route('/usuarios/<int:idUsuario>', methods=['DELETE'])
 def eliminar_usuario(idUsuario):
+    # Check usuario exists
+    usuario_obj = mostrar_usuario_por_id(idUsuario)
+    if not usuario_obj:
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+    # Prevent deletion if user's cargo is Supervisor (case-insensitive match)
+    idCargo = getattr(usuario_obj, 'idCargo', None)
+    if idCargo is not None:
+        try:
+            cargo_obj = db.buscar_por_id(db.Cargo, idCargo)
+        except Exception:
+            cargo_obj = None
+        if cargo_obj and getattr(cargo_obj, 'descripcion', '').lower().find('supervisor') != -1:
+            return jsonify({'error': 'No está permitido eliminar usuarios con cargo Supervisor'}), 403
+
     usuario = baja_usuario(idUsuario)
     if usuario:
         return jsonify({'success': True})
@@ -112,9 +157,22 @@ def auth_usuario():
     data = request.json
     if not all(k in data for k in ['nombreUsuario', 'contraseña']):
         return jsonify({'error': 'Falta información (nombreUsuario, contraseña)'}), 400
-    usuarios = mostrar_usuarios(activos_only=True)
-    user = next((u for u in usuarios if u.nombreUsuario == data['nombreUsuario'] and u.contraseña == data['contraseña']), None)
+    # Load all users (active and inactive) so we can return a clearer message when
+    # the account exists but is disabled.
+    usuarios = mostrar_usuarios(activos_only=None)
+    # Primero buscar al usuario por nombre
+    user = next((u for u in usuarios if u.nombreUsuario == data['nombreUsuario']), None)
     if not user:
+        return jsonify({'error': 'Credenciales inválidas'}), 401
+    # Si el usuario existe pero está inactivo, informar explícitamente
+    try:
+        if int(getattr(user, 'activo', 0)) != 1:
+            return jsonify({'error': 'El usuario está deshabilitado. Por favor comuníquese con el supervisor.'}), 403
+    except Exception:
+        # en caso de datos inesperados, tratar como inactivo
+        return jsonify({'error': 'El usuario está deshabilitado. Por favor comuníquese con el supervisor.'}), 403
+    # Verificar contraseña
+    if user.contraseña != data['contraseña']:
         return jsonify({'error': 'Credenciales inválidas'}), 401
     # create a session
     if os.getenv('DEV_SKIP_SESSION_WRITE') == '1':

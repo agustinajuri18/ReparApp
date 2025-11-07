@@ -6,6 +6,7 @@ from ABMC_db import (
     reactivar_dispositivo
 )
 from ABMC_db import obtener_ordenes, buscar_cliente_por_id
+from ABMC_db import mostrar_clientes
 
 bp = Blueprint('dispositivos', __name__)
 
@@ -37,15 +38,37 @@ def registrar_dispositivo():
 def listar_dispositivos():
     id_cliente = request.args.get('idCliente')
     activos = request.args.get('activos', 'true').lower() == 'true'
+    imei = request.args.get('imei')
+    cliente_q = request.args.get('cliente')
     
+    dispositivos = []
+    # Prioridad: si idCliente explícito, usarlo
     if id_cliente:
         dispositivos = dispositivos_por_cliente(int(id_cliente))
+    else:
+        # if cliente name/query provided, resolve matching clients and gather their devices
+        if cliente_q:
+            try:
+                clientes = mostrar_clientes(activos_only=None, search=cliente_q) or []
+            except Exception:
+                clientes = []
+            dispositivos = []
+            for c in clientes:
+                dispositivos.extend(dispositivos_por_cliente(getattr(c, 'idCliente')) or [])
+        else:
+            dispositivos = mostrar_dispositivos(activos_only=activos)
+
+    # If imei filter provided, filter by partial match on nroSerie
+    if imei:
+        q = imei.strip()
+        dispositivos = [d for d in dispositivos if getattr(d, 'nroSerie', '') and q.lower() in getattr(d, 'nroSerie', '').lower()]
+
+    # Apply activos filter if we collected by cliente name (mostrar_dispositivos already applied activos when used)
+    if id_cliente or cliente_q:
         if activos:
             dispositivos = [d for d in dispositivos if d.activo == 1]
         else:
             dispositivos = [d for d in dispositivos if d.activo == 0]
-    else:
-        dispositivos = mostrar_dispositivos(activos_only=activos)
         
     return jsonify([
         {

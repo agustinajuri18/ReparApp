@@ -36,6 +36,9 @@ export default function Empleados() {
   const [allUsers, setAllUsers] = useState([]); // To map ID to name
   const [usuariosParaDropdown, setUsuariosParaDropdown] = useState([]); // For the modal dropdown
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [searchName, setSearchName] = useState('');
+  const [debouncedSearchName, setDebouncedSearchName] = useState('');
+  const [searchCargoFilter, setSearchCargoFilter] = useState('');
   const [clienteActual, setClienteActual] = useState(null);
   const permCtx = usePermission();
   const identity = permCtx ? permCtx.identity : null;
@@ -45,13 +48,24 @@ export default function Empleados() {
   const canModify = hasPermission(identity, 49);
   const canDelete = hasPermission(identity, 50);
 
+  // Debounce searchName so we don't trigger a fetch on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchName(searchName), 300);
+    return () => clearTimeout(t);
+  }, [searchName]);
+
   const fetchEmpleados = useCallback(() => {
-    const url = `${API_URL}?activos=${!mostrarInactivos}`;
+    const params = new URLSearchParams();
+    params.set('activos', String(!mostrarInactivos));
+    if (debouncedSearchName && debouncedSearchName.trim() !== '') params.set('search', debouncedSearchName.trim());
+    if (searchCargoFilter !== '' && searchCargoFilter !== null) params.set('cargo', String(searchCargoFilter));
+
+    const url = `${API_URL}?${params.toString()}`;
     fetch(url)
       .then(res => res.json())
       .then(data => setEmpleados(Array.isArray(data) ? data : []))
       .catch(err => { console.warn('Empleados: fetch empleados error', err); setMensaje("Error al cargar empleados"); });
-  }, [mostrarInactivos]);
+  }, [mostrarInactivos, debouncedSearchName, searchCargoFilter]);
 
   // Fetch data that changes based on filters
   useEffect(() => {
@@ -251,6 +265,28 @@ export default function Empleados() {
               </div>
             </div>
             <div className="card-body">
+              <div className="mb-3 d-flex gap-2 align-items-center">
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Buscar por nombre"
+                  value={searchName}
+                  onChange={e => setSearchName(e.target.value)}
+                  style={{ maxWidth: 320 }}
+                />
+                <div style={{ minWidth: 220 }}>
+                  <SearchableSelect
+                    options={cargos}
+                    value={cargos.find(c => c.idCargo === searchCargoFilter) || ""}
+                    onChange={(selected) => setSearchCargoFilter(selected ? selected.idCargo : '')}
+                    placeholder="Filtrar por cargo"
+                    displayFormat={(c) => c.descripcion}
+                  />
+                </div>
+                <button className="btn btn-outline-secondary" onClick={() => { setSearchName(''); setSearchCargoFilter(''); }}>
+                  Limpiar
+                </button>
+              </div>
               <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-striped table-hover align-middle">
                   <thead>

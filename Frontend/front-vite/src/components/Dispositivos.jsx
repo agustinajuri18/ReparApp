@@ -18,6 +18,8 @@ export default function Dispositivos() {
     const [clientes, setClientes] = useState([]);
     const [tiposDocumento, setTiposDocumento] = useState([]);
     const [mostrarInactivos, setMostrarInactivos] = useState(false);
+    const [clienteQuery, setClienteQuery] = useState("");
+    const [imeiQuery, setImeiQuery] = useState("");
     const [mensaje, setMensaje] = useState("");
     const [modalVisible, setModalVisible] = useState(false);
     const [modalModo, setModalModo] = useState('consultar'); // 'consultar' | 'modificar' | 'alta'
@@ -81,8 +83,12 @@ export default function Dispositivos() {
     }, [nuevoCliente.idTipoDoc, nuevoCliente.numeroDoc]);
 
     // Cargar dispositivos
-    const fetchDispositivos = () => {
-        fetch(`${API_URL}?activos=${!mostrarInactivos}`)
+    const fetchDispositivos = (opts = {}) => {
+        const activosParam = opts.activos !== undefined ? opts.activos : !mostrarInactivos;
+        let url = `${API_URL}?activos=${activosParam}`;
+        if (opts.cliente) url += `&cliente=${encodeURIComponent(opts.cliente)}`;
+        if (opts.imei) url += `&imei=${encodeURIComponent(opts.imei)}`;
+        fetch(url)
             .then(res => res.json())
             .then(data => setDispositivos(Array.isArray(data) ? data.filter(c => c && typeof c === 'object' && 'idDispositivo' in c && c.idDispositivo != null) : []))
             .catch(err => { console.warn('Dispositivos: fetch dispositivos error', err); setMensaje("Error al cargar dispositivos"); });
@@ -105,11 +111,20 @@ export default function Dispositivos() {
     };
 
     useEffect(() => {
-        fetchDispositivos();
+        // initial load
+        fetchDispositivos({ activos: !mostrarInactivos, cliente: clienteQuery, imei: imeiQuery });
         fetchClientes();
         fetchTiposDocumento();
         // eslint-disable-next-line
-    }, [mostrarInactivos]);
+    }, []);
+
+    // Debounce fetching dispositivos when clienteQuery, imeiQuery or mostrarInactivos changes
+    useEffect(() => {
+        const t = setTimeout(() => {
+            fetchDispositivos({ activos: !mostrarInactivos, cliente: clienteQuery, imei: imeiQuery });
+        }, 350);
+        return () => clearTimeout(t);
+    }, [clienteQuery, imeiQuery, mostrarInactivos]);
 
     // Close three-dot menu when clicking outside or pressing Escape
     useEffect(() => {
@@ -287,6 +302,22 @@ export default function Dispositivos() {
                             </div>
                         </div>
                         <div className="card-body">
+                            <div className="mb-3 d-flex gap-2 align-items-center">
+                                <input
+                                    className="form-control"
+                                    placeholder="Buscar por cliente (nombre, apellido o documento)"
+                                    value={clienteQuery}
+                                    onChange={e => setClienteQuery(e.target.value)}
+                                    style={{ maxWidth: 360 }}
+                                />
+                                <input
+                                    className="form-control"
+                                    placeholder="Buscar por IMEI / Nro Serie"
+                                    value={imeiQuery}
+                                    onChange={e => setImeiQuery(e.target.value)}
+                                    style={{ maxWidth: 260 }}
+                                />
+                            </div>
                             <div className="table-responsive" style={{ overflow: 'visible' }}>
                                 <table className="table table-striped table-hover align-middle">
                                     <thead>

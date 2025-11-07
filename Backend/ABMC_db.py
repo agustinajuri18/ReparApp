@@ -33,9 +33,10 @@ def session_scope():
 
 
 # ----------- Usuarios -----------
-def alta_usuario(nombreUsuario, contraseña, activo=1):
+def alta_usuario(nombreUsuario, contraseña, activo=1, idCargo=1):
+    """Crea un nuevo Usuario y asigna idCargo (obligatorio en la base de datos)."""
     with session_scope() as s:
-        u = Usuario(nombreUsuario=nombreUsuario, contraseña=contraseña, activo=activo)
+        u = Usuario(nombreUsuario=nombreUsuario, contraseña=contraseña, activo=activo, idCargo=idCargo)
         s.add(u)
         s.commit()
         s.refresh(u)
@@ -49,7 +50,12 @@ def baja_usuario(idUsuario):
             s.commit()
         return u
 
-def modificar_usuario(idUsuario, nueva_contraseña=None, nuevo_activo=None, nuevo_nombreUsuario=None):
+def modificar_usuario(idUsuario, nueva_contraseña=None, nuevo_activo=None, nuevo_nombreUsuario=None, nuevo_idCargo=None):
+    """Modifica un usuario existente. Se puede cambiar contraseña, activo, nombreUsuario y opcionalmente idCargo.
+
+    Nota: la validación de existencia y reglas de negocio sobre idCargo (por ejemplo prohibir 1) debe realizarse
+    en el endpoint que llama a esta función. Aquí solo aplicamos el cambio si se pasa `nuevo_idCargo`.
+    """
     with session_scope() as s:
         u = s.get(Usuario, idUsuario)
         if not u:
@@ -60,6 +66,13 @@ def modificar_usuario(idUsuario, nueva_contraseña=None, nuevo_activo=None, nuev
             u.activo = nuevo_activo
         if nuevo_nombreUsuario:
             u.nombreUsuario = nuevo_nombreUsuario
+        if nuevo_idCargo is not None:
+            try:
+                # Asignar el idCargo tal cual; se espera que el caller haya validado existencia
+                u.idCargo = int(nuevo_idCargo)
+            except Exception:
+                # Si no se puede castear, guardar el valor crudo para que el caller capture el error
+                u.idCargo = nuevo_idCargo
         s.commit()
         return u
 
@@ -363,6 +376,15 @@ def modificar_empleado(idEmpleado, nombre=None, apellido=None, idCargo=None, idU
                 e.idUsuario = idUsuario
             if activo is not None:
                 e.activo = activo
+                # If empleado is being deactivated, also deactivate associated usuario (if any)
+                try:
+                    if int(activo) == 0 and getattr(e, 'idUsuario', None):
+                        u = s.get(Usuario, e.idUsuario)
+                        if u:
+                            u.activo = 0
+                except Exception:
+                    # non-critical; proceed without raising
+                    pass
             if mail is not None:
                 e.mail = mail
             if telefono is not None:
@@ -375,6 +397,14 @@ def baja_empleado(idEmpleado):
         e = s.get(Empleado, idEmpleado)
         if e:
             e.activo = 0
+            # Propagate deactivation to associated usuario (if any)
+            try:
+                if getattr(e, 'idUsuario', None):
+                    u = s.get(Usuario, e.idUsuario)
+                    if u:
+                        u.activo = 0
+            except Exception:
+                pass
             s.commit()
         return e
 
@@ -1241,4 +1271,23 @@ def obtener_permisos_por_cargo(idCargo):
         else:
             print(f"Relación RepuestoxProveedor no encontrada para idRepuesto={idRepuesto}, idProveedor={proveedor.idProveedor}")
             return None
+
+
+def buscar_proveedor_por_razon_social(razonSocial):
+    """Busca un proveedor por razón social (case-insensitive, partial exact match).
+
+    Retorna el objeto Proveedor o None.
+    """
+    if not razonSocial:
+        return None
+    # Normalizar la razón social y comparar en DB usando lower(trim(...)) == normalized
+    try:
+        from sqlalchemy import func
+        normalized = razonSocial.strip().lower()
+        with session_scope() as s:
+            return s.query(Proveedor).filter(func.lower(func.trim(Proveedor.razonSocial)) == normalized).first()
+    except Exception:
+        # Fallback a ilike simple si algo falla
+        with session_scope() as s:
+            return s.query(Proveedor).filter(Proveedor.razonSocial.ilike(razonSocial)).first()
 

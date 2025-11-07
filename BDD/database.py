@@ -108,9 +108,11 @@ class Usuario(Base):
     nombreUsuario = Column(String(50), nullable=False, unique=True)
     contraseña = Column(String(50), nullable=False)
     activo = Column(Integer, nullable=False, default=1)
+    idCargo = Column(Integer, ForeignKey("Cargo.idCargo"), nullable=False)
     
     sesiones = relationship("Sesion", back_populates="usuario")
     empleado = relationship("Empleado", back_populates="usuario", uselist=False)
+    
 
     def __repr__(self):
         return f"<Usuario(idUsuario={self.idUsuario}, nombreUsuario='{self.nombreUsuario}')>"

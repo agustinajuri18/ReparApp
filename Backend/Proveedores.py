@@ -3,6 +3,23 @@ from ABMC_db import (
     alta_proveedor, modificar_proveedor, mostrar_proveedores, baja_proveedor,
     buscar_proveedor_por_cuil, reactivar_proveedor
 )
+from ABMC_db import buscar_proveedor_por_razon_social
+
+import unicodedata
+import re
+
+
+def _normalize(text):
+    if not text:
+        return ''
+    # Remove diacritics, lower, strip, collapse whitespace and remove punctuation except alphanumerics
+    s = str(text)
+    s = unicodedata.normalize('NFKD', s)
+    s = ''.join(c for c in s if not unicodedata.combining(c))
+    s = s.lower()
+    s = re.sub(r'[^a-z0-9\s]', ' ', s)
+    s = re.sub(r'\s+', ' ', s)
+    return s.strip()
 
 bp = Blueprint('proveedores', __name__)
 
@@ -18,6 +35,13 @@ def registrar_proveedor():
     proveedor_existente = buscar_proveedor_por_cuil(data['cuil'])
     if proveedor_existente:
         return jsonify({'error': 'Ya existe un proveedor con ese CUIL'}), 409
+    # Verificar duplicación de razón social (comparación normalizada para evitar diferencias en mayúsculas, tildes o puntuación)
+    if data.get('razonSocial'):
+        nueva_rs_norm = _normalize(data.get('razonSocial'))
+        proveedores_all = mostrar_proveedores(activos_only=None)
+        for p in proveedores_all:
+            if p.razonSocial and _normalize(p.razonSocial) == nueva_rs_norm:
+                return jsonify({'error': 'Ya existe un proveedor con esa razón social'}), 409
         
     proveedor = alta_proveedor(
         cuil=data['cuil'],
@@ -71,6 +95,16 @@ def modificar_datos_proveedor(cuil):
         otro = buscar_proveedor_por_cuil(new_cuil)
         if otro:
             return jsonify({'error': 'Otro proveedor ya tiene ese CUIL'}), 400
+    # Si se intenta cambiar la razón social, verificar duplicado
+    new_rs = data.get('razonSocial')
+    if new_rs and (str(new_rs).strip() != (proveedor.razonSocial or '').strip()):
+        new_rs_norm = _normalize(new_rs)
+        proveedores_all = mostrar_proveedores(activos_only=None)
+        for p in proveedores_all:
+            if p.idProveedor == proveedor.idProveedor:
+                continue
+            if p.razonSocial and _normalize(p.razonSocial) == new_rs_norm:
+                return jsonify({'error': 'Otra razón social ya existe con ese nombre'}), 400
     # Modify using idProveedor
     proveedor_modificado = modificar_proveedor(
         idProveedor=proveedor.idProveedor,

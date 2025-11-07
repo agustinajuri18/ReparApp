@@ -54,7 +54,33 @@ def registrar_empleado():
 @bp.route('/empleados', methods=['GET'])
 def listar_empleados():
     activos = request.args.get('activos', 'true').lower() == 'true'
-    empleados = mostrar_empleados(activos_only=activos)  # Cambiado de activos a activos_only
+    # Optional filters: search (name) and cargo (id or description)
+    search = request.args.get('search')
+    cargo_q = request.args.get('cargo')
+
+    empleados = mostrar_empleados(activos_only=activos)
+
+    # Filter by search (nombre or apellido)
+    if search:
+        q = search.strip().lower()
+        empleados = [e for e in empleados if ((getattr(e, 'nombre', '') or '').lower().find(q) != -1) or ((getattr(e, 'apellido', '') or '').lower().find(q) != -1) or (f"{((getattr(e,'nombre','') or '').lower())} {((getattr(e,'apellido','') or '').lower())}".find(q) != -1)]
+
+    # Filter by cargo (accepts numeric id or text to match descripcion)
+    if cargo_q:
+        cargos = mostrar_cargos() or []
+        cargo_ids = set()
+        # if cargo_q is numeric, accept as id
+        try:
+            cid = int(cargo_q)
+            cargo_ids.add(cid)
+        except Exception:
+            # match by description (partial, case-insensitive)
+            q = cargo_q.strip().lower()
+            for c in cargos:
+                if getattr(c, 'descripcion', '') and q in getattr(c, 'descripcion', '').lower():
+                    cargo_ids.add(getattr(c, 'idCargo'))
+        if cargo_ids:
+            empleados = [e for e in empleados if getattr(e, 'idCargo', None) in cargo_ids]
     return jsonify([
         {
             'idEmpleado': e.idEmpleado,

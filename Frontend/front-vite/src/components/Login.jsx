@@ -16,6 +16,7 @@ export default function Login() {
   const [nombreUsuario, setNombreUsuario] = useState('');
   const [contraseña, setContraseña] = useState('');
   const [error, setError] = useState('');
+  const [errorStatus, setErrorStatus] = useState(null);
   const navigate = useNavigate();
   const permCtx = usePermission();
 
@@ -30,6 +31,8 @@ export default function Login() {
       });
       const j = await res.json();
       if (!res.ok) {
+        // preserve HTTP status to render a friendlier message for 403 (disabled user)
+        setErrorStatus(res.status);
         setError(j.error || 'Error de login');
         return;
       }
@@ -67,6 +70,7 @@ export default function Login() {
       navigate('/');
     } catch (_err) {
       console.warn('Login: connection error', _err);
+      setErrorStatus(null);
       setError('Error de conexión');
     }
   };
@@ -110,7 +114,14 @@ export default function Login() {
               />
             </div>
 
-            {error && <div className="alert alert-danger">{error}</div>}
+            {error && (
+              <div className={`alert ${errorStatus === 403 ? 'alert-warning' : 'alert-danger'}`}>
+                <div>{error}</div>
+                {errorStatus === 403 && (
+                  <div className="mt-2"><strong>Si tu usuario está deshabilitado, contactá al supervisor para reactivar la cuenta.</strong></div>
+                )}
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
               <button type="submit" style={{ background: colores.dorado, color: 'white', border: 'none', padding: '10px 36px', borderRadius: 8, fontWeight: 700 }}>Ingresar</button>

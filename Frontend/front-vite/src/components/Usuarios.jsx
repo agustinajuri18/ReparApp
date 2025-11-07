@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import MenuLateral from './MenuLateral';
 import { usePermission } from '../auth/PermissionContext';
 import { hasPermission } from '../utils/permissions';
@@ -21,10 +21,13 @@ export default function Usuarios() {
   const [form, setForm] = useState({
     idUsuario: "",
     nombreUsuario: "",
-    contraseña: ""
+    contraseña: "",
+    idCargo: ""
   });
+  const [cargos, setCargos] = useState([]);
   const [editId, setEditId] = useState(null);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [search, setSearch] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [modalModo, setModalModo] = useState("alta"); // "alta" | "modificar" | "consultar"
@@ -41,6 +44,22 @@ export default function Usuarios() {
     fetchUsuarios();
   }, [fetchUsuarios]);
 
+  // Load cargos for the select when creating a user
+  useEffect(() => {
+    fetch('http://localhost:5000/cargos')
+      .then(res => res.json())
+      .then(data => setCargos(Array.isArray(data) ? data : []))
+      .catch(err => {
+        console.warn('Usuarios: fetch cargos error', err);
+      });
+  }, []);
+
+  const filteredUsuarios = useMemo(() => {
+    const q = (search || "").toLowerCase().trim();
+    if (!q) return usuarios;
+    return usuarios.filter(u => (u.nombreUsuario || "").toLowerCase().includes(q));
+  }, [usuarios, search]);
+
   const handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
     setFormErrors(validarUsuario({ ...form, [e.target.name]: e.target.value }));
@@ -51,11 +70,25 @@ export default function Usuarios() {
     if (!form.nombreUsuario || form.nombreUsuario.trim().length < 3) errors.nombreUsuario = "El nombre de usuario es obligatorio y debe tener al menos 3 caracteres.";
     if (modalModo === "alta" && (!form.contraseña || form.contraseña.length < 6)) errors.contraseña = "La contraseña es obligatoria y debe tener al menos 6 caracteres.";
     if (modalModo === "modificar" && form.contraseña && form.contraseña.length < 6) errors.contraseña = "La contraseña debe tener al menos 6 caracteres si se modifica.";
+    if (modalModo === "alta") {
+      // require idCargo and it must not be '1'
+      if (!form.idCargo) {
+        errors.idCargo = "Debe seleccionar un cargo.";
+      } else if (Number(form.idCargo) === 1) {
+        errors.idCargo = "No está permitido asignar el cargo 1 al crear un usuario.";
+      }
+    }
+    if (modalModo === "modificar") {
+      // if idCargo provided, ensure it's not 1
+      if (form.idCargo && Number(form.idCargo) === 1) {
+        errors.idCargo = "No está permitido asignar el cargo 1 a un usuario.";
+      }
+    }
     return errors;
   }
 
   function handleAgregar() {
-    setForm({ idUsuario: "", nombreUsuario: "", contraseña: "" });
+    setForm({ idUsuario: "", nombreUsuario: "", contraseña: "", idCargo: "" });
     setEditId(null);
     setModalModo("alta");
     setModalVisible(true);
@@ -64,7 +97,7 @@ export default function Usuarios() {
 
   function handleEdit(usuario) {
     setEditId(usuario.idUsuario);
-    setForm({ idUsuario: usuario.idUsuario, nombreUsuario: usuario.nombreUsuario, contraseña: "" });
+    setForm({ idUsuario: usuario.idUsuario, nombreUsuario: usuario.nombreUsuario, contraseña: "", idCargo: usuario.idCargo || "" });
     setModalModo("modificar");
     setModalVisible(true);
     setMensaje("");
@@ -72,7 +105,7 @@ export default function Usuarios() {
 
   function handleConsultar(usuario) {
     setEditId(usuario.idUsuario);
-    setForm({ idUsuario: usuario.idUsuario, nombreUsuario: usuario.nombreUsuario, contraseña: "" });
+    setForm({ idUsuario: usuario.idUsuario, nombreUsuario: usuario.nombreUsuario, contraseña: "", idCargo: usuario.idCargo || "" });
     setModalModo("consultar");
     setModalVisible(true);
     setMensaje("");
@@ -91,7 +124,8 @@ export default function Usuarios() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         nombreUsuario: form.nombreUsuario,
-        contraseña: form.contraseña
+        contraseña: form.contraseña,
+        idCargo: Number(form.idCargo)
       })
     })
       .then(async res => {
@@ -108,7 +142,7 @@ export default function Usuarios() {
         return data;
       })
       .then(() => {
-        setForm({ idUsuario: "", nombreUsuario: "", contraseña: "" });
+        setForm({ idUsuario: "", nombreUsuario: "", contraseña: "", idCargo: "" });
         setModalVisible(false);
         setEditId(null);
         setModalModo("alta");
@@ -132,7 +166,8 @@ export default function Usuarios() {
     try {
       const body = {
         nombreUsuario: form.nombreUsuario,
-        ...(form.contraseña && { contraseña: form.contraseña })
+        ...(form.contraseña && { contraseña: form.contraseña }),
+        ...(form.idCargo && { idCargo: Number(form.idCargo) })
       };
       const res = await fetch(`${API_URL}/${form.idUsuario}`, {
         method: "PUT",
@@ -144,7 +179,8 @@ export default function Usuarios() {
         setForm({
           idUsuario: "",
           nombreUsuario: "",
-          contraseña: ""
+          contraseña: "",
+          idCargo: ""
         });
         fetchUsuarios();
       } else {
@@ -195,7 +231,7 @@ export default function Usuarios() {
     setModalVisible(false);
     setEditId(null);
     setModalModo("alta");
-    setForm({ idUsuario: "", nombreUsuario: "", contraseña: "" });
+    setForm({ idUsuario: "", nombreUsuario: "", contraseña: "", idCargo: "" });
     setMensaje("");
   }
 
@@ -226,21 +262,37 @@ export default function Usuarios() {
               </div>
             </div>
             <div className="card-body">
+              <div className="mb-3 d-flex gap-2 align-items-center">
+                <input
+                  className="form-control"
+                  placeholder="Buscar por nombre de usuario"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  style={{ maxWidth: 360 }}
+                />
+              </div>
               <div className="table-responsive">
                 <table className="table table-striped table-hover align-middle">
                   <thead>
                     <tr>
                       <th>ID Usuario</th>
                       <th>Nombre de usuario</th>
+                      <th>Cargo</th>
                       <th>Activo</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {usuarios.map(u => (
+                    {filteredUsuarios.map(u => {
+                      const cid = u.idCargo ?? u.id_cargo ?? u.idcargo;
+                      const foundCargo = cid ? cargos.find(c => Number(c.idCargo) === Number(cid)) : null;
+                      const cargoDesc = foundCargo ? foundCargo.descripcion : (cid ? `Cargo ${cid}` : 'N/A');
+                      const isSupervisor = cargoDesc && (String(cargoDesc).toLowerCase().includes('supervisor'));
+                      return (
                       <tr key={u.idUsuario}>
                         <td>{u.idUsuario}</td>
                         <td>{u.nombreUsuario}</td>
+                        <td>{cargoDesc}</td>
                         <td>{u.activo === 1 || u.activo === true ? "Activo" : "Inactivo"}</td>
                         <td>
                           {/* Consultar: permiso 11 */}
@@ -261,7 +313,8 @@ export default function Usuarios() {
 
                           {/* Eliminar (dar de baja): permiso 9 */}
                           {u.activo === 1 ? (
-                            hasPermission(identity, 9) ? (
+                            // Do not show delete button for users with Supervisor cargo
+                            (!isSupervisor && hasPermission(identity, 9)) ? (
                               <button className="btn btn-sm btn-rojo fw-bold"
                                 onClick={() => handleDelete(u.idUsuario)}>
                                   <i className="bi bi-trash me-1"></i>Eliminar
@@ -277,11 +330,17 @@ export default function Usuarios() {
                           )}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
-                {usuarios.length === 0 && (
-                  <div className="text-center text-muted py-4">No hay usuarios {mostrarInactivos ? "inactivos" : "activos"}.</div>
+                {filteredUsuarios.length === 0 && (
+                  <div className="text-center text-muted py-4">
+                    {usuarios.length === 0
+                      ? `No hay usuarios ${mostrarInactivos ? "inactivos" : "activos"}.`
+                      : `No se encontraron usuarios que coincidan con la búsqueda.`
+                    }
+                  </div>
                 )}
               </div>
             </div>
@@ -366,6 +425,33 @@ export default function Usuarios() {
                             <div className="input-error-message">{formErrors.contraseña}</div>
                           )}
                         </div>
+                        {(modalModo === 'alta' || modalModo === 'modificar') && (
+                          <div className="mb-3">
+                            <label className="fw-semibold"><i className="bi bi-briefcase me-2"></i>Cargo</label>
+                            <select
+                              name="idCargo"
+                              value={form.idCargo}
+                              onChange={modalModo === "consultar" ? undefined : handleChange}
+                              className="form-select"
+                              required={modalModo === 'alta'}
+                              disabled={modalModo === 'consultar'}
+                            >
+                              <option value="">-- Seleccione un cargo --</option>
+                              {cargos.map(c => {
+                                const isCargo1 = Number(c.idCargo) === 1;
+                                // Do not show cargo 1 when creating a user; when modifying, show it but disabled so
+                                // it cannot be (re)selected. This prevents selecting/assigning cargo 1 from the UI.
+                                if (modalModo === 'alta' && isCargo1) return null;
+                                return (
+                                  <option key={c.idCargo} value={c.idCargo} disabled={isCargo1 ? true : undefined}>
+                                    {c.descripcion}{isCargo1 ? ' (no seleccionable)' : ''}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            {formErrors.idCargo && <div className="input-error-message">{formErrors.idCargo}</div>}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </fieldset>
