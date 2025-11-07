@@ -32,6 +32,8 @@ export default function Reportes() {
     ordenes: { daily: 0, weekly: 0, monthly: 0 },
     average_repair_time_days: null
   });
+  const [periodIngresos, setPeriodIngresos] = useState('30'); // '7', '30', 'month'
+  const [periodOrdenes, setPeriodOrdenes] = useState('30');
 
   useEffect(() => {
     const q = (sel) => document.querySelector(sel);
@@ -190,30 +192,202 @@ export default function Reportes() {
     };
   }, []);
 
+  // Función para filtrar datos según el período
+  const filterDataByPeriod = (dates, values, period) => {
+    if (!dates || !values || dates.length === 0) return { dates: [], values: [] };
+    
+    const now = new Date();
+    
+    switch(period) {
+      case '7':
+        // Últimos 7 días
+        const startIndex7 = Math.max(0, dates.length - 7);
+        return {
+          dates: dates.slice(startIndex7),
+          values: values.slice(startIndex7)
+        };
+      case '30':
+        // Últimos 30 días
+        const startIndex30 = Math.max(0, dates.length - 30);
+        return {
+          dates: dates.slice(startIndex30),
+          values: values.slice(startIndex30)
+        };
+      case 'month':
+        // Solo días del mes actual (filtrar por fecha y completar días faltantes)
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        const currentDay = now.getDate();
+        
+        // Crear un mapa de los datos existentes
+        const dataMap = {};
+        dates.forEach((dateStr, index) => {
+          dataMap[dateStr] = values[index];
+        });
+        
+        // Generar todos los días del mes hasta hoy
+        const filteredDates = [];
+        const filteredValues = [];
+        
+        for (let day = 1; day <= currentDay; day++) {
+          const date = new Date(currentYear, currentMonth, day);
+          const dateStr = date.toISOString().split('T')[0]; // formato YYYY-MM-DD
+          
+          filteredDates.push(dateStr);
+          filteredValues.push(dataMap[dateStr] || 0); // 0 si no hay datos
+        }
+        
+        return {
+          dates: filteredDates,
+          values: filteredValues
+        };
+      default:
+        const startIndexDefault = Math.max(0, dates.length - 30);
+        return {
+          dates: dates.slice(startIndexDefault),
+          values: values.slice(startIndexDefault)
+        };
+    }
+  };
+
+  // Filtrar datos de ingresos según el período seleccionado
+  const filteredIngresos = filterDataByPeriod(series?.dates, series?.ingresos, periodIngresos);
+  const filteredOrdenes = filterDataByPeriod(series?.dates, series?.ordenes, periodOrdenes);
+
+  // Calcular totales y promedios para el período seleccionado
+  const totalIngresosPeriodo = filteredIngresos.values.reduce((sum, val) => sum + (val || 0), 0);
+  const totalOrdenesPeriodo = filteredOrdenes.values.reduce((sum, val) => sum + (val || 0), 0);
+  
+  // Para el promedio, calcular los días del período
+  const getDaysInPeriod = (period) => {
+    if (period === '7') return 7;
+    if (period === '30') return 30;
+    if (period === 'month') {
+      // Días transcurridos del mes actual
+      const now = new Date();
+      return now.getDate(); // Devuelve el día del mes (1-31)
+    }
+    return 30;
+  };
+  
+  const diasPeriodoIngresos = getDaysInPeriod(periodIngresos);
+  const diasPeriodoOrdenes = getDaysInPeriod(periodOrdenes);
+  
+  const promedioIngresosDiario = diasPeriodoIngresos > 0 ? totalIngresosPeriodo / diasPeriodoIngresos : 0;
+  const promedioOrdenesDiario = diasPeriodoOrdenes > 0 ? totalOrdenesPeriodo / diasPeriodoOrdenes : 0;
+
+  // Obtener nombre del período
+  const getPeriodLabel = (period) => {
+    switch(period) {
+      case '7': return 'últimos 7 días';
+      case '30': return 'últimos 30 días';
+      case 'month': return 'este mes';
+      default: return 'últimos 30 días';
+    }
+  };
+
   // Build chart data from series state
   const ingresosData = {
-    labels: series?.dates || [],
+    labels: filteredIngresos.dates,
     datasets: [
       {
-        label: 'Ingresos',
-        data: series?.ingresos || [],
+        label: 'Ingresos ($)',
+        data: filteredIngresos.values,
         borderColor: 'rgba(75,192,192,1)',
         backgroundColor: 'rgba(75,192,192,0.2)',
         fill: true,
+        tension: 0.4,
       },
     ],
   };
 
   const ordenesData = {
-    labels: series?.dates || [],
+    labels: filteredOrdenes.dates,
     datasets: [
       {
         label: 'Órdenes',
-        data: series?.ordenes || [],
+        data: filteredOrdenes.values,
         backgroundColor: 'rgba(54,162,235,0.6)',
         borderColor: 'rgba(54,162,235,1)',
       },
     ],
+  };
+
+  // Opciones mejoradas para los gráficos
+  const ingresosChartOptions = {
+    maintainAspectRatio: false,
+    responsive: true,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            let label = context.dataset.label || '';
+            if (label) {
+              label += ': ';
+            }
+            if (context.parsed.y !== null) {
+              label += '$' + context.parsed.y.toFixed(2);
+            }
+            return label;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function(value) {
+            return '$' + value.toFixed(0);
+          }
+        }
+      }
+    }
+  };
+
+  const ordenesChartOptions = {
+    maintainAspectRatio: false,
+    responsive: true,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            let label = context.dataset.label || '';
+            if (label) {
+              label += ': ';
+            }
+            if (context.parsed.y !== null) {
+              label += context.parsed.y;
+            }
+            return label;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          stepSize: 1
+        }
+      }
+    }
   };
 
   return (
@@ -263,17 +437,89 @@ export default function Reportes() {
                         <div className="row mt-3">
                           <div className="col-12 col-md-8 mb-3">
                             <div className="card p-3" style={{ borderRadius: 12 }}>
-                              <h5 className="card-title mb-2">Ingresos últimos 30 días</h5>
+                              <div className="d-flex justify-content-between align-items-center mb-2">
+                                <h5 className="card-title mb-0">Ingresos</h5>
+                                <div className="btn-group btn-group-sm" role="group">
+                                  <button 
+                                    type="button" 
+                                    className={`btn ${periodIngresos === '7' ? 'btn-primary' : 'btn-outline-primary'}`}
+                                    onClick={() => setPeriodIngresos('7')}
+                                  >
+                                    7 días
+                                  </button>
+                                  <button 
+                                    type="button" 
+                                    className={`btn ${periodIngresos === '30' ? 'btn-primary' : 'btn-outline-primary'}`}
+                                    onClick={() => setPeriodIngresos('30')}
+                                  >
+                                    30 días
+                                  </button>
+                                  <button 
+                                    type="button" 
+                                    className={`btn ${periodIngresos === 'month' ? 'btn-primary' : 'btn-outline-primary'}`}
+                                    onClick={() => setPeriodIngresos('month')}
+                                  >
+                                    Este mes
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="mb-2 d-flex gap-3 flex-wrap">
+                                <small className="text-muted">
+                                  <strong>Total:</strong> ${totalIngresosPeriodo.toFixed(2)}
+                                </small>
+                                <small className="text-muted">
+                                  <strong>Promedio diario:</strong> ${promedioIngresosDiario.toFixed(2)}
+                                </small>
+                                <small className="text-muted">
+                                  <strong>Período:</strong> {getPeriodLabel(periodIngresos)}
+                                </small>
+                              </div>
                               <div>
-                                <Line id="chart-ingresos" data={ingresosData} options={{maintainAspectRatio:false}} height={200} />
+                                <Line id="chart-ingresos" data={ingresosData} options={ingresosChartOptions} height={200} />
                               </div>
                             </div>
                           </div>
                           <div className="col-12 col-md-4 mb-3">
                             <div className="card p-3" style={{ borderRadius: 12 }}>
-                              <h5 className="card-title mb-2">Órdenes últimos 30 días</h5>
+                              <div className="d-flex justify-content-between align-items-center mb-2">
+                                <h5 className="card-title mb-0">Órdenes</h5>
+                                <div className="btn-group btn-group-sm" role="group">
+                                  <button 
+                                    type="button" 
+                                    className={`btn btn-sm ${periodOrdenes === '7' ? 'btn-primary' : 'btn-outline-primary'}`}
+                                    onClick={() => setPeriodOrdenes('7')}
+                                    title="7 días"
+                                  >
+                                    7d
+                                  </button>
+                                  <button 
+                                    type="button" 
+                                    className={`btn btn-sm ${periodOrdenes === '30' ? 'btn-primary' : 'btn-outline-primary'}`}
+                                    onClick={() => setPeriodOrdenes('30')}
+                                    title="30 días"
+                                  >
+                                    30d
+                                  </button>
+                                  <button 
+                                    type="button" 
+                                    className={`btn btn-sm ${periodOrdenes === 'month' ? 'btn-primary' : 'btn-outline-primary'}`}
+                                    onClick={() => setPeriodOrdenes('month')}
+                                    title="Este mes"
+                                  >
+                                    Mes
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="mb-2">
+                                <small className="text-muted d-block">
+                                  <strong>Total:</strong> {totalOrdenesPeriodo}
+                                </small>
+                                <small className="text-muted d-block">
+                                  <strong>Promedio:</strong> {promedioOrdenesDiario.toFixed(1)}/día
+                                </small>
+                              </div>
                               <div>
-                                <Bar id="chart-ordenes" data={ordenesData} options={{maintainAspectRatio:false}} height={200} />
+                                <Bar id="chart-ordenes" data={ordenesData} options={ordenesChartOptions} height={200} />
                               </div>
                             </div>
                           </div>
