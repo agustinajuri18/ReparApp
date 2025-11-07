@@ -2264,3 +2264,82 @@ def reporte_no_reparados():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+# Endpoint para dashboard: ingresos y métricas rápidas
+@bp.route('/reportes/dashboard', methods=['GET'])
+@cross_origin()
+def reporte_dashboard():
+    """Devuelve KPIs para el dashboard: ingresos diarios/semana/mes, número de órdenes por periodo y tiempo promedio de reparación (días).
+    Query params opcionales: ninguno (usa hoy como referencia)."""
+    try:
+        from ABMC_db import session_scope
+        from BDD.database import OrdenDeReparacion, DetalleOrden
+        from sqlalchemy import func
+        hoy = datetime.now().date()
+        # semana: lunes a domingo
+        start_week = hoy - timedelta(days=hoy.weekday())
+        end_week = start_week + timedelta(days=6)
+        # mes: primer día del mes
+        start_month = date(hoy.year, hoy.month, 1)
+
+        with session_scope() as s:
+            # Ingresos: sumar subtotales de DetalleOrden uniendo con OrdenDeReparacion por nroDeOrden
+            ingresos_diarios = s.query(func.coalesce(func.sum(DetalleOrden.subtotal), 0.0)).join(OrdenDeReparacion, DetalleOrden.nroDeOrden == OrdenDeReparacion.nroDeOrden).filter(OrdenDeReparacion.fecha == hoy).scalar() or 0.0
+            ingresos_semanales = s.query(func.coalesce(func.sum(DetalleOrden.subtotal), 0.0)).join(OrdenDeReparacion, DetalleOrden.nroDeOrden == OrdenDeReparacion.nroDeOrden).filter(OrdenDeReparacion.fecha >= start_week).filter(OrdenDeReparacion.fecha <= end_week).scalar() or 0.0
+            ingresos_mensuales = s.query(func.coalesce(func.sum(DetalleOrden.subtotal), 0.0)).join(OrdenDeReparacion, DetalleOrden.nroDeOrden == OrdenDeReparacion.nroDeOrden).filter(OrdenDeReparacion.fecha >= start_month).scalar() or 0.0
+
+            # Series diarias (últimos 30 días)
+            days = 30
+            series_dates = []
+            series_ingresos = []
+            series_ordenes = []
+            for i in range(days-1, -1, -1):
+                d = hoy - timedelta(days=i)
+                series_dates.append(d.isoformat())
+                ing = s.query(func.coalesce(func.sum(DetalleOrden.subtotal), 0.0)).join(OrdenDeReparacion, DetalleOrden.nroDeOrden == OrdenDeReparacion.nroDeOrden).filter(OrdenDeReparacion.fecha == d).scalar() or 0.0
+                cnt = s.query(func.count(OrdenDeReparacion.nroDeOrden)).filter(OrdenDeReparacion.fecha == d).scalar() or 0
+                series_ingresos.append(float(ing))
+                series_ordenes.append(int(cnt))
+
+            # Conteo órdenes
+            ordenes_diarias = s.query(func.count(OrdenDeReparacion.nroDeOrden)).filter(OrdenDeReparacion.fecha == hoy).scalar() or 0
+            ordenes_semanales = s.query(func.count(OrdenDeReparacion.nroDeOrden)).filter(OrdenDeReparacion.fecha >= start_week).filter(OrdenDeReparacion.fecha <= end_week).scalar() or 0
+            ordenes_mensuales = s.query(func.count(OrdenDeReparacion.nroDeOrden)).filter(OrdenDeReparacion.fecha >= start_month).scalar() or 0
+
+            # Tiempo promedio de reparación (días) para órdenes con fechaInicioRetiro
+            q = s.query(OrdenDeReparacion).filter(OrdenDeReparacion.fecha != None).filter(OrdenDeReparacion.fechaInicioRetiro != None)
+            diffs = []
+            for o in q.all():
+                try:
+                    d1 = getattr(o, 'fecha')
+                    d2 = getattr(o, 'fechaInicioRetiro')
+                    if d1 and d2:
+                        diffs.append((d2 - d1).days)
+                except Exception:
+                    continue
+            avg_days = (sum(diffs) / len(diffs)) if diffs else None
+
+        return jsonify({
+            'ingresos': {
+                'daily': float(ingresos_diarios),
+                'weekly': float(ingresos_semanales),
+                'monthly': float(ingresos_mensuales)
+            },
+            'ordenes': {
+                'daily': int(ordenes_diarias),
+                'weekly': int(ordenes_semanales),
+                'monthly': int(ordenes_mensuales)
+            },
+            'average_repair_time_days': float(avg_days) if avg_days is not None else None,
+            'as_of': hoy.isoformat(),
+            'series': {
+                'dates': series_dates,
+                'ingresos': series_ingresos,
+                'ordenes': series_ordenes
+            }
+        }), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500

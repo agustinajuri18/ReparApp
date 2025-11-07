@@ -453,14 +453,19 @@ def asignar_estado_orden(nroDeOrden, idEstado, fechaCambio, observaciones=None):
         s.commit()
         s.refresh(h)
 
-        # Si el nuevo estado es 'PendienteDeRetiro' (tolerante a espacios/acentos),
+        # Si el nuevo estado es 'PendienteDeRetiro' o 'Retirada' (tolerante a espacios/acentos),
         # registrar la fecha de inicio de retiro en la orden si no está ya presente.
         try:
             estado_obj = s.get(Estado, idEstado)
             nombre_estado = (getattr(estado_obj, 'nombre', None) or '').lower()
             # Normalizar eliminando caracteres no alfanuméricos para comparar robustamente
             nombre_norm = ''.join(ch for ch in nombre_estado if ch.isalnum())
-            if ('pendientederetiro' in nombre_norm) or ('pendiente' in nombre_norm and 'retiro' in nombre_norm):
+            
+            # Verificar si es PendienteDeRetiro o Retirada
+            es_pendiente_retiro = ('pendientederetiro' in nombre_norm) or ('pendiente' in nombre_norm and 'retiro' in nombre_norm)
+            es_retirada = 'retirada' in nombre_norm or 'retirado' in nombre_norm
+            
+            if es_pendiente_retiro or es_retirada:
                 # Usar una segunda sesión para actualizar la orden, así si falla no se revierte el historial insertado
                 try:
                     with session_scope() as s2:
@@ -474,7 +479,7 @@ def asignar_estado_orden(nroDeOrden, idEstado, fechaCambio, observaciones=None):
                             if orden and getattr(orden, 'fechaInicioRetiro', None) is None:
                                 orden.fechaInicioRetiro = datetime.now().date()
                                 s2.commit()
-                                print(f"[ABMC_db] fechaInicioRetiro set for orden {nroDeOrden}")
+                                print(f"[ABMC_db] fechaInicioRetiro set for orden {nroDeOrden} (estado: {nombre_estado})")
                             else:
                                 print(f"[ABMC_db] fechaInicioRetiro already set or orden not found for {nroDeOrden}")
                         else:

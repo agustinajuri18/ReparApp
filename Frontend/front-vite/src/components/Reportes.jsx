@@ -1,8 +1,39 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import MenuLateral from './MenuLateral';
+// Chart.js + react-chartjs-2 imports (moved to top-level)
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Line, Bar } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 export default function Reportes() {
-  React.useEffect(() => {
+  const [series, setSeries] = useState({ dates: [], ingresos: [], ordenes: [] });
+  const [kpis, setKpis] = useState({
+    ingresos: { daily: 0, weekly: 0, monthly: 0 },
+    ordenes: { daily: 0, weekly: 0, monthly: 0 },
+    average_repair_time_days: null
+  });
+
+  useEffect(() => {
     const q = (sel) => document.querySelector(sel);
     // Base URL for backend API: use Vite env var VITE_API_BASE_URL if present, otherwise default to localhost:5000
     const API_BASE = import.meta.env.VITE_API_BASE_URL || `${location.protocol}//${location.hostname}:5000`;
@@ -63,6 +94,31 @@ export default function Reportes() {
       return true;
     };
 
+    // Dashboard KPIs fetch
+    const fetchDashboard = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/reportes/dashboard`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        // Update React state so UI (KPIs and charts) re-render
+        setKpis({
+          ingresos: json.ingresos || { daily: 0, weekly: 0, monthly: 0 },
+          ordenes: json.ordenes || { daily: 0, weekly: 0, monthly: 0 },
+          average_repair_time_days: json.average_repair_time_days
+        });
+        if (json.series) {
+          setSeries(json.series);
+        }
+      } catch (e) {
+        // Fallo al obtener dashboard: mostrar en consola y continuar sin bloquear la UI
+        // (Las importaciones/registro de Chart.js se realizan al tope del archivo)
+        console.error('Error fetching dashboard', e);
+      }
+    };
+
+    // cargar KPIs al montar
+    fetchDashboard();
+
     // (JSON export removed - only PDF and CSV supported)
 
     // Reparados PDF
@@ -76,6 +132,9 @@ export default function Reportes() {
     q('#btnReparadosPdf')?.addEventListener('click', onReparadosPdf);
 
     // Reparados CSV
+            // función para cargar series y actualizar gráficos
+            // also fetch and populate series for charts (same as fetchDashboard)
+            fetchDashboard();
     const onReparadosCsv = () => {
       const d = q('#desdeReparados').value;
       const h = q('#hastaReparados').value;
@@ -127,8 +186,35 @@ export default function Reportes() {
       q('#btnReparadosCsv')?.removeEventListener('click', onReparadosCsv);
       q('#btnNoReparadosPdf')?.removeEventListener('click', onNoReparadosPdf);
       q('#btnNoReparadosCsv')?.removeEventListener('click', onNoReparadosCsv);
+      // no need to remove fetchDashboard since it's not attached
     };
   }, []);
+
+  // Build chart data from series state
+  const ingresosData = {
+    labels: series?.dates || [],
+    datasets: [
+      {
+        label: 'Ingresos',
+        data: series?.ingresos || [],
+        borderColor: 'rgba(75,192,192,1)',
+        backgroundColor: 'rgba(75,192,192,0.2)',
+        fill: true,
+      },
+    ],
+  };
+
+  const ordenesData = {
+    labels: series?.dates || [],
+    datasets: [
+      {
+        label: 'Órdenes',
+        data: series?.ordenes || [],
+        backgroundColor: 'rgba(54,162,235,0.6)',
+        borderColor: 'rgba(54,162,235,1)',
+      },
+    ],
+  };
 
   return (
     <div className="container-fluid main-background" style={{ minHeight: '100vh' }}>
@@ -141,6 +227,58 @@ export default function Reportes() {
             </div>
             <div className="card-body">
               <div className="row">
+                {/* Dashboard KPIs */}
+                <div className="col-12 mb-3">
+                  <div className="d-flex gap-3 flex-wrap">
+                    <div className="card p-3" style={{ minWidth: 160, borderRadius: 12 }}>
+                      <div className="text-muted small">Ingresos (hoy)</div>
+                      <div id="kpi-ingresos-diarios" style={{ fontSize: 20, fontWeight: 700 }}>{`$${(kpis.ingresos?.daily||0).toFixed(2)}`}</div>
+                    </div>
+                    <div className="card p-3" style={{ minWidth: 160, borderRadius: 12 }}>
+                      <div className="text-muted small">Ingresos (semana)</div>
+                      <div id="kpi-ingresos-semanales" style={{ fontSize: 20, fontWeight: 700 }}>{`$${(kpis.ingresos?.weekly||0).toFixed(2)}`}</div>
+                    </div>
+                    <div className="card p-3" style={{ minWidth: 160, borderRadius: 12 }}>
+                      <div className="text-muted small">Ingresos (mes)</div>
+                      <div id="kpi-ingresos-mensuales" style={{ fontSize: 20, fontWeight: 700 }}>{`$${(kpis.ingresos?.monthly||0).toFixed(2)}`}</div>
+                    </div>
+                    <div className="card p-3" style={{ minWidth: 140, borderRadius: 12 }}>
+                      <div className="text-muted small">Órdenes (hoy)</div>
+                      <div id="kpi-ordenes-diarias" style={{ fontSize: 18, fontWeight: 700 }}>{kpis.ordenes?.daily || 0}</div>
+                    </div>
+                    <div className="card p-3" style={{ minWidth: 140, borderRadius: 12 }}>
+                      <div className="text-muted small">Órdenes (semana)</div>
+                      <div id="kpi-ordenes-semanales" style={{ fontSize: 18, fontWeight: 700 }}>{kpis.ordenes?.weekly || 0}</div>
+                    </div>
+                    <div className="card p-3" style={{ minWidth: 140, borderRadius: 12 }}>
+                      <div className="text-muted small">Órdenes (mes)</div>
+                      <div id="kpi-ordenes-mensuales" style={{ fontSize: 18, fontWeight: 700 }}>{kpis.ordenes?.monthly || 0}</div>
+                    </div>
+                    <div className="card p-3" style={{ minWidth: 180, borderRadius: 12 }}>
+                      <div className="text-muted small">Tiempo promedio de reparación</div>
+                      <div id="kpi-tmo" style={{ fontSize: 18, fontWeight: 700 }}>{kpis.average_repair_time_days !== null && kpis.average_repair_time_days !== undefined ? `${Number(kpis.average_repair_time_days).toFixed(1)} días` : 'N/A'}</div>
+                    </div>
+                  </div>
+                        {/* Charts: ingresos (línea) y órdenes (barras) */}
+                        <div className="row mt-3">
+                          <div className="col-12 col-md-8 mb-3">
+                            <div className="card p-3" style={{ borderRadius: 12 }}>
+                              <h5 className="card-title mb-2">Ingresos últimos 30 días</h5>
+                              <div>
+                                <Line id="chart-ingresos" data={ingresosData} options={{maintainAspectRatio:false}} height={200} />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="col-12 col-md-4 mb-3">
+                            <div className="card p-3" style={{ borderRadius: 12 }}>
+                              <h5 className="card-title mb-2">Órdenes últimos 30 días</h5>
+                              <div>
+                                <Bar id="chart-ordenes" data={ordenesData} options={{maintainAspectRatio:false}} height={200} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                </div>
                     <div className="col-12 col-md-6 mb-3">
                       <div className="card" style={{ borderRadius: 12 }}>
                         <div className="card-body">
