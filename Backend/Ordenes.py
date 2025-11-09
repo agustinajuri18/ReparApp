@@ -17,10 +17,7 @@ from ABMC_db import (
 )
 
 from datetime import timedelta
-
-
 import unicodedata
-
 
 def _normalize_name(s):
     if not s:
@@ -1989,6 +1986,78 @@ def _truncate_display(s, max_chars=40):
         return s
     return s[:max_chars-3].rstrip() + '...'
 
+# ------------------------------------------------------------------------
+def _draw_header_footer(canvas, doc):
+    """
+    Dibuja en cada página:
+     - Barra superior pegada al borde (color #85abab), angosta
+     - Título centrado: "El Mundo del Celular"
+     - Dirección y teléfono centrados debajo del título (todo en negro)
+     - Logo en esquina superior derecha, CENTRADO VERTICALMENTE DENTRO DEL HEADER
+       (logo totalmente dentro de la barra, para evitar solapamiento con la tabla)
+     - Número de página en esquina inferior derecha respetando márgenes
+    """
+    try:
+        canvas.saveState()
+        width, height = doc.pagesize
+
+        # ===== Ajustes principales =====
+        header_h = 72         # altura de la barra (angosta)
+        img_w = 80            # ancho del logo en puntos (reducido para evitar solapes)
+        img_h = 80            # alto del logo en puntos
+        # ===============================
+
+        # Barra superior (pegada al borde superior)
+        canvas.setFillColor(colors.HexColor('#85abab'))
+        canvas.rect(0, height - header_h, width, header_h, stroke=0, fill=1)
+
+        # Ruta del logo (Backend/static/logo.png)
+        logo_path = os.path.join(os.path.dirname(__file__), 'static', 'logo.png')
+
+        # Dibujar logo de forma que quede CENTRADO verticalmente dentro del header:
+        try:
+            if os.path.exists(logo_path):
+                from reportlab.lib.utils import ImageReader
+                img = ImageReader(logo_path)
+                # Posición X (alineado hacia la derecha, dentro del margen)
+                x = width - doc.rightMargin - img_w
+                # Centrar verticalmente dentro del área del header:
+                # header verticalmente va de (height-header_h) hasta height
+                y = (height - header_h) + ( (header_h - img_h) / 2.0 )
+                canvas.drawImage(img, x, y, img_w, img_h, preserveAspectRatio=True, mask='auto')
+        except Exception:
+            # no interrumpir si falla el logo
+            pass
+
+        # Todo el texto en color NEGRO
+        canvas.setFillColor(colors.black)
+
+        # Título principal "El Mundo del Celular" - centrado dentro del header
+        canvas.setFont('Helvetica-Bold', 18)
+        # Y del título colocado dentro del header (ajustable si querés moverlo)
+        y_title = (height - header_h) + header_h * 0.62
+        canvas.drawCentredString(width / 2.0, y_title, "El Mundo del Celular")
+
+        # Dirección y teléfono centrados debajo del título (espaciado pequeño)
+        canvas.setFont('Helvetica', 9)
+        y_addr = y_title - 16
+        canvas.drawCentredString(width / 2.0, y_addr, "Dirección: Av. Duarte Quirós 1563")
+        y_tel = y_addr - 12
+        canvas.drawCentredString(width / 2.0, y_tel, "Teléfono: 0351156263575")
+
+        # Número de página en esquina inferior derecha (dentro de márgenes)
+        canvas.setFont('Helvetica', 8)
+        page_num_text = f"Página {doc.page}"
+        y_page = doc.bottomMargin - 8 if doc.bottomMargin > 16 else 10
+        canvas.drawRightString(width - doc.rightMargin, y_page, page_num_text)
+
+        canvas.restoreState()
+    except Exception:
+        try:
+            canvas.restoreState()
+        except Exception:
+            pass
+# ------------------------------------------------------------------------
 
 @bp.route('/reportes/reparados', methods=['GET'])
 @cross_origin()
@@ -2065,75 +2134,117 @@ def reporte_reparados():
                 summary['average_days_to_repair'] = sum(dias) / len(dias)
 
             # Responder según formato
+           # ------------------------------------------------------------------------
             if fmt == 'pdf':
-                # generar PDF con mejor layout: wrapping, tamaños de columna y fuente más pequeña
+                # generar PDF con layout en landscape y espacio superior extra para el header gráfico
                 buffer = BytesIO()
-                # Use landscape to provide more horizontal space for wide tables
-                doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
+                # Aumentamos topMargin para dejar espacio al encabezado (header_h en el helper)
+                doc = SimpleDocTemplate(buffer, pagesize=landscape(letter),
+                                        rightMargin=24, leftMargin=24, topMargin=100, bottomMargin=36)
                 styles = getSampleStyleSheet()
-                title_style = ParagraphStyle('Title', parent=styles['Heading2'], alignment=1)
-                small = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8)
-                header_style = ParagraphStyle('H', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold')
 
-                elements = [Paragraph('Reporte - Celulares Reparados', title_style), Spacer(1, 8)]
+                # Título del reporte (fuera del header, centrado, en negrita y más grande)
+                title_style = ParagraphStyle('ReportTitle', parent=styles['Heading2'],
+                                            fontName='Helvetica-Bold', fontSize=16, alignment=1, textColor=colors.black, spaceAfter=10)
+                small = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, textColor=colors.black)
+                header_style = ParagraphStyle('H', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold', textColor=colors.black)
+
+                elements = []
+
+                # Ponemos el título principal del reporte aquí (afuera del encabezado)
+                elements.append(Paragraph("Reporte - Celulares Reparados", title_style))
+                elements.append(Spacer(1, 6))
+
+                # Fecha de emisión (antes del resumen/total)
+                fecha_emision = datetime.now().strftime('%d/%m/%Y')
+                elements.append(Paragraph(f"Fecha de emisión: {fecha_emision}", small))
+                elements.append(Spacer(1, 6))
 
                 # resumen
                 resumen_lines = [f"Total reparados: {summary['total']}"]
                 if summary['average_days_to_repair'] is not None:
                     resumen_lines.append(f"Tiempo promedio (días): {summary['average_days_to_repair']:.1f}")
+
                 for l in resumen_lines:
                     elements.append(Paragraph(l, small))
                     elements.append(Spacer(1, 4))
 
+                elements.append(Spacer(1, 6))
+
                 # Tabla: combinamos 'Dispositivo' y 'Resultado' en una sola columna
-                data = [[Paragraph('Nro', header_style), Paragraph('Fecha', header_style), Paragraph('Cliente', header_style), Paragraph('Dispositivo / Resultado', header_style), Paragraph('Precio', header_style)]]
+                data = [[Paragraph('Nro', header_style), Paragraph('Fecha', header_style), Paragraph('Cliente', header_style),
+                        Paragraph('Dispositivo / Resultado', header_style), Paragraph('Precio', header_style)]]
                 for r in filas:
                     nro = Paragraph(str(r.get('nroDeOrden') or ''), small)
                     fecha = Paragraph(r.get('fecha') or '', small)
                     cliente_text = _truncate_display(_strip_serial(r.get('cliente_info') or ''), max_chars=40)
                     dispositivo_text = _truncate_display(_strip_serial(r.get('dispositivo_info') or ''), max_chars=60)
                     resultado_text = _truncate_display(str(r.get('resultado') or r.get('estado') or ''), max_chars=60)
-                    # unir con un separador para mejor lectura y permitir wrapping
                     combined = (dispositivo_text + ' — ' + resultado_text).strip()
                     cliente = Paragraph(_add_soft_breaks(cliente_text), small)
                     dispositivo_resultado = Paragraph(_add_soft_breaks(combined), small)
-                    precio = Paragraph(f"${r.get('precioTotal',0):.2f}", small)
+                    precio = Paragraph(f"${r.get('precioTotal', 0):.2f}", small)
                     data.append([nro, fecha, cliente, dispositivo_resultado, precio])
 
-                # Landscape letter: width = 792pt. With margins 24+24 => available = 744pt.
-                # Column widths chosen to fit within available space: Nro, Fecha, Cliente, Dispositivo/Resultado, Precio
+                # Ajuste de anchos
                 col_widths = [40, 80, 200, 360, 64]
                 table = Table(data, colWidths=col_widths, repeatRows=1)
                 table.setStyle(TableStyle([
-                    ('GRID', (0,0), (-1,-1), 0.4, colors.black),
-                    ('BACKGROUND',(0,0),(-1,0),colors.lightgrey),
-                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                    ('ALIGN', (4,1), (4,-1), 'RIGHT'),
-                    ('FONTSIZE', (0,0), (-1,-1), 8),
-                    ('LEFTPADDING', (0,0), (-1,-1), 4),
-                    ('RIGHTPADDING', (0,0), (-1,-1), 4),
+                    ('GRID', (0, 0), (-1, -1), 0.4, colors.black),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('ALIGN', (4, 1), (4, -1), 'RIGHT'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
                 ]))
                 elements.append(table)
-                doc.build(elements)
+
+                # Callback para dibujar header/footer en cada página usando la nueva función
+                def _on_page(canvas, doc):
+                    _draw_header_footer(canvas, doc)
+
+                doc.build(elements, onFirstPage=_on_page, onLaterPages=_on_page)
                 buffer.seek(0)
                 resp = make_response(buffer.getvalue())
                 resp.headers['Content-Type'] = 'application/pdf'
                 resp.headers['Content-Disposition'] = 'inline; filename=reporte_reparados.pdf'
                 return resp
+            # --- FIN BLOQUE ---------------------------------------------------------
 
             if fmt == 'csv':
                 import csv
                 import io
-                sio = io.StringIO()
-                writer = csv.writer(sio)
-                writer.writerow(['nroDeOrden','fecha','cliente','dispositivo','resultado','precioTotal','empleado'])
+
+                # Usamos StringIO con newline='' para que csv.writer maneje correctamente los finales de línea
+                sio = io.StringIO(newline='')
+                # Usamos ';' como delimitador (mejor para Excel en locales hispanos) y comillas dobles para campos que lo requieran
+                writer = csv.writer(sio, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+                # Cabecera
+                writer.writerow(['nroDeOrden', 'fecha', 'cliente', 'dispositivo', 'resultado', 'precioTotal', 'empleado'])
+
+                # Filas: limpieza mínima (no saltos de línea, strings)
                 for r in filas:
-                    writer.writerow([r.get('nroDeOrden'), r.get('fecha'), r.get('cliente_info'), r.get('dispositivo_info'), r.get('resultado') or r.get('estado'), r.get('precioTotal'), r.get('empleado_info')])
-                data = sio.getvalue().encode('utf-8')
+                    nro = str(r.get('nroDeOrden') or '')
+                    fecha = r.get('fecha') or ''
+                    cliente = (r.get('cliente_info') or '').replace('\n', ' ').strip()
+                    dispositivo = (r.get('dispositivo_info') or '').replace('\n', ' ').strip()
+                    resultado = str(r.get('resultado') or r.get('estado') or '').replace('\n', ' ').strip()
+                    precio = f"{float(r.get('precioTotal') or 0):.2f}"
+                    empleado = (r.get('empleado_info') or '').replace('\n', ' ').strip()
+
+                    writer.writerow([nro, fecha, cliente, dispositivo, resultado, precio, empleado])
+
+                # Añadimos BOM UTF-8 al principio para que Excel reconozca los acentos correctamente
+                csv_text = '\ufeff' + sio.getvalue()
+                data = csv_text.encode('utf-8')
+
                 resp = make_response(data)
                 resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
                 resp.headers['Content-Disposition'] = 'attachment; filename=reporte_reparados.csv'
                 return resp
+            # ----------------------------------------------------------------------------------------------------
 
             # JSON por defecto: enviar filas y summary
             return jsonify({'summary': summary, 'rows': filas})
@@ -2199,20 +2310,35 @@ def reporte_no_reparados():
                 tec = f.get('empleado_info') or 'Sin técnico'
                 summary['by_tecnico'][tec] = summary['by_tecnico'].get(tec, 0) + 1
 
+            # ------------------------------------------------------------------------
             if fmt == 'pdf':
                 buffer = BytesIO()
-                doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
+                doc = SimpleDocTemplate(buffer, pagesize=landscape(letter),
+                                        rightMargin=24, leftMargin=24, topMargin=100, bottomMargin=36)
                 styles = getSampleStyleSheet()
-                title_style = ParagraphStyle('Title', parent=styles['Heading2'], alignment=1)
-                small = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8)
-                header_style = ParagraphStyle('H', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold')
 
-                elements = [Paragraph('Reporte - Celulares No Reparados', title_style), Spacer(1, 8)]
+                title_style = ParagraphStyle('ReportTitle', parent=styles['Heading2'],
+                                            fontName='Helvetica-Bold', fontSize=16, alignment=1, textColor=colors.black, spaceAfter=10)
+                small = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, textColor=colors.black)
+                header_style = ParagraphStyle('H', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold', textColor=colors.black)
+
+                elements = []
+
+                # Título del reporte (fuera del header)
+                elements.append(Paragraph("Reporte - Celulares No Reparados", title_style))
+                elements.append(Spacer(1, 6))
+
+                # Fecha de emisión
+                fecha_emision = datetime.now().strftime('%d/%m/%Y')
+                elements.append(Paragraph(f"Fecha de emisión: {fecha_emision}", small))
+                elements.append(Spacer(1, 6))
+
                 elements.append(Paragraph(f"Total no reparados: {summary['total']}", small))
                 elements.append(Spacer(1, 6))
 
-                # Tabla: combinamos 'Dispositivo' y 'Resultado' en una sola columna
-                data = [[Paragraph('Nro', header_style), Paragraph('Fecha', header_style), Paragraph('Cliente', header_style), Paragraph('Dispositivo / Resultado', header_style), Paragraph('Precio', header_style)]]
+                # Tabla
+                data = [[Paragraph('Nro', header_style), Paragraph('Fecha', header_style), Paragraph('Cliente', header_style),
+                        Paragraph('Dispositivo / Resultado', header_style), Paragraph('Precio', header_style)]]
                 for r in filas:
                     nro = Paragraph(str(r.get('nroDeOrden') or ''), small)
                     fecha = Paragraph(r.get('fecha') or '', small)
@@ -2222,42 +2348,60 @@ def reporte_no_reparados():
                     combined = (dispositivo_text + ' — ' + resultado_text).strip()
                     cliente = Paragraph(_add_soft_breaks(cliente_text), small)
                     dispositivo_resultado = Paragraph(_add_soft_breaks(combined), small)
-                    precio = Paragraph(f"${r.get('precioTotal',0):.2f}", small)
+                    precio = Paragraph(f"${r.get('precioTotal', 0):.2f}", small)
                     data.append([nro, fecha, cliente, dispositivo_resultado, precio])
 
-                # Landscape letter: width = 792pt. With margins 24+24 => available = 744pt.
                 col_widths = [40, 80, 200, 360, 64]
                 table = Table(data, colWidths=col_widths, repeatRows=1)
                 table.setStyle(TableStyle([
-                    ('GRID', (0,0), (-1,-1), 0.4, colors.black),
-                    ('BACKGROUND',(0,0),(-1,0),colors.lightgrey),
-                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                    ('ALIGN', (4,1), (4,-1), 'RIGHT'),
-                    ('FONTSIZE', (0,0), (-1,-1), 8),
-                    ('LEFTPADDING', (0,0), (-1,-1), 4),
-                    ('RIGHTPADDING', (0,0), (-1,-1), 4),
+                    ('GRID', (0, 0), (-1, -1), 0.4, colors.black),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('ALIGN', (4, 1), (4, -1), 'RIGHT'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
                 ]))
                 elements.append(table)
-                doc.build(elements)
+
+                def _on_page(canvas, doc):
+                    _draw_header_footer(canvas, doc)
+
+                doc.build(elements, onFirstPage=_on_page, onLaterPages=_on_page)
                 buffer.seek(0)
                 resp = make_response(buffer.getvalue())
                 resp.headers['Content-Type'] = 'application/pdf'
                 resp.headers['Content-Disposition'] = 'inline; filename=reporte_no_reparados.pdf'
                 return resp
-
+            # --- FIN BLOQUE ---------------------------------------------------------
             if fmt == 'csv':
                 import csv
                 import io
-                sio = io.StringIO()
-                writer = csv.writer(sio)
-                writer.writerow(['nroDeOrden','fecha','cliente','dispositivo','resultado','precioTotal','empleado'])
+
+                sio = io.StringIO(newline='')
+                writer = csv.writer(sio, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+                writer.writerow(['nroDeOrden', 'fecha', 'cliente', 'dispositivo', 'resultado', 'precioTotal', 'empleado'])
+
                 for r in filas:
-                    writer.writerow([r.get('nroDeOrden'), r.get('fecha'), r.get('cliente_info'), r.get('dispositivo_info'), r.get('resultado') or r.get('estado'), r.get('precioTotal'), r.get('empleado_info')])
-                data = sio.getvalue().encode('utf-8')
+                    nro = str(r.get('nroDeOrden') or '')
+                    fecha = r.get('fecha') or ''
+                    cliente = (r.get('cliente_info') or '').replace('\n', ' ').strip()
+                    dispositivo = (r.get('dispositivo_info') or '').replace('\n', ' ').strip()
+                    resultado = str(r.get('resultado') or r.get('estado') or '').replace('\n', ' ').strip()
+                    precio = f"{float(r.get('precioTotal') or 0):.2f}"
+                    empleado = (r.get('empleado_info') or '').replace('\n', ' ').strip()
+
+                    writer.writerow([nro, fecha, cliente, dispositivo, resultado, precio, empleado])
+
+                csv_text = '\ufeff' + sio.getvalue()
+                data = csv_text.encode('utf-8')
+
                 resp = make_response(data)
                 resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
                 resp.headers['Content-Disposition'] = 'attachment; filename=reporte_no_reparados.csv'
                 return resp
+            # ----------------------------------------------------------------------------------------------------
 
             return jsonify({'summary': summary, 'rows': filas})
     except Exception as e:

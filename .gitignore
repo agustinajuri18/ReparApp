@@ -1,0 +1,25 @@
+# Ignorar dependencias instaladas
+node_modules/
+**/node_modules/
+
+# Proyecto frontend (si aplica)
+Frontend/front-vite/dist/
+Frontend/front-vite/build/
+
+# Entornos virtuales / dependencias locales
+venv/
+.env
+.DS_Store
+
+# Artefactos de build
+dist/
+build/
+
+# Logs y temporales
+*.log
+tmp/
+
+# Ignorar bases de datos locales
+BDD/*.db
+BDD/*.db-shm
+BDD/*.db-wal
