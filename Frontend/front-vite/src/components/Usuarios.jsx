@@ -425,7 +425,22 @@ export default function Usuarios() {
                             <div className="input-error-message">{formErrors.contraseña}</div>
                           )}
                         </div>
-                        {(modalModo === 'alta' || modalModo === 'modificar') && (
+                        {modalModo === 'consultar' ? (
+                          <div className="mb-3">
+                            <label className="fw-semibold"><i className="bi bi-briefcase me-2"></i>Cargo</label>
+                            <input
+                              type="text"
+                              className="form-control"
+                              value={(() => {
+                                const cid = form.idCargo || form.id_cargo || form.idcargo;
+                                const found = cid ? cargos.find(c => Number(c.idCargo) === Number(cid)) : null;
+                                return found ? found.descripcion : (cid ? `Cargo ${cid}` : 'N/A');
+                              })()}
+                              readOnly
+                              style={{ backgroundColor: '#dee2e6' }}
+                            />
+                          </div>
+                        ) : (
                           <div className="mb-3">
                             <label className="fw-semibold"><i className="bi bi-briefcase me-2"></i>Cargo</label>
                             <select

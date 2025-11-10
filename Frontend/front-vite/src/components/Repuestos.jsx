@@ -406,14 +406,14 @@ function Repuestos() {
                 />
               </div>
               <div className="table-responsive" style={{ overflow: 'visible' }}>
-                <table className="table table-hover align-middle">
-                  <thead>
+                <table className="table table-hover align-middle table-striped">
+                  <thead className="table-dark" style={{borderTopLeftRadius: 8, borderTopRightRadius: 8}}>
                     <tr>
-                      <th>Código</th>
-                      <th>Marca</th>
-                      <th>Modelo</th>
-                      <th>Activo</th>
-                      <th>Acciones</th>
+                      <th scope="col">Código</th>
+                      <th scope="col">Marca</th>
+                      <th scope="col">Modelo</th>
+                      <th scope="col">Activo</th>
+                      <th scope="col">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -612,14 +612,14 @@ function Repuestos() {
                 <h5 className="modal-title"><i className="bi bi-list-ul me-2"></i>Listado Completo de Repuestos</h5>
                 <button type="button" className="btn-close" onClick={() => setModalTodosRepuestos({ open: false, lista: [] })} style={{ filter: 'invert(0.5) grayscale(100%) brightness(200%)' }}></button>
               </div>
-              <div className="modal-body">
+              <div className="modal-body" style={{ maxHeight: '64vh', overflowY: 'auto', paddingTop: 0 }}>
                 <div className="table-responsive" style={{ overflow: 'visible' }}>
                   <table className="table table-striped table-bordered align-middle">
-                    <thead>
+                    <thead className="table-dark" style={{ position: 'sticky', top: 0, zIndex: 5 }}>
                       <tr>
-                        <th>Repuesto</th>
-                        <th>Proveedor</th>
-                        <th>Costo</th>
+                        <th scope="col">Repuesto</th>
+                        <th scope="col">Proveedor</th>
+                        <th scope="col">Costo</th>
                       </tr>
                     </thead>
                     <tbody>

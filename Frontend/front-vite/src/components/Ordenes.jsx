@@ -178,7 +178,11 @@ function Ordenes() {
 
   // --- Carga de Datos ---
   const fetchOrdenes = () => {
-    fetch(API_URL)
+    // Include session id header when available so backend can restrict orders to the logged-in technician
+    const idSesionHeader = localStorage.getItem('idSesion');
+    const headers = idSesionHeader ? { 'X-Id-Sesion': idSesionHeader } : {};
+
+    fetch(API_URL, { headers })
       .then(res => res.json())
       .then(data => {
         if (!Array.isArray(data)) return setOrdenes([]);
@@ -458,6 +462,7 @@ function Ordenes() {
   };
 
   const handleGenerarComprobante = (nroDeOrden) => {
+    if (isTecnico) { setMensaje('Acción no disponible para técnicos.'); return; }
     if (!canView) { setMensaje('No tenés permiso para generar comprobantes.'); return; }
     // Abrir preview del comprobante — similar comportamiento al PDF de la orden
     window.open(`${API_URL}/${nroDeOrden}/comprobante-retiro/preview`, '_blank', 'width=900,height=700');
@@ -1526,7 +1531,7 @@ function Ordenes() {
                               <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleOpenActualizarHistorial(o)}>
                                 <i className="bi bi-arrow-clockwise me-1"></i>Actualizar historial
                               </button>
-                              {isRetiroEstado(o.estado) && (
+                              {isRetiroEstado(o.estado) && !isTecnico && (
                                 <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarComprobante(o.nroDeOrden)}>
                                   <i className="bi bi-file-earmark-pdf me-1"></i>Comprobante retiro
                                 </button>
@@ -2117,7 +2122,7 @@ function Ordenes() {
                 <div className="modal-footer">
                   <button type="button" className="btn btn-dorado" onClick={handleModalClose}>Cerrar</button>
                   {/* Botón para comprobante de retiro: sólo visible en modo 'consultar' si hay fechaInicioRetiro o estado PendienteDeRetiro/Retirada */}
-                  {modalModo === 'consultar' && isRetiroEstado(form.estado) && (
+                  {modalModo === 'consultar' && isRetiroEstado(form.estado) && !isTecnico && (
                     <button type="button" className="btn btn-sm btn-rojo fw-bold me-2" onClick={() => handleGenerarComprobante(form.nroDeOrden)}>
                       <i className="bi bi-file-earmark-pdf me-1"></i>Comprobante de retiro
                     </button>

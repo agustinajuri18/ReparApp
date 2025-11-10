@@ -23,6 +23,8 @@ export default function Servicios() {
   const canModify = hasPermission(identity, 29);
   const canDelete = hasPermission(identity, 30);
   const isSalesAdmin = identity?.idCargo === 3; // Asistente de ventas
+  const isSupervisor = identity?.idCargo === 1; // Supervisor / administrador (assumption: idCargo 1)
+  const isTecnico = identity?.idCargo === 2; // Técnico -> idCargo 2
   const canDeleteEffective = canDelete && !isSalesAdmin;
 
   const [servicios, setServicios] = useState([]);
@@ -84,7 +86,7 @@ export default function Servicios() {
 
   // Modal handlers
   const handleAgregarClick = () => {
-    if (!canCreate) { setMensaje('No tenés permiso para crear servicios.'); return; }
+    if (!canCreate || isTecnico) { setMensaje(isTecnico ? 'Acción no disponible para técnicos.' : 'No tenés permiso para crear servicios.'); return; }
     setServicioActual({
       idServicio: "",
       descripcion: "",
@@ -342,7 +344,7 @@ export default function Servicios() {
                 >
                   <i className="bi bi-journal-bookmark me-1"></i>Catálogo de servicios
                 </button>
-                {canCreate && <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar servicio</button>}
+                {(canCreate && !isTecnico) && <button className="btn btn-verdeAgua" onClick={handleAgregarClick}><i className="bi bi-plus-lg"></i> Agregar servicio</button>}
               </div>
             </div>
             <div className="card-body">
@@ -366,7 +368,7 @@ export default function Servicios() {
                         <td>{s.activo === 1 ? "Activo" : "Inactivo"}</td>
                         <td>
                           {canView && <button className="btn btn-sm btn-verdeAgua fw-bold me-1" onClick={() => handleConsultar(s)}><i className="bi bi-search me-1"></i>Consultar</button>}
-                          {s.activo === 1 && canModify && (
+                          {s.activo === 1 && isSupervisor && (
                             <button className={`btn btn-sm fw-bold me-1 btn-dorado`} onClick={() => handleModificar(s)}><i className="bi bi-pencil-square me-1"></i>Modificar</button>
                           )}
                           {s.activo === 1 && canDeleteEffective && (
