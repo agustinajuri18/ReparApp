@@ -225,7 +225,13 @@ export default function Clientes() {
                             {canView && <button className="btn btn-sm btn-verdeAgua fw-bold" onClick={() => handleConsultar(c)}><i className="bi bi-search me-1"></i>Consultar</button>}
                             <button className="btn btn-sm btn-azul fw-bold" onClick={async () => { try { const res = await fetch(`${API_URL}/${c.idCliente}/historial-ordenes`); const data = await res.json().catch(()=>[]); setHistorialOrdenes(Array.isArray(data)?data:[]); setHistorialVisible(true);} catch(err){ console.warn(err); setMensaje('Error al cargar historial'); } }}><i className="bi bi-clock-history me-1"></i>Historial</button>
                             <div style={{ position: 'relative', overflow: 'visible' }}>
-                              <button ref={el => { if (el) menuAnchorRefs.current[c.idCliente] = el }} className="btn btn-sm btn-outline-secondary" onClick={(e) => { e.stopPropagation(); setOpenMenuFor(openMenuFor === c.idCliente ? null : c.idCliente); }} aria-expanded={openMenuFor === c.idCliente}><i className="bi bi-three-dots-vertical"></i></button>
+                              <button
+                                ref={el => { if (el) menuAnchorRefs.current[c.idCliente] = el }}
+                                className="btn btn-sm btn-outline-secondary"
+                                onClick={(e) => { e.stopPropagation(); setOpenMenuFor(openMenuFor === c.idCliente ? null : c.idCliente); }}
+                                aria-expanded={openMenuFor === c.idCliente}
+                                style={{ backgroundColor: '#ffffff', zIndex: 5, minWidth: 36 }}
+                              ><i className="bi bi-three-dots-vertical"></i></button>
                               {openMenuFor === c.idCliente && (
                                 <ActionMenuPortal anchorEl={menuAnchorRefs.current[c.idCliente]} onClose={() => setOpenMenuFor(null)} onModificar={() => { setOpenMenuFor(null); c.activo && (canModify ? handleModificar(c) : setMensaje('No tenés permiso para modificar clientes.')) }} onEliminar={() => { setOpenMenuFor(null); c.idCliente && (canDelete ? handleEliminar(c.idCliente) : setMensaje('No tenés permiso para eliminar clientes.')) }} onReactivar={() => { setOpenMenuFor(null); c.idCliente && (canDelete ? handleReactivar(c.idCliente) : setMensaje('No tenés permiso para reactivar clientes.')) }} activo={c.activo} canModify={canModify} canDelete={canDelete} />
                               )}
@@ -314,7 +320,7 @@ function ActionMenuPortal({ anchorEl, onClose, onModificar, onEliminar, onReacti
   React.useEffect(() => { const onDocClick = (e) => { if (!anchorEl) return; const node = document.getElementById('action-menu-portal'); if (node && !node.contains(e.target) && !anchorEl.contains(e.target)) onClose(); }; const onEsc = (e) => { if (e.key === 'Escape') onClose(); }; document.addEventListener('mousedown', onDocClick); document.addEventListener('keydown', onEsc); return () => { document.removeEventListener('mousedown', onDocClick); document.removeEventListener('keydown', onEsc); }; }, [anchorEl, onClose]);
   if (!anchorEl) return null;
   return ReactDOM.createPortal(
-    <div id="action-menu-portal" style={{ position: 'absolute', left: pos.left, top: pos.top, zIndex: 2147483647, minWidth: 140 }}>
+    <div id="action-menu-portal" style={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 2147483648, minWidth: 140 }}>
       <div className="card" style={{ overflow: 'visible' }}>
         <ul className="list-group list-group-flush p-2">
           {activo && canModify && (<li className="list-group-item border-0 p-0 mb-1"><button className={`btn btn-sm w-100 ${activo ? 'btn-dorado' : 'btn-secondary'}`} onClick={onModificar}>Modificar</button></li>)}
