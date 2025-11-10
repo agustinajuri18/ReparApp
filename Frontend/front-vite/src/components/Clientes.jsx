@@ -206,7 +206,7 @@ export default function Clientes() {
               </div>
             </div>
             <div className="card-body">
-              <div className="mb-3"><input type="text" className="form-control" placeholder="Buscar por nombre o DNI..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
+              <div className="mb-3"><input type="text" className="form-control" placeholder="Buscar por nombre o documento..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
               <div className="table-responsive" style={{ overflow: 'visible' }}>
                 <table className="table table-striped table-hover align-middle">
                   <thead><tr><th>Tipo Doc</th><th>Número Doc</th><th>Nombre</th><th>Apellido</th><th>Teléfono</th><th>Email</th><th>Activo</th><th>Acciones</th></tr></thead>

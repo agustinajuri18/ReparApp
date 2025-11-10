@@ -20,6 +20,5 @@ build/
 tmp/
 
 # Ignorar bases de datos locales
-BDD/*.db
 BDD/*.db-shm
 BDD/*.db-wal
