@@ -152,6 +152,34 @@ def registrar_orden():
 def listar_ordenes():
     # `mostrar_ordenes` (o la función central) ya devuelve una lista de dicts serializados.
     ordenes = mostrar_ordenes()
+
+    # Si el cliente envía un header X-Id-Sesion, intentamos resolver la sesión -> usuario -> empleado
+    # y, si el empleado es un TÉCNICO (idCargo == 2), filtramos las órdenes para que el técnico
+    # vea sólo las órdenes que tenga asignadas (idEmpleado == empleado.idEmpleado).
+    try:
+        id_sesion = request.headers.get('X-Id-Sesion') or request.args.get('idSesion')
+        if id_sesion:
+            try:
+                id_sesion = int(id_sesion)
+            except Exception:
+                id_sesion = None
+        if id_sesion:
+            from ABMC_db import mostrar_sesion_por_id, obtener_empleado_por_usuario
+            ses = mostrar_sesion_por_id(id_sesion)
+            if ses:
+                empleado = obtener_empleado_por_usuario(getattr(ses, 'idUsuario', None))
+                # Si se encontró un empleado y su cargo es 2 (Técnico), filtrar
+                if empleado and getattr(empleado, 'idCargo', None) == 2:
+                    emp_id = getattr(empleado, 'idEmpleado', None)
+                    try:
+                        ordenes = [o for o in ordenes if o.get('idEmpleado') == emp_id]
+                    except Exception:
+                        # en caso de cualquier issue de comparación, dejar la lista original
+                        pass
+    except Exception:
+        # No queremos que un fallo en este filtrado impida devolver las órdenes
+        pass
+
     return jsonify(ordenes)
 
 @bp.route('/ordenes/<int:nroDeOrden>', methods=['PUT'])
