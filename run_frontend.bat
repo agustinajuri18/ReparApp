@@ -19,8 +19,7 @@ IF ERRORLEVEL 1 (
     POPD
     EXIT /B 1
 )
-echo Iniciando servidor de desarrollo (npm run dev)...
-npm run dev
+echo Preparando servidor de desarrollo (se detectará/instalarán dependencias si hace falta)...
 
 REM Detectar gestor de paquetes: permite PKG_MGR para forzar (pnpm|yarn|npm)
 IF DEFINED PKG_MGR (
@@ -36,10 +35,28 @@ IF DEFINED PKG_MGR (
     )
 )
 
+REM Si el usuario forzó PKG_MGR, comprobar que realmente existe en PATH; si no, intentar autodetección o fallback a npm
+IF DEFINED PM (
+    where %PM% >nul 2>&1
+    IF %ERRORLEVEL% NEQ 0 (
+        echo Aviso: el gestor de paquetes especificado "%PM%" no se encontro en PATH. Se intentara usar npm.
+        SET "PM="
+    )
+)
+
 IF "%PM%"=="" (
-    echo No se encontro pnpm/yarn/npm en PATH y no se proporciono PKG_MGR. Instala uno y vuelve a intentar.
-    POPD
-    EXIT /B 1
+    REM Reintentar deteccion simple y finalmente forzar npm si no se encuentra otro
+    where pnpm >nul 2>&1
+    IF %ERRORLEVEL%==0 (SET "PM=pnpm") ELSE (
+        where yarn >nul 2>&1
+        IF %ERRORLEVEL%==0 (SET "PM=yarn") ELSE (
+            where npm >nul 2>&1
+            IF %ERRORLEVEL%==0 (SET "PM=npm") ELSE (
+                echo No se encontro pnpm/yarn/npm en PATH. Intentando usar 'npm' de todas formas.
+                SET "PM=npm"
+            )
+        )
+    )
 )
 
 echo Usando gestor de paquetes: %PM%
@@ -51,8 +68,18 @@ IF "%OPEN_BROWSER%"=="0" (
     SET "OPEN_FLAG=--open"
 )
 
-REM Construir comando completo: instalar (si hace falta) y arrancar dev
-SET "FULL_CMD=%PM% install && %PM% run dev -- %OPEN_FLAG%"
+REM Instalar dependencias SOLO si no existe node_modules (o si FORCE_INSTALL=1)
+IF "%FORCE_INSTALL%"=="1" (
+    SET "INSTALL_CMD=%PM% install"
+) ELSE (
+    IF NOT EXIST node_modules (
+        SET "INSTALL_CMD=%PM% install"
+    ) ELSE (
+        SET "INSTALL_CMD=echo Dependencias ya instaladas - omitiendo instalacion"
+    )
+)
+
+SET "FULL_CMD=%INSTALL_CMD% && %PM% run dev -- %OPEN_FLAG%"
 
 REM Decidir si ejecutar en nueva ventana: detección CI o variable START_NEW_WINDOW
 IF DEFINED CI (
@@ -70,29 +97,4 @@ IF "%START_NEW_WINDOW%"=="1" (
     echo Ejecutando dev server en la ventana actual...
     cd /d %FRONT_DIR% && %FULL_CMD%
 )
- 
-REM Decidir si ejecutar en nueva ventana: detección CI o variable START_NEW_WINDOW
-IF DEFINED CI (
-    REM Estamos en CI -> no abrir nuevas ventanas
-    SET "START_NEW_WINDOW=0"
-) ELSE (
-    IF NOT DEFINED START_NEW_WINDOW SET "START_NEW_WINDOW=1"
-)
-
-REM Construir el comando de arranque
-IF "%PM%"=="yarn" (
-    SET "RUN_CMD=%PM% run dev -- %OPEN_FLAG%"
-) ELSE (
-    SET "RUN_CMD=%PM% run dev -- %OPEN_FLAG%"
-)
-
-IF "%START_NEW_WINDOW%"=="1" (
-    echo Lanzando dev server en nueva ventana de terminal...
-    REM start "Vite" abre una nueva ventana y ejecuta el comando con /k para que no se cierre
-    start "Vite" cmd /k "%RUN_CMD%"
-) ELSE (
-    echo Ejecutando dev server en la ventana actual...
-    cmd /c "%RUN_CMD%"
-)
-
 POPD
