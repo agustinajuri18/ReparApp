@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import MenuLateral from './MenuLateral';
+import ResultModal from './ResultModal';
 import SearchableSelect from './SearchableSelect';
 import ConfirmModal from './ConfirmModal';
 import { usePermission } from '../auth/PermissionContext';
@@ -125,6 +126,7 @@ function Ordenes() {
     idEmpleado: "",
     estado: "EnDiagnostico" // Estado por defecto
   });
+  const [resultModal, setResultModal] = useState({ open: false, success: true, title: '', message: '' });
 
   // Helper para notificar cambios de estado de una orden de forma consistente
   const notifyEstadoCambio = (nro, nuevoEstado, viejoEstado = null, options = {}) => {
@@ -1007,16 +1009,72 @@ function Ordenes() {
     setModalMensaje({ tipo: 'info', texto: 'Guardando...' });
     setIsSavingOrden(true);
     try {
-      await saveOrden();
-      // Notificar cambio de estado de forma consistente. Intentamos leer el nro y estado del form.
-      const nro = form?.nroDeOrden || 'nueva';
+  const saveResult = await saveOrden();
+      // Determine created/updated order number
+      const nro = saveResult?.nroDeOrden || saveResult?.nro || form?.nroDeOrden || 'nueva';
       const nuevoEstado = form?.estado || (modalModo === 'alta' ? 'En Diagnóstico' : 'Actualizada');
       notifyEstadoCambio(nro, nuevoEstado, null, { inModal: true, refresh: true });
-      handleModalClose();
+
+  // Show result modal for feedback
+  setResultModal({ open: true, success: true, title: modalModo === 'alta' ? 'Orden creada' : 'Orden actualizada', message: `Orden #${nro} guardada correctamente.` });
+
+      // If this was a newly created order, attempt to automatically send the comprobante
+      if (modalModo === 'alta') {
+        setModalMensaje({ tipo: 'info', texto: 'Orden guardada. Enviando comprobante automáticamente...' });
+        try {
+          // Try to fetch full order info to obtain client contact
+          const orderResp = await fetch(`${API_URL}/${nro}`);
+          let orderData = null;
+          if (orderResp.ok) {
+            orderData = await orderResp.json().catch(() => null);
+          }
+
+          // Prepare phone (whatsapp) if available
+          let phone = null;
+          try {
+            phone = orderData && (orderData.cliente?.telefono || orderData.cliente?.telefonoCelular || orderData.cliente?.telefonoContacto || orderData.dispositivo?.cliente?.telefono) || null;
+          } catch (e) { phone = null; }
+
+          // Attempt WhatsApp send if phone available
+          if (phone) {
+            try {
+              await fetch(`${API_URL}/${nro}/pdf/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ destinatario: String(phone).replace(/[^0-9]/g, '') })
+              });
+            } catch (waErr) {
+              console.warn('Auto WhatsApp send failed:', waErr);
+            }
+          } else {
+            // If no phone in order data, attempt send without destinatario (backend may fallback to client data)
+            try {
+              await fetch(`${API_URL}/${nro}/pdf/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+            } catch (waErr) {
+              console.warn('Auto WhatsApp send without destinatario failed:', waErr);
+            }
+          }
+
+          // Attempt email send (backend will use client email if none provided)
+          try {
+            await fetch(`${API_URL}/${nro}/pdf/send_email`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+          } catch (emailErr) {
+            console.warn('Auto Email send failed:', emailErr);
+          }
+
+          setModalMensaje({ tipo: 'success', texto: 'Comprobante: intento de envío automático completado (WhatsApp/Email). Si faltan datos, el envío puede no haberse realizado.' });
+        } catch (sendErr) {
+          console.error('Error en envío automático de comprobante:', sendErr);
+          setModalMensaje({ tipo: 'warning', texto: 'Orden guardada, pero no se pudo enviar automáticamente el comprobante. Revisá la consola para más detalles.' });
+        }
+      }
+
+  handleModalClose();
     } catch (err) {
       console.error('[Ordenes.jsx] handleSubmit error:', err);
       // Mostrar el error en el modal (más visible)
       setModalMensaje({ tipo: 'danger', texto: err.message || 'Error al guardar la orden' });
+      setResultModal({ open: true, success: false, title: 'Error', message: err.message || 'Error al guardar la orden' });
     } finally {
       setIsSavingOrden(false);
     }
@@ -1102,12 +1160,15 @@ function Ordenes() {
       console.log('[Ordenes.jsx] saveOrden succeeded, now requesting approval for', form.nroDeOrden);
       // Después de guardar correctamente solicitamos aprobación
       handleSolicitarAprobacion(form.nroDeOrden);
+      // Mostrar modal de resultado y cerrar modal de edición
+      setResultModal({ open: true, success: true, title: 'Orden guardada', message: `Orden #${form.nroDeOrden} guardada y solicitada aprobación.` });
       // Cerrar modal (la notificación de cambio será manejada por handleSolicitarAprobacion)
       handleModalClose();
     } catch (err) {
       console.error('[Ordenes.jsx] handleConfirmarYGuardar error:', err);
       // Mostrar error en el modal para que el usuario lo vea claramente
       setModalMensaje({ tipo: 'danger', texto: err.message || 'Error al guardar antes de confirmar' });
+      setResultModal({ open: true, success: false, title: 'Error al guardar', message: err.message || 'Error al guardar antes de confirmar' });
     } finally {
       setIsSavingOrden(false);
     }
@@ -1326,8 +1387,9 @@ function Ordenes() {
         setNuevoCliente({ idTipoDoc: "", numeroDoc: "", nombre: "", apellido: "", telefono: "", mail: "", activo: 1 });
         setShowAddClienteModal(false);
         setNuevoClienteErrors({});
+        setResultModal({ open: true, success: true, title: 'Cliente creado', message: 'Cliente creado correctamente.' });
       })
-      .catch(err => console.error("Error saving cliente:", err));
+        .catch(err => { console.error("Error saving cliente:", err); setResultModal({ open: true, success: false, title: 'Error', message: err.message || 'No se pudo crear el cliente' }); });
   };
 
   const handleGuardarDispositivo = () => {
@@ -1355,8 +1417,9 @@ function Ordenes() {
         setNuevoDispositivo({ nroSerie: "", marca: "", modelo: "", idCliente: "", activo: 1 });
         setShowAddDispositivoModal(false);
         setNuevoDispositivoErrors({});
+        setResultModal({ open: true, success: true, title: 'Dispositivo creado', message: 'Dispositivo creado correctamente.' });
       })
-      .catch(err => console.error("Error saving dispositivo:", err));
+        .catch(err => { console.error("Error saving dispositivo:", err); setResultModal({ open: true, success: false, title: 'Error', message: err.message || 'No se pudo crear el dispositivo' }); });
   };
 
   // Al crear o modificar un detalle, debes enviar el campo repuesto_proveedor_id (no cuitProveedor/codigoRepuesto) al backend.
@@ -1568,6 +1631,11 @@ function Ordenes() {
                               <button className="btn btn-sm btn-dorado fw-bold me-1" style={{ padding: '0.25rem .5rem', fontSize: '0.85rem' }} onClick={() => handleMarcarRetirada(o.nroDeOrden)}>
                                 <i className="bi bi-box-arrow-in-right me-1"></i>Marcar retirada
                               </button>
+                              {isSalesAdmin && !isTecnico && (
+                                <button className="btn btn-sm btn-rojo fw-bold me-1" onClick={() => handleGenerarComprobante(o.nroDeOrden)}>
+                                  <i className="bi bi-file-earmark-pdf me-1"></i>Emitir comprobante
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ) : (
@@ -1778,8 +1846,8 @@ function Ordenes() {
                     {/* En modo consulta ya no mostramos botones de aceptar/rechazar presupuesto (se maneja desde el modal de presupuesto) */}
                   </fieldset>
 
-                  {/* Sección Emitir: mostrar SOLO cuando NO estamos en modo 'modificar' */}
-                  {modalModo !== 'modificar' && (
+                  {/* Sección Emitir: mostrar SOLO cuando NO estamos en modo 'consultar' (no mostrar en la vista de consulta) */}
+                  {modalModo !== 'consultar' && !(isSalesAdmin && isRetiroEstado(form.estado)) && (
                     <fieldset className="mt-4">
                       <legend>Emitir comprobante</legend>
                       <div className="form-check form-switch mb-2">
@@ -2133,7 +2201,7 @@ function Ordenes() {
                 <div className="modal-footer">
                   <button type="button" className="btn btn-dorado" onClick={handleModalClose}>Cerrar</button>
                   {/* Botón para comprobante de retiro: sólo visible en modo 'consultar' si hay fechaInicioRetiro o estado PendienteDeRetiro/Retirada */}
-                  {modalModo === 'consultar' && isRetiroEstado(form.estado) && !isTecnico && (
+                  {modalModo === 'consultar' && isRetiroEstado(form.estado) && !isTecnico && !isSalesAdmin && (
                     <button type="button" className="btn btn-sm btn-rojo fw-bold me-2" onClick={() => handleGenerarComprobante(form.nroDeOrden)}>
                       <i className="bi bi-file-earmark-pdf me-1"></i>Comprobante de retiro
                     </button>
@@ -2493,6 +2561,14 @@ function Ordenes() {
           </div>
         </div>
       )}
+      {/* Result modal for showing success/error feedback after actions */}
+      <ResultModal
+        open={resultModal.open}
+        success={resultModal.success}
+        title={resultModal.title}
+        message={resultModal.message}
+        onClose={() => setResultModal(prev => ({ ...prev, open: false }))}
+      />
     </div>
   );
 }

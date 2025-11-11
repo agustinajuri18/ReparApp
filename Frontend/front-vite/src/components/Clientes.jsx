@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from 'react-dom';
 import MenuLateral from './MenuLateral';
 import ConfirmModal from './ConfirmModal';
+import ResultModal from './ResultModal';
 import { usePermission } from '../auth/PermissionContext';
 import { hasPermission } from '../utils/permissions';
 
@@ -147,7 +148,10 @@ export default function Clientes() {
     try {
       const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const j = await res.json().catch(() => ({}));
-      setMensaje(j.mensaje || j.error || ''); setModalVisible(false); fetchClientes();
+      const resultMessage = j.mensaje || j.error || '';
+      setMensaje(resultMessage);
+      setResultModal({ open: true, success: res.ok, title: res.ok ? 'Cliente creado' : 'Error', message: resultMessage || (res.ok ? 'Cliente creado correctamente.' : 'Ocurrió un error') });
+      setModalVisible(false); fetchClientes();
     } catch (err) { console.warn(err); setMensaje('Error de conexión'); }
   };
 
@@ -158,6 +162,7 @@ export default function Clientes() {
       const res = await fetch(`${API_URL}/${editId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const j = await res.json().catch(() => ({}));
       if (res.ok) { setModalVisible(false); setEditId(null); fetchClientes(); } else { setMensaje(j.error || j.mensaje || 'Error desconocido'); }
+      setResultModal({ open: true, success: res.ok, title: res.ok ? 'Cliente actualizado' : 'Error', message: j.mensaje || j.error || (res.ok ? 'Cliente actualizado correctamente.' : 'Error al actualizar cliente.') });
     } catch (err) { console.warn(err); setMensaje('Error de conexión'); }
   };
 
@@ -168,6 +173,7 @@ export default function Clientes() {
   const confirmDeleteClienteCancel = () => setConfirmDeleteCliente({ open: false, id: null });
 
   const [bloqueoModal, setBloqueoModal] = useState({ open: false, message: '' });
+  const [resultModal, setResultModal] = useState({ open: false, success: true, title: '', message: '' });
 
   const confirmDeleteClienteConfirm = async () => {
     const id = confirmDeleteCliente.id;
@@ -178,6 +184,7 @@ export default function Clientes() {
       if (res.ok) {
         setMensaje('Cliente eliminado');
         fetchClientes();
+        setResultModal({ open: true, success: true, title: 'Cliente eliminado', message: 'El cliente fue eliminado correctamente.' });
       } else if (res.status === 400 && resultado.error) {
         setBloqueoModal({ open: true, message: resultado.error });
       } else {
@@ -185,6 +192,7 @@ export default function Clientes() {
       }
     } catch (err) {
       console.warn(err); setMensaje('Error de conexión');
+        setResultModal({ open: true, success: false, title: 'Error', message: 'Error de conexión al eliminar cliente.' });
     } finally {
       setConfirmDeleteCliente({ open: false, id: null });
     }
@@ -310,6 +318,7 @@ export default function Clientes() {
 
   <ConfirmModal open={confirmDeleteCliente.open} title="Confirmar eliminación" message="¿Estás seguro de eliminar este cliente?" onCancel={confirmDeleteClienteCancel} onConfirm={confirmDeleteClienteConfirm} />
   <ConfirmModal open={bloqueoModal.open} title="No se puede eliminar" message={bloqueoModal.message} onCancel={() => setBloqueoModal({ open: false, message: '' })} onConfirm={() => setBloqueoModal({ open: false, message: '' })} />
+  <ResultModal open={resultModal.open} title={resultModal.title} message={resultModal.message} success={resultModal.success} onClose={() => setResultModal(prev => ({ ...prev, open: false }))} />
     </div>
   );
 }
