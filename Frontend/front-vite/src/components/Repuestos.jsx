@@ -543,16 +543,19 @@ function Repuestos() {
                             </div>
                             <div className="col-sm-6">
                               <label>Costo</label>
-                              <input 
-                                type="number" 
-                                className="form-control" 
-                                value={p.costo ?? ''} 
-                                onChange={e => handleProveedorChange(idx, "costo", e.target.value)} 
-                                required 
-                                min="0" 
-                                step="0.01" 
-                                disabled={modalModo === 'consultar'}
-                              />
+                              <div className="input-group align-items-center">
+                                <span className="input-group-text" style={{ width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>$</span>
+                                <input 
+                                  type="number" 
+                                  className="form-control" 
+                                  value={p.costo ?? ''} 
+                                  onChange={e => handleProveedorChange(idx, "costo", e.target.value)} 
+                                  required 
+                                  min="0" 
+                                  step="0.01" 
+                                  disabled={modalModo === 'consultar'}
+                                />
+                              </div>
                             </div>
                             {/* cantidad removed: not tracked in local stock */}
                             {modalModo !== 'consultar' && (

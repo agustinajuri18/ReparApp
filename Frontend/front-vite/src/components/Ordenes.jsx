@@ -98,10 +98,6 @@ function Ordenes() {
 
   const [modalMensaje, setModalMensaje] = useState(null);
   const [modalMensajeGlobal, setModalMensajeGlobal] = useState(null);
-  const [emitirMode, setEmitirMode] = useState(false);
-  const [emitirDestinatario, setEmitirDestinatario] = useState('');
-  const [emitirCaption, setEmitirCaption] = useState('');
-  const [isSending, setIsSending] = useState(false);
   const [isSavingOrden, setIsSavingOrden] = useState(false);
   const [isMarkingAbandoned, setIsMarkingAbandoned] = useState(false);
   const [showMarkAbandonedModal, setShowMarkAbandonedModal] = useState(false);
@@ -681,14 +677,7 @@ function Ordenes() {
         // data puede ser el detalle completo
         if (data) {
           setForm(prev => ({ ...prev, fechaInicioRetiro: data.fechaInicioRetiro || prev.fechaInicioRetiro, estado: data.estado || prev.estado }));
-          // intentar prellenar el teléfono destinatario si está disponible
-          try {
-            const cliente = data.cliente || (data.dispositivo && data.dispositivo.cliente) || null;
-            const telefono = cliente && (cliente.telefono || cliente.telefonoCelular || cliente.telefonoContacto || cliente.mail) || null;
-            if (telefono) setEmitirDestinatario(String(telefono).replace(/[^0-9]/g, ''));
-          } catch (e) {
-            // no crítico
-          }
+          // Prefill de campos de UI de envío removido (no se setean destinatarios desde aquí)
         }
       })
       .catch(err => {
@@ -1846,122 +1835,7 @@ function Ordenes() {
                     {/* En modo consulta ya no mostramos botones de aceptar/rechazar presupuesto (se maneja desde el modal de presupuesto) */}
                   </fieldset>
 
-                  {/* Sección Emitir: mostrar SOLO cuando NO estamos en modo 'consultar' (no mostrar en la vista de consulta) */}
-                  {modalModo !== 'consultar' && !(isSalesAdmin && isRetiroEstado(form.estado)) && (
-                    <fieldset className="mt-4">
-                      <legend>Emitir comprobante</legend>
-                      <div className="form-check form-switch mb-2">
-                        <input className="form-check-input" type="checkbox" id="emitirSwitch" checked={emitirMode} onChange={e => setEmitirMode(e.target.checked)} />
-                        <label className="form-check-label" htmlFor="emitirSwitch">Activar opciones de envío</label>
-                      </div>
-                      {emitirMode && (
-                        <div>
-                          <div className="mb-2">
-                            <label>Destinatario (WhatsApp número en formato internacional, sin +)</label>
-                            <input className="form-control" value={emitirDestinatario} onChange={e => setEmitirDestinatario(e.target.value)} placeholder="549351XXXXXXX" disabled={emitirMode} readOnly={emitirMode} />
-                          </div>
-                          <div className="mb-3">
-                            <label>Mensaje (caption)</label>
-                            <input className="form-control" value={emitirCaption} onChange={e => setEmitirCaption(e.target.value)} placeholder={`Comprobante Orden ${form.nroDeOrden}`} />
-                          </div>
-
-                          <div className="d-flex gap-2">
-                            <button type="button" className="btn btn-success" disabled={isSending || !emitirDestinatario} onClick={async () => {
-                              setIsSending(true);
-                              setModalMensaje({ tipo: 'info', texto: 'Verificando conexión con el servidor...' });
-                              try {
-                                // 1) ping backend to detect network/CORS problems early
-                                const pingResp = await fetch('http://localhost:5000/ping', { method: 'GET' });
-                                if (!pingResp.ok) {
-                                  const txt = await pingResp.text().catch(() => '');
-                                  throw new Error(`Ping falló: HTTP ${pingResp.status} ${txt}`);
-                                }
-                              } catch (pingErr) {
-                                console.error('Ping al backend falló:', pingErr);
-                                setModalMensaje({
-                                  tipo: 'danger',
-                                  texto: 'No se pudo conectar con el backend. Verificá que el servidor esté corriendo en http://localhost:5000 y que no haya bloqueos CORS o de red. (' + (pingErr.message || String(pingErr)) + ')'
-                                });
-                                setIsSending(false);
-                                return;
-                              }
-
-                              setModalMensaje({ tipo: 'info', texto: 'Enviando por WhatsApp...' });
-                              try {
-                                const resp = await fetch(`${API_URL}/${form.nroDeOrden}/pdf/send`, {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ destinatario: emitirDestinatario, caption: emitirCaption || `Comprobante Orden ${form.nroDeOrden}` })
-                                });
-
-                                let data = null;
-                                try { data = await resp.json(); } catch (e) { data = null; }
-
-                                if (!resp.ok) {
-                                  console.error('Envío WhatsApp error HTTP:', resp.status, data);
-                                  setModalMensaje({ tipo: 'danger', texto: 'Error al enviar por WhatsApp: ' + (data?.error || `HTTP ${resp.status}`) });
-                                } else {
-                                  console.log('Envío WhatsApp OK:', data);
-                                  setModalMensaje({ tipo: 'success', texto: 'PDF enviado por WhatsApp correctamente.' });
-                                }
-                              } catch (err) {
-                                // network/CORS failure
-                                console.error('Error enviando WhatsApp (fetch):', err);
-                                setModalMensaje({ tipo: 'danger', texto: 'Error al enviar por WhatsApp: fallo de red o CORS. Revisá la consola del navegador para más detalles. (' + (err.message || String(err)) + ')' });
-                              } finally {
-                                setIsSending(false);
-                              }
-                            }}>
-                              {isSending ? 'Enviando...' : 'Enviar por WhatsApp'}
-                            </button>
-
-                            <button type="button" className="btn btn-secondary" disabled={isSending} onClick={async () => {
-                              setIsSending(true);
-                              setModalMensaje({ tipo: 'info', texto: 'Verificando conexión con el servidor...' });
-                              try {
-                                const pingResp = await fetch('http://localhost:5000/ping', { method: 'GET' });
-                                if (!pingResp.ok) {
-                                  const txt = await pingResp.text().catch(() => '');
-                                  throw new Error(`Ping falló: HTTP ${pingResp.status} ${txt}`);
-                                }
-                              } catch (pingErr) {
-                                console.error('Ping al backend falló (email):', pingErr);
-                                setModalMensaje({ tipo: 'danger', texto: 'No se pudo conectar con el backend. Verificá que el servidor esté corriendo en http://localhost:5000 y que no haya bloqueos CORS o de red. (' + (pingErr.message || String(pingErr)) + ')' });
-                                setIsSending(false);
-                                return;
-                              }
-
-                              setModalMensaje({ tipo: 'info', texto: 'Enviando por Email...' });
-                              try {
-                                const resp = await fetch(`${API_URL}/${form.nroDeOrden}/pdf/send_email`, {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  // No body required: backend intentará usar el mail del cliente; si querés forzar, pasar { email: 'x@y' }
-                                  body: JSON.stringify({})
-                                });
-
-                                let data = null;
-                                try { data = await resp.json(); } catch (e) { data = null; }
-
-                                if (!resp.ok) {
-                                  console.error('Envío Email error HTTP:', resp.status, data);
-                                  setModalMensaje({ tipo: 'danger', texto: 'Error al enviar por Email: ' + (data?.error || `HTTP ${resp.status}`) });
-                                } else {
-                                  console.log('Envío Email OK:', data);
-                                  setModalMensaje({ tipo: 'success', texto: 'PDF enviado por Email correctamente.' });
-                                }
-                              } catch (err) {
-                                console.error('Error enviando Email (fetch):', err);
-                                setModalMensaje({ tipo: 'danger', texto: 'Error al enviar por Email: fallo de red o CORS. Revisá la consola del navegador para más detalles. (' + (err.message || String(err)) + ')' });
-                              } finally {
-                                setIsSending(false);
-                              }
-                            }}>Enviar por Email</button>
-                          </div>
-                        </div>
-                      )}
-                    </fieldset>
-                  )}
+                  {/* Emitir comprobante UI fue removida */}
 
                   <fieldset className="mt-4">
                     <div className="d-flex justify-content-between align-items-center mb-2">
