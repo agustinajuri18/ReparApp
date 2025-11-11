@@ -1759,7 +1759,18 @@ function Ordenes() {
                       )}
                       <div className="col-md-4">
                         <label>Presupuesto Total</label>
-                        <input type="number" name="presupuesto" value={form.presupuesto} className={`form-control ${modalModo === 'consultar' ? 'readonly-field' : ''}`} readOnly />
+                        {modalModo === 'consultar' ? (
+                          <div className="input-group">
+                            <span className="input-group-text">$</span>
+                            <input type="text" className="form-control readonly-field" value={String(form.presupuesto ?? 0)} readOnly />
+                          </div>
+                        ) : (
+                          <div className="input-group">
+                            <span className="input-group-text">$</span>
+                            <input type="number" name="presupuesto" value={form.presupuesto} onChange={handleFormChange} className="form-control" min="0" step="0.01" />
+                          </div>
+                        )}
+                        {formErrors.presupuesto && <div className="input-error-message">{formErrors.presupuesto}</div>}
                       </div>
                     </div>
 
